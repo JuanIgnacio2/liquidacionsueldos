@@ -18,7 +18,7 @@ function Login() {
   return (
     <div className={styles.loginContainer}>
       <form onSubmit={handleSubmit} className={styles.loginForm}>
-        <h2>Iniciar Sesión</h2>
+        <h2>Cooperativa de Ahorro y Crédito</h2>
         <input
           type="text"
           placeholder="Usuario"
