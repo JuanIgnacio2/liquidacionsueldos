@@ -1,0 +1,109 @@
+.modalContainer {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.modalTitle {
+  color: #004d1a;
+  font-size: 1.8rem;
+  text-align: center;
+  margin-bottom: 2rem;
+  font-weight: 600;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.95rem;
+  }
+
+  input, select {
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+
+    &:focus {
+      outline: none;
+      border-color: #00a816;
+      box-shadow: 0 0 0 2px rgba(0, 168, 22, 0.1);
+    }
+
+    &::placeholder {
+      color: #999;
+    }
+  }
+
+  select {
+    cursor: pointer;
+    background-color: white;
+  }
+}
+
+.submitButton {
+  background-color: #00a816;
+  color: white;
+  padding: 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 1rem;
+
+  &:hover {
+    background-color: #008a13;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+}
+
+// Diseño responsive
+@media (max-width: 768px) {
+  .modalContainer {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+
+  .modalTitle {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .formGroup {
+    gap: 0.4rem;
+
+    input, select {
+      padding: 0.7rem;
+    }
+  }
+
+  .submitButton {
+    padding: 0.8rem;
+  }
+}
