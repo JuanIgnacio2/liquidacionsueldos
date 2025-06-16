@@ -1,0 +1,181 @@
+.employeesContainer {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #004d1a 0%, #00a816 100%);
+    position: relative;
+}
+
+.mainContent {
+  padding: 2rem;
+  margin-top: 80px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sectionContainer {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+}
+
+.contentBox {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+
+  h2 {
+    color: #fff;
+    font-size: 1.8rem;
+  }
+
+  .addButton {
+    padding: 0.7rem 1.2rem;
+    background-color: #ffffff;
+    color: #004d1a;
+    font-weight: 600;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.3s;
+
+    &:hover {
+      background-color: #e1ffe1;
+    }
+  }
+}
+
+.employeesTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+  th, td {
+    padding: 1rem;
+    text-align: left;
+  }
+
+  th {
+    background-color: #004d1a;
+    color: white;
+  }
+
+  tr:nth-child(even) {
+    background-color: #f8f8f8;
+  }
+
+  tr:hover {
+    background-color: #e9fbe9;
+  }
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+}
+
+.employeeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+
+  label {
+    font-weight: 600;
+    color: #333;
+  }
+
+  input {
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+
+    &:focus {
+      outline: none;
+      border-color: #00a816;
+    }
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+
+    button {
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+
+      &.save {
+        background-color: #00a816;
+        color: white;
+      }
+
+      &.cancel {
+        background-color: #ccc;
+        color: #333;
+      }
+
+      &.edit {
+      background-color: #007bff;
+      color: white;
+      }
+
+      &.delete {
+        background-color: #dc3545;
+        color: white;
+      }
+
+      &:hover {
+        opacity: 0.9;
+      }
+    }
+  }
+}
+
+// Diseño responsive
+@media (max-width: 768px) {
+  .mainContent {
+    padding: 1rem;
+    margin-top: 60px;
+  }
+
+  .sectionContainer {
+    padding: 1rem;
+  }
+
+  .employeesTable {
+    font-size: 0.9rem;
+
+    th, td {
+      padding: 0.6rem;
+    }
+  }
+}

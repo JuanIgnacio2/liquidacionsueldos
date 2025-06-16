@@ -5,6 +5,7 @@ import Liquidaciones from './Pages/Liquidaciones/Liquidaciones';
 import LuzFuerza from './Components/ModalLiquidaciones/Luz-Fuerza/LuzFuerza';
 import Uocra from './Components/ModalLiquidaciones/Uocra/Uocra';
 import PanelDeControl from './Pages/PanelDeControl/PanelDeControl';
+import Employees from './Pages/Employees/Employees';
 import './App.css';
 
 function App() {
@@ -21,15 +22,13 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/inicio" element={<Inicio />} />
+        <Route path="/Empleados" element={<Employees />} />
         <Route path="/Luz y fuerza" element={<Liquidaciones />} />
         <Route path="/Uocra" element={<Liquidaciones />} />
         <Route path="/Historial" element={<Liquidaciones />} />
         <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="/PanelDeControl" element={<PanelDeControl/>} />
-                
+        <Route path="/PanelDeControl" element={<PanelDeControl/>} />      
       </Routes>
-      <LuzFuerza onSubmit={handleSubmitLuzFuerza} />
-      <Uocra onSubmit={handleSubmitUocra} />
     </Router>
   );
 }

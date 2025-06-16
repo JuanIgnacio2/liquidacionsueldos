@@ -62,6 +62,12 @@ function Header() {
           >
             Convenios
           </button>
+          <button
+            onClick={() => navigate('/Empleados')}
+            className={styles.navButton}
+          >
+            Empleados
+          </button>
           <button 
             onClick={() => navigate('/panel-control')}
             className={styles.navButton}
