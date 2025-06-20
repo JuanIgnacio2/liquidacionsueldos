@@ -1,72 +1,218 @@
-import { useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import styles from './Liquidaciones.module.scss';
 import Header from '../../Components/Header/Header';
-import LuzFuerza from '../../Components/ModalLiquidaciones/Luz-Fuerza/LuzFuerza';
-import Uocra from '../../Components/ModalLiquidaciones/Uocra/Uocra';
+import { 
+  getEmpleadoByLegajo, 
+  getCategoriaById, 
+  getPorcentajeArea,
+  guardarLiquidacion
+} from '../../services/empleadosAPI';
+import { AnimatePresence } from 'framer-motion';
+import ConceptModal from '../../Components/ConceptModal/ConceptModal'
 
 function Liquidaciones() {
-  const location = useLocation();
-  const currentPath = location.pathname.slice(1);
+  /*STATE*/
+  const [legajoInput, setLegajoInput] = useState('');
+  const [empleado, setEmpleado] = useState(null);
+  const [conceptos, setConceptos] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [periodo, setPeriodo] = useState(
+    new Date().toISOString().slice(0,7)
+  );
 
-  const handleSubmitLuzFuerza = (data) => {
-    console.log('Datos de Luz y Fuerza:', data);
-    // Aquí puedes manejar el envío de datos de Luz y Fuerza
-  };
+  const calcTotal = (lista) =>
+    lista.reduce(
+    (s, c) => s + (c.tipo === 'DESCUENTO' ? -c.total : c.total),
+    0
+  );
 
-  const handleSubmitUocra = (data) => {
-    console.log('Datos de UOCRA:', data);
-    // Aquí puedes manejar el envío de datos de UOCRA
-  };
-
-  const renderContent = () => {
-    switch(currentPath) {
-      case 'Luz y fuerza':
-        return (
-          <div className={styles.sectionContainer}>
-            <div className={styles.contentBox}>
-              <LuzFuerza onSubmit={handleSubmitLuzFuerza} />
-            </div>
-          </div>
-        );
+  /*HANDLERS*/
+  const handleBuscar = async () => {
+    if(!legajoInput) return;
+    try{
+      /*Buscar empleado*/
+      const emp = await getEmpleadoByLegajo(legajoInput);
+      setEmpleado(emp);
+      /*Cargar básico de la categoría como primer concepto*/
+      const categoria = await getCategoriaById(emp.idCategoria);
+      const basico = {
+        id: emp.idCategoria,
+        tipo: 'CATEGORIA', 
+        nombre: `Básico ${categoria.nombre}`,
+        montoUnitario: categoria.basico,
+        cantidad: 1,
+        total: categoria.basico ?? 0,
+      };
+      /*Boinificación área*/
+      const porcentaje = await getPorcentajeArea(emp.idArea, emp.idCategoria);
+      const bonoImporte = (categoria.basico * Number(porcentaje))/100;
       
-      case 'Uocra':
-        return (
-          <div className={styles.sectionContainer}>
-            <div className={styles.contentBox}>
-              <Uocra onSubmit={handleSubmitUocra} />
-            </div>
-          </div>
-        );
+      const bonoConcepto = {
+        id: 1,
+        tipo: 'BONIFICACION_VARIABLE',
+        nombre: `Bono de Área ${emp.nombreArea}`,
+        montoUnitario: bonoImporte,
+        cantidad: 1,
+        total: bonoImporte ?? 0,
+      };
 
-      case 'Historial':
-        return (
-          <div className={styles.sectionContainer}>
-            <h2>Historial de Liquidaciones</h2>
-            <div className={styles.contentBox}>
-              <div className={styles.historialList}>
-                <p>Historial de liquidaciones realizadas</p>
-              </div>
-            </div>
-          </div>
-        );  
+      /*Agregar conceptos y total*/
+      const lista = [basico, bonoConcepto];
+      setConceptos(lista);
+      setTotal(calcTotal(lista));
+    }catch(err){
+      alert('Empleado no encontrado');
+      setEmpleado(null);
+      setConceptos([]);
+      setTotal(0);
+    }
+  };
 
-      default:
-        return (
-          <div className={styles.sectionContainer}>
-            <div className={styles.contentBox}>
-              <LuzFuerza onSubmit={handleSubmitLuzFuerza} />
-            </div>
-          </div>
-        );
+  const handleQtyChange = (index, nuevaCantidad) => {
+    const nuevos = [...conceptos];
+    nuevos[index].cantidad = nuevaCantidad;
+    nuevos[index].total = nuevos[index].montoUnitario * nuevaCantidad;
+    setConceptos(nuevos);
+    setTotal(calcTotal(nuevos));
+  };
+
+  const handleAddConcepto = () => {
+    setModalOpen(true);
+  };
+
+  const handleConfirmConeptos = (nuevos) => {
+    const lista = [...conceptos, ...nuevos];
+    setConceptos(lista);
+    setTotal(calcTotal(lista));
+  };
+
+  const handleGuardar = async () => {
+    if (!empleado) return;
+
+    const payload = {
+      legajo: empleado.legajo,
+      periodoPago: periodo,
+      conceptos: conceptos.map((c) => ({
+        tipoConcepto: c.tipo,
+        idReferencia: 1,
+        unidades: c.cantidad,
+      })),
+    };
+    console.log('DTO que envío:', JSON.stringify(payload, null, 2));
+
+    try {
+      const pago = await guardarLiquidacion(payload);
+      alert(`Liquidación guardada (ID pago: ${pago.idPago})`);
+    } catch (err) {
+      alert('Error al guardar liquidación: ' + err.message);
     }
   };
 
   return (
     <div className={styles.liquidacionesContainer}>
       <Header />
-      <main className={styles.mainContent}>
-        {renderContent()}
-      </main>
+      
+      {/*BUSCADOR Y PERIODO*/}
+      <section className={styles.sectionContainer}>
+        <h2>Liquidacion Luz y Fuerza</h2>
+
+        <div className={styles.searchRow}>
+            <input 
+              type="number"
+              placeholder='Legajo'
+              value={legajoInput}
+              onChange={(e) => setLegajoInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
+            />
+            <input
+              type="month"
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value)}
+            />
+            <button onClick={handleBuscar}>Buscar</button>
+        </div>
+
+        {/*DATOS DEL EMPLEADO*/}
+        {empleado && (
+          <div className={styles.empleadBox}>
+            <p><strong>Legajo:</strong> {empleado.legajo}</p>
+            <p><strong>Nombre:</strong> {empleado.nombre} {empleado.apellido}</p>
+            <p><strong>CUIL:</strong> {empleado.cuil}</p>
+            <p><strong>Inicio actividad:</strong> {empleado.inicioActividad}</p>
+            <p><strong>Categoria:</strong> {empleado.categoria}</p>
+            <p><strong>Área:</strong> {empleado.area}</p>
+            <p><strong>Banco:</strong> {empleado.banco}</p>
+            <p><strong>Gremio:</strong> {empleado.gremio}</p>
+            <p><strong>Sexo:</strong> {empleado.sexo}</p>
+          </div>
+        )}
+
+        {/*TABLA DE CONCEPTOS*/}
+        {conceptos.length > 0 && (
+          <>
+            <table className={styles.conceptosTable}>
+              <thead>
+                <tr>
+                  <th>Concepto</th>
+                  <th>Monto Unitario</th>
+                  <th>Cantidad</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conceptos.map((c,idx)=>(
+                  <tr key={idx}>
+                    <td>{c.nombre}</td>
+                    <td>${c.montoUnitario.toFixed(2)}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="1"
+                        values={c.cantidad}
+                        onChange={(e)=>
+                          handleQtyChange(idx, Number(e.target.value))
+                        }
+                        className={styles.qtyInput}
+                      />
+                    </td>
+                    <td>
+                      {c.tipo === 'DESCUENTO' && '-'}$
+                      {Number(c.total || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/*TOTAL SUELDO*/}
+            <div className={styles.totalRow}>
+                <span>Total: </span>
+                <span>${total.toFixed(2)}</span>
+            </div>
+
+            {/*BOTONES*/}
+            <div className={styles.actionRow}>
+              <button className={styles.addConceptoBtn} onClick={handleAddConcepto}>
+                + Añadir concepto
+              </button>
+              <button className={styles.saveBtn} onClick={handleGuardar}>
+                Guardar liquidación
+              </button>
+            </div>
+
+            {/*MODAL*/}
+            <AnimatePresence>
+              {modalOpen && (
+                <ConceptModal
+                  onClose={()=>setModalOpen(false)}
+                  onConfirm={handleConfirmConeptos}
+                />
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </section>
     </div>
   );
 }

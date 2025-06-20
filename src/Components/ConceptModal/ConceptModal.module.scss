@@ -1,0 +1,65 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.8rem;
+  width: 90%;
+  max-width: 600px;
+}
+
+.selectorRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+
+  select, button {
+    padding: 0.6rem;
+    font-size: 1rem;
+  }
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  color: #000;
+  
+  th, td {
+    padding: 0.6rem;
+    border: 1px solid #00a816;
+    text-align: left;
+  }
+
+  input {
+    width: 70px;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+
+  .accept {
+    background: #00a816;
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+
+    &:disabled {
+      background: #bbb;
+      cursor: not-allowed;
+    }
+  }
+}
