@@ -24,36 +24,40 @@ function Convenios(){
     return(
         <div className={styles.conveniosContainer}>
             <Header/>
-            <h2>Convenios Luz y fuerza</h2>
-            <table className={styles.conveniosTable}>
-                <thead>
-                    <tr>
-                        <th rowSpan="2">Categoría</th>
-                        <th rowSpan="2">Básico</th>
-                        <th colSpan={areas.length}>Bonificacion áreas</th>
-                    </tr>
-                    <tr>
-                        {areas.map(area =>(
-                            <th key={area}>{area}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {convenios.map((fila, idx) =>(
-                        <tr key={idx}>
-                            <td>{fila.nombreCategoria}</td>
-                            <td>${Number(fila.basico)}</td>
+            <main className={styles.mainContent}>
+                <div className={styles.headerRow}>
+                    <h2>Convenios Luz y fuerza</h2>
+                </div>
+                <table className={styles.conveniosTable}>
+                    <thead>
+                        <tr>
+                            <th rowSpan="2">Categoría</th>
+                            <th rowSpan="2">Básico</th>
+                            <th colSpan={areas.length}>Bonificacion áreas</th>
+                        </tr>
+                        <tr>
                             {areas.map(area =>(
-                                <td key={area}>
-                                    {fila.montosPorArea[area] 
-                                    ? `$${Number(fila.montosPorArea[area]).toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
-                                    : ''}
-                                </td>
+                                <th key={area}>{area}</th>
                             ))}
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {convenios.map((fila, idx) =>(
+                            <tr key={idx}>
+                                <td>{fila.nombreCategoria}</td>
+                                <td>${Number(fila.basico)}</td>
+                                {areas.map(area =>(
+                                    <td key={area}>
+                                        {fila.montosPorArea[area] 
+                                        ? `$${Number(fila.montosPorArea[area]).toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
+                                        : ''}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </main>
         </div>
     );
 }

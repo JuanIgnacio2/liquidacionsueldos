@@ -11,6 +11,8 @@ function Employees(){
     const [error, setError] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [current, setCurrent] = useState(null);
+    const [search, setSearch] = useState ('');
+    const [filtered, setFiltered] = useState('');
 
     const loadEmployees = async () => {
         try {
@@ -26,6 +28,16 @@ function Employees(){
     };
 
     useEffect(() => {loadEmployees();}, []);
+
+    useEffect(() =>{
+        const lower = search.toLowerCase();
+        setFiltered(
+            employees.filter(e=>
+                e.legajo.toString().includes(search) ||
+            `${e.nombre} ${e.apellido}`.toLowerCase().includes(lower)
+            )
+        );
+    },[search, employees]);
 
     const handleSave = async (dto) => {
         try{
@@ -49,9 +61,15 @@ function Employees(){
             <main className={styles.mainContent}>
                 <section className={styles.sectionContainer}>
                     <div className={styles.contentBox}>
-                        <div className={styles.headerRow}>
                             <h2>Empleados</h2>
-
+                        <div className={styles.headerRow}>
+                            <input
+                                className={styles.searchInput}
+                                type="text" 
+                                placeholder="Buscar por legajo o nombre..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
                             <button
                                 className={styles.addButton}
                                 onClick={() => { setCurrent(null); setModalOpen(true); }}
@@ -75,8 +93,11 @@ function Employees(){
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {employees.map((e) =>(
-                                        <tr key={e.legajo}>
+                                    {filtered.map((e) =>(
+                                        <tr key={e.legajo}
+                                            className={styles.clickTableRow}
+                                            onClick={()=>{ setCurrent(e); setModalOpen(true); }}
+                                            >
                                             <td>{e.legajo}</td>
                                             <td>{`${e.nombre} ${e.apellido}`}</td>
                                             <td>{e.cuil}</td>
@@ -84,7 +105,7 @@ function Employees(){
                                             <td>{e.domicilio}</td>
                                             <td>{e.banco}</td>
                                             <td>{e.categoria}</td>
-                                            <td>{e.gremio}</td>
+                                            <td>{e.gremio === 'LUZ_Y_FUERZA' ? 'Luz y Fuerza' : e.gremio}</td>
                                             <td>
                                                 <div className={styles.actions}>
                                                     <button
@@ -92,12 +113,6 @@ function Employees(){
                                                         onClick={() => {setCurrent(e); setModalOpen(true);}}
                                                     >
                                                         ✏️
-                                                    </button>
-                                                    <button
-                                                        className={`${styles.delete}`}
-                                                        onClick={() => handleDelete(e.legajo)}
-                                                    >
-                                                        🗑️
                                                     </button>
                                                 </div>
                                             </td>

@@ -1,12 +1,26 @@
 .conveniosContainer {
-  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #004d1a 0%, #00a816 100%);
+  position: relative;
 }
 
-h2 {
-  margin-bottom: 1rem;
-  font-size: 1.6rem;
-  font-weight: 600;
-  color: #333;
+.mainContent {
+  padding: 2rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+
+  h2 {
+    color: #fff;
+    font-size: 1.8rem;
+  }
 }
 
 .conveniosTable {

@@ -20,6 +20,24 @@ function EmployeeModal({initialData, onClose, onSubmit}){
     );
 
     useEffect(() => {
+        if (initialData) {
+            setForm({
+            legajo: initialData.legajo,
+            nombre: initialData.nombre,
+            apellido: initialData.apellido,
+            cuil: initialData.cuil,
+            inicioActividad: initialData.inicioActividad,
+            domicilio: initialData.domicilio || '',
+            banco: initialData.banco || '',
+            categoriaId: String(initialData.idCategoria ?? ''),
+            areaIds: initialData.idAreas ?? [],
+            sexo: initialData.sexo || 'M',
+            gremio: initialData.gremio || 'LUZ_Y_FUERZA',
+            });
+        }
+    }, [initialData]);
+
+    useEffect(() => {
         (async () =>{
             setCategorias(await getCategorias());
             setAreas(await getAreas());
@@ -195,7 +213,7 @@ function EmployeeModal({initialData, onClose, onSubmit}){
                     <div className={styles.formGroup}>
                         <label>Gremio
                         <select name="gremio" value={form.gremio} onChange={handleChange}>
-                            <option value="LUZ_FUERZA">Luz y Fuerza</option>
+                            <option value="LUZ_Y_FUERZA">Luz y Fuerza</option>
                             <option value="UOCRA">UOCRA</option>
                         </select>
                         </label>
