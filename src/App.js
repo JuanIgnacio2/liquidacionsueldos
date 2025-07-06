@@ -25,8 +25,8 @@ function App() {
         <Route path="/inicio" element={<Inicio />} />
         <Route path="/Luz y fuerza" element={<Liquidaciones />} />
         <Route path="/Uocra" element={<Liquidaciones />} />
-        <Route path="/Historial" element={<HistorialPagos />} />
-        <Route path="/Empleados" element={<Employees />} />
+        <Route path="/historial" element={<HistorialPagos />} />
+        <Route path="/empleados" element={<Employees />} />
         <Route path="/convenios" element={<Convenios/>}/>
         <Route path="/PanelDeControl" element={<PanelDeControl/>} />      
       </Routes>

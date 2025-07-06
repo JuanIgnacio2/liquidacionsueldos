@@ -48,7 +48,7 @@ function Header() {
                   Uocra
                 </button>
                 <button 
-                  onClick={() => handleOptionClick('/Historial')} 
+                  onClick={() => handleOptionClick('/historial')} 
                   className={styles.dropdownItem}
                 >
                   Historial
@@ -63,7 +63,7 @@ function Header() {
             Convenios
           </button>
           <button
-            onClick={() => navigate('/Empleados')}
+            onClick={() => navigate('/empleados')}
             className={styles.navButton}
           >
             Empleados
