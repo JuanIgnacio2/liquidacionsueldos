@@ -1,0 +1,256 @@
+@import '../variables';
+@import '../mixins';
+
+.dashboard {
+  padding: $spacing-6;
+  
+  .header {
+    @include flex-between;
+    margin-bottom: $spacing-6;
+    
+    .title-section {
+      h1 {
+        font-size: $font-3xl;
+        font-weight: $font-bold;
+        color: $gray-900;
+        margin: 0 0 $spacing-1 0;
+      }
+      
+      p {
+        color: $gray-600;
+        margin: 0;
+      }
+    }
+    
+    .actions {
+      display: flex;
+      gap: $spacing-3;
+    }
+  }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: $spacing-6;
+    margin-bottom: $spacing-6;
+  }
+  
+  .stat-card {
+    @include card-base;
+    
+    .content {
+      @include card-content;
+      @include flex-between;
+      
+      .icon {
+        width: $spacing-5;
+        height: $spacing-5;
+      }
+      
+      .text {
+        h3 {
+          font-size: $font-sm;
+          font-weight: $font-medium;
+          color: $gray-600;
+          margin: 0 0 $spacing-1 0;
+        }
+        
+        .value {
+          font-size: $font-2xl;
+          font-weight: $font-bold;
+          color: $gray-900;
+          margin: 0 0 $spacing-1 0;
+        }
+        
+        .change {
+          font-size: 0.75rem;
+          color: $gray-500;
+          margin: 0;
+        }
+      }
+    }
+  }
+  
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: $spacing-6;
+    margin-bottom: $spacing-6;
+    
+    @media (min-width: $breakpoint-lg) {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .activity-card, .tasks-card {
+    @include card-base;
+    
+    .header {
+      @include card-header;
+      margin-bottom: 0;
+      
+      h2 {
+        @include card-title;
+        display: flex;
+        align-items: center;
+        
+        .icon {
+          width: $spacing-5;
+          height: $spacing-5;
+          margin-right: $spacing-2;
+          color: $primary-color;
+        }
+      }
+    }
+    
+    .content {
+      @include card-content;
+      padding-top: 0;
+    }
+  }
+  
+  .activity-list {
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: $spacing-3;
+      padding: $spacing-3;
+      border-radius: $radius-lg;
+      transition: $transition-colors;
+      
+      &:hover {
+        background-color: $gray-50;
+      }
+      
+      .status-icon {
+        flex-shrink: 0;
+        margin-top: 0.125rem;
+        
+        .icon {
+          width: $spacing-4;
+          height: $spacing-4;
+        }
+      }
+      
+      .content {
+        flex: 1;
+        min-width: 0;
+        padding: 0;
+        
+        .title {
+          font-size: $font-sm;
+          font-weight: $font-medium;
+          color: $gray-900;
+          margin: 0 0 $spacing-1 0;
+          @extend .truncate;
+        }
+        
+        .meta {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+          margin-top: $spacing-1;
+          
+          .time {
+            font-size: 0.75rem;
+            color: $gray-500;
+          }
+        }
+      }
+    }
+  }
+  
+  .tasks-list {
+    .task-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: $spacing-3;
+      border-radius: $radius-lg;
+      transition: $transition-colors;
+      
+      &:hover {
+        background-color: $gray-50;
+      }
+      
+      .task-content {
+        flex: 1;
+        
+        .title {
+          font-size: $font-sm;
+          font-weight: $font-medium;
+          color: $gray-900;
+          margin: 0 0 $spacing-1 0;
+        }
+        
+        .date {
+          font-size: 0.75rem;
+          color: $gray-500;
+          margin: 0;
+        }
+      }
+      
+      .priority {
+        flex-shrink: 0;
+        margin-left: $spacing-3;
+      }
+    }
+    
+    .view-all {
+      margin-top: $spacing-4;
+      padding-top: $spacing-4;
+      border-top: 1px solid $gray-100;
+    }
+  }
+  
+  .chart-card {
+    @include card-base;
+    
+    .header {
+      @include card-header;
+      
+      h2 {
+        @include card-title;
+        display: flex;
+        align-items: center;
+        
+        .icon {
+          width: $spacing-5;
+          height: $spacing-5;
+          margin-right: $spacing-2;
+          color: $primary-color;
+        }
+      }
+    }
+    
+    .content {
+      @include card-content;
+      
+      .chart-placeholder {
+        height: 16rem;
+        background-color: $gray-100;
+        border-radius: $radius-lg;
+        @include flex-center;
+        flex-direction: column;
+        
+        .icon {
+          width: 3rem;
+          height: 3rem;
+          color: $gray-400;
+          margin-bottom: $spacing-3;
+        }
+        
+        .title {
+          color: $gray-500;
+          margin: 0 0 $spacing-1 0;
+        }
+        
+        .subtitle {
+          font-size: $font-sm;
+          color: $gray-400;
+          margin: 0;
+        }
+      }
+    }
+  }
+}

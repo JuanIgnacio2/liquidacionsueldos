@@ -1,0 +1,302 @@
+@import '../variables';
+@import '../mixins';
+
+.employees {
+  padding: $spacing-6;
+  
+  .header {
+    @include flex-between;
+    margin-bottom: $spacing-6;
+    
+    .title-section {
+      h1 {
+        font-size: $font-3xl;
+        font-weight: $font-bold;
+        color: $gray-900;
+        margin: 0 0 $spacing-1 0;
+      }
+      
+      p {
+        color: $gray-600;
+        margin: 0;
+      }
+    }
+  }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: $spacing-6;
+    margin-bottom: $spacing-6;
+  }
+  
+  .stat-card {
+    @include card-base;
+    
+    .content {
+      @include card-content;
+      display: flex;
+      align-items: center;
+      
+      .icon {
+        width: 2rem;
+        height: 2rem;
+        margin-right: $spacing-4;
+      }
+      
+      .text {
+        .label {
+          font-size: $font-sm;
+          font-weight: $font-medium;
+          color: $gray-600;
+          margin: 0;
+        }
+        
+        .value {
+          font-size: $font-2xl;
+          font-weight: $font-bold;
+          color: $gray-900;
+          margin: 0;
+        }
+      }
+    }
+  }
+  
+  .search-filters {
+    @include card-base;
+    margin-bottom: $spacing-6;
+    
+    .content {
+      @include card-content;
+      display: flex;
+      flex-direction: column;
+      gap: $spacing-4;
+      
+      @media (min-width: $breakpoint-sm) {
+        flex-direction: row;
+      }
+      
+      .search-input-container {
+        flex: 1;
+        position: relative;
+        
+        .search-icon {
+          position: absolute;
+          left: $spacing-3;
+          top: $spacing-3;
+          width: $spacing-4;
+          height: $spacing-4;
+          color: $gray-400;
+        }
+        
+        .search-input {
+          @include input-base;
+          padding-left: 2.5rem;
+        }
+      }
+      
+      .filter-actions {
+        display: flex;
+        gap: $spacing-3;
+      }
+    }
+  }
+  
+  .employees-list {
+    @include card-base;
+    
+    .header {
+      @include card-header;
+      
+      h2 {
+        @include card-title;
+        display: flex;
+        align-items: center;
+        
+        .icon {
+          width: $spacing-5;
+          height: $spacing-5;
+          margin-right: $spacing-2;
+          color: $primary-color;
+        }
+      }
+    }
+    
+    .content {
+      @include card-content;
+      padding-top: 0;
+    }
+  }
+  
+  .employee-item {
+    border: 1px solid $gray-200;
+    border-radius: $radius-lg;
+    padding: $spacing-4;
+    margin-bottom: $spacing-4;
+    transition: $transition-colors;
+    
+    &:hover {
+      background-color: $gray-50;
+    }
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    .employee-header {
+      @include flex-between;
+      margin-bottom: $spacing-3;
+      
+      .employee-info {
+        display: flex;
+        align-items: center;
+        gap: $spacing-4;
+        
+        .avatar {
+          width: 3rem;
+          height: 3rem;
+          background-color: $primary-color;
+          border-radius: $radius-full;
+          @include flex-center;
+          flex-shrink: 0;
+          
+          span {
+            color: $white;
+            font-weight: $font-medium;
+          }
+        }
+        
+        .details {
+          h3 {
+            font-weight: $font-semibold;
+            color: $gray-900;
+            margin: 0 0 $spacing-1 0;
+          }
+          
+          p {
+            font-size: $font-sm;
+            color: $gray-600;
+            margin: 0 0 $spacing-1 0;
+          }
+          
+          .meta {
+            display: flex;
+            align-items: center;
+            gap: $spacing-4;
+            margin-top: $spacing-1;
+            
+            .meta-item {
+              display: flex;
+              align-items: center;
+              font-size: 0.75rem;
+              color: $gray-500;
+              
+              .icon {
+                width: 0.75rem;
+                height: 0.75rem;
+                margin-right: $spacing-1;
+              }
+            }
+          }
+        }
+      }
+      
+      .employee-actions {
+        display: flex;
+        align-items: center;
+        gap: $spacing-6;
+        
+        .salary-info {
+          text-align: right;
+          
+          @media (max-width: $breakpoint-sm) {
+            display: none;
+          }
+          
+          .amount {
+            font-size: $font-sm;
+            font-weight: $font-medium;
+            color: $gray-900;
+            margin: 0;
+          }
+          
+          .label {
+            font-size: 0.75rem;
+            color: $gray-500;
+            margin: 0;
+          }
+        }
+        
+        .status {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+        }
+        
+        .actions {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+          
+          .btn {
+            @include button-ghost;
+            @include button-sm;
+            padding: $spacing-1 + 0.125rem;
+            
+            .icon {
+              width: $spacing-4;
+              height: $spacing-4;
+            }
+            
+            &.delete {
+              color: $red-600;
+              
+              &:hover {
+                color: #b91c1c;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    .employee-contact {
+      margin-top: $spacing-3;
+      padding-top: $spacing-3;
+      border-top: 1px solid $gray-100;
+      
+      .contact-info {
+        display: flex;
+        align-items: center;
+        gap: $spacing-6;
+        font-size: $font-sm;
+        color: $gray-600;
+        
+        .contact-item {
+          display: flex;
+          align-items: center;
+          
+          .icon {
+            width: $spacing-4;
+            height: $spacing-4;
+            margin-right: $spacing-1;
+          }
+        }
+      }
+    }
+  }
+}
+
+.status-badge {
+  &.active {
+    @include badge-success;
+  }
+  
+  &.vacation {
+    @include badge-warning;
+  }
+  
+  &.inactive {
+    @include badge-error;
+  }
+}
