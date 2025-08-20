@@ -1,302 +1,302 @@
-@import '../variables';
-@import '../mixins';
+@import '../main.scss';
 
-.employees {
+.empleados {
   padding: $spacing-6;
-  
-  .header {
-    @include flex-between;
+
+  .empleados-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: $spacing-6;
-    
-    .title-section {
-      h1 {
-        font-size: $font-3xl;
-        font-weight: $font-bold;
-        color: $gray-900;
-        margin: 0 0 $spacing-1 0;
+
+    .header-content {
+      .title {
+        font-size: $font-size-3xl;
+        font-weight: 700;
+        color: $color-gray-900;
+        margin-bottom: $spacing-2;
       }
-      
-      p {
-        color: $gray-600;
-        margin: 0;
+
+      .subtitle {
+        color: $color-gray-500;
       }
     }
-  }
-  
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: $spacing-6;
-    margin-bottom: $spacing-6;
-  }
-  
-  .stat-card {
-    @include card-base;
-    
-    .content {
-      @include card-content;
+
+    .add-employee-btn {
+      background-color: $color-green-primary;
+      color: $color-white;
+      padding: $spacing-2 $spacing-4;
+      border: none;
+      border-radius: $border-radius;
+      font-weight: 500;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      
-      .icon {
-        width: 2rem;
-        height: 2rem;
-        margin-right: $spacing-4;
+      gap: $spacing-2;
+      transition: background-color 0.15s ease;
+
+      &:hover {
+        background-color: $color-green-dark;
       }
-      
-      .text {
-        .label {
-          font-size: $font-sm;
-          font-weight: $font-medium;
-          color: $gray-600;
-          margin: 0;
-        }
-        
-        .value {
-          font-size: $font-2xl;
-          font-weight: $font-bold;
-          color: $gray-900;
-          margin: 0;
-        }
+
+      .btn-icon {
+        width: 1rem;
+        height: 1rem;
       }
     }
   }
-  
-  .search-filters {
-    @include card-base;
+
+  .stats-overview {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: $spacing-4;
     margin-bottom: $spacing-6;
-    
-    .content {
-      @include card-content;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stat-card {
+      padding: $spacing-4;
+
+      .stat-value {
+        font-size: $font-size-2xl;
+        font-weight: 700;
+        margin-bottom: $spacing-1;
+
+        &.success {
+          color: $color-success;
+        }
+
+        &.primary {
+          color: $color-green-primary;
+        }
+
+        &.warning {
+          color: $color-warning;
+        }
+
+        &.default {
+          color: $color-gray-900;
+        }
+      }
+
+      .stat-label {
+        font-size: $font-size-sm;
+        color: $color-gray-500;
+      }
+    }
+  }
+
+  .filters-card {
+    margin-bottom: $spacing-6;
+
+    .filters-content {
+      padding: $spacing-4;
       display: flex;
       flex-direction: column;
       gap: $spacing-4;
-      
-      @media (min-width: $breakpoint-sm) {
+
+      @media (min-width: 768px) {
         flex-direction: row;
       }
-      
-      .search-input-container {
+
+      .search-container {
         flex: 1;
         position: relative;
-        
+
         .search-icon {
+          width: 1rem;
+          height: 1rem;
           position: absolute;
           left: $spacing-3;
-          top: $spacing-3;
-          width: $spacing-4;
-          height: $spacing-4;
-          color: $gray-400;
+          top: 50%;
+          transform: translateY(-50%);
+          color: $color-gray-400;
         }
-        
+
         .search-input {
-          @include input-base;
-          padding-left: 2.5rem;
+          padding-left: 2.25rem;
         }
       }
-      
-      .filter-actions {
+
+      .filter-controls {
         display: flex;
-        gap: $spacing-3;
+        gap: $spacing-2;
+
+        .department-select {
+          padding: $spacing-2 $spacing-3;
+          border: 1px solid $color-gray-300;
+          border-radius: $border-radius;
+          background-color: $color-white;
+          color: $color-gray-900;
+        }
+
+        .filter-btn {
+          background: transparent;
+          border: 1px solid $color-gray-300;
+          color: $color-gray-700;
+          padding: $spacing-2 $spacing-3;
+          border-radius: $border-radius;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: $color-gray-100;
+          }
+
+          .filter-icon {
+            width: 1rem;
+            height: 1rem;
+          }
+        }
       }
     }
   }
-  
+
   .employees-list {
-    @include card-base;
-    
-    .header {
-      @include card-header;
-      
-      h2 {
-        @include card-title;
-        display: flex;
-        align-items: center;
-        
-        .icon {
-          width: $spacing-5;
-          height: $spacing-5;
-          margin-right: $spacing-2;
-          color: $primary-color;
-        }
+    .list-header {
+      .list-title {
+        font-size: $font-size-lg;
+        font-weight: 600;
+        color: $color-gray-900;
+        margin-bottom: $spacing-1;
+      }
+
+      .list-description {
+        font-size: $font-size-sm;
+        color: $color-gray-500;
       }
     }
-    
-    .content {
-      @include card-content;
-      padding-top: 0;
-    }
-  }
-  
-  .employee-item {
-    border: 1px solid $gray-200;
-    border-radius: $radius-lg;
-    padding: $spacing-4;
-    margin-bottom: $spacing-4;
-    transition: $transition-colors;
-    
-    &:hover {
-      background-color: $gray-50;
-    }
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
-    
-    .employee-header {
-      @include flex-between;
-      margin-bottom: $spacing-3;
-      
-      .employee-info {
+
+    .list-content {
+      .employee-list {
         display: flex;
-        align-items: center;
+        flex-direction: column;
         gap: $spacing-4;
-        
-        .avatar {
-          width: 3rem;
-          height: 3rem;
-          background-color: $primary-color;
-          border-radius: $radius-full;
-          @include flex-center;
-          flex-shrink: 0;
-          
-          span {
-            color: $white;
-            font-weight: $font-medium;
+
+        .employee-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: $spacing-4;
+          border: 1px solid $color-gray-200;
+          border-radius: $border-radius-lg;
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: rgba(243, 244, 246, 0.5);
           }
-        }
-        
-        .details {
-          h3 {
-            font-weight: $font-semibold;
-            color: $gray-900;
-            margin: 0 0 $spacing-1 0;
-          }
-          
-          p {
-            font-size: $font-sm;
-            color: $gray-600;
-            margin: 0 0 $spacing-1 0;
-          }
-          
-          .meta {
-            display: flex;
-            align-items: center;
+
+          .employee-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(1, minmax(0, 1fr));
             gap: $spacing-4;
-            margin-top: $spacing-1;
-            
-            .meta-item {
+            align-items: center;
+
+            @media (min-width: 768px) {
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .employee-info {
+              .employee-name {
+                font-weight: 600;
+                color: $color-gray-900;
+                margin-bottom: $spacing-1;
+              }
+
+              .employee-email {
+                font-size: $font-size-sm;
+                color: $color-gray-500;
+              }
+            }
+
+            .employee-position {
+              .position-title {
+                font-weight: 500;
+                margin-bottom: $spacing-1;
+              }
+
+              .department {
+                font-size: $font-size-sm;
+                color: $color-gray-500;
+              }
+            }
+
+            .employee-salary {
+              .salary-amount {
+                font-weight: 600;
+                color: $color-success;
+                margin-bottom: $spacing-1;
+              }
+
+              .hire-date {
+                font-size: $font-size-sm;
+                color: $color-gray-500;
+              }
+            }
+
+            .employee-status {
               display: flex;
               align-items: center;
-              font-size: 0.75rem;
-              color: $gray-500;
-              
-              .icon {
-                width: 0.75rem;
-                height: 0.75rem;
-                margin-right: $spacing-1;
-              }
-            }
-          }
-        }
-      }
-      
-      .employee-actions {
-        display: flex;
-        align-items: center;
-        gap: $spacing-6;
-        
-        .salary-info {
-          text-align: right;
-          
-          @media (max-width: $breakpoint-sm) {
-            display: none;
-          }
-          
-          .amount {
-            font-size: $font-sm;
-            font-weight: $font-medium;
-            color: $gray-900;
-            margin: 0;
-          }
-          
-          .label {
-            font-size: 0.75rem;
-            color: $gray-500;
-            margin: 0;
-          }
-        }
-        
-        .status {
-          display: flex;
-          align-items: center;
-          gap: $spacing-2;
-        }
-        
-        .actions {
-          display: flex;
-          align-items: center;
-          gap: $spacing-2;
-          
-          .btn {
-            @include button-ghost;
-            @include button-sm;
-            padding: $spacing-1 + 0.125rem;
-            
-            .icon {
-              width: $spacing-4;
-              height: $spacing-4;
-            }
-            
-            &.delete {
-              color: $red-600;
-              
-              &:hover {
-                color: #b91c1c;
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    .employee-contact {
-      margin-top: $spacing-3;
-      padding-top: $spacing-3;
-      border-top: 1px solid $gray-100;
-      
-      .contact-info {
-        display: flex;
-        align-items: center;
-        gap: $spacing-6;
-        font-size: $font-sm;
-        color: $gray-600;
-        
-        .contact-item {
-          display: flex;
-          align-items: center;
-          
-          .icon {
-            width: $spacing-4;
-            height: $spacing-4;
-            margin-right: $spacing-1;
-          }
-        }
-      }
-    }
-  }
-}
+              justify-content: space-between;
 
-.status-badge {
-  &.active {
-    @include badge-success;
-  }
-  
-  &.vacation {
-    @include badge-warning;
-  }
-  
-  &.inactive {
-    @include badge-error;
+              .status-badge {
+                display: inline-flex;
+                align-items: center;
+                padding: $spacing-1 $spacing-2;
+                border-radius: $border-radius-sm;
+                font-size: $font-size-xs;
+                font-weight: 500;
+
+                &.active {
+                  background-color: rgba(34, 197, 94, 0.1);
+                  color: $color-green-dark;
+                }
+
+                &.inactive {
+                  background-color: rgba(239, 68, 68, 0.1);
+                  color: #dc2626;
+                }
+
+                &.license {
+                  background-color: rgba(234, 179, 8, 0.1);
+                  color: $color-yellow-dark;
+                }
+              }
+            }
+          }
+
+          .employee-actions {
+            .actions-menu {
+              position: relative;
+
+              .actions-trigger {
+                background: transparent;
+                border: none;
+                padding: $spacing-1;
+                cursor: pointer;
+                border-radius: $border-radius;
+                transition: background-color 0.15s ease;
+
+                &:hover {
+                  background-color: $color-gray-100;
+                }
+
+                .actions-icon {
+                  width: 1rem;
+                  height: 1rem;
+                  color: $color-gray-500;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

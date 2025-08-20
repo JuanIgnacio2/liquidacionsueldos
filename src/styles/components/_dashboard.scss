@@ -1,254 +1,215 @@
-@import '../variables';
-@import '../mixins';
+@import '../main.scss';
 
 .dashboard {
   padding: $spacing-6;
-  
-  .header {
-    @include flex-between;
-    margin-bottom: $spacing-6;
-    
-    .title-section {
-      h1 {
-        font-size: $font-3xl;
-        font-weight: $font-bold;
-        color: $gray-900;
-        margin: 0 0 $spacing-1 0;
-      }
-      
-      p {
-        color: $gray-600;
-        margin: 0;
-      }
+
+  .dashboard-header {
+    margin-bottom: $spacing-8;
+
+    .title {
+      font-size: $font-size-3xl;
+      font-weight: 700;
+      margin-bottom: $spacing-2;
+      @extend .title-gradient;
+      @extend .animated-title;
     }
-    
-    .actions {
-      display: flex;
-      gap: $spacing-3;
+
+    .subtitle {
+      color: $color-gray-500;
     }
   }
-  
+
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: $spacing-6;
-    margin-bottom: $spacing-6;
-  }
-  
-  .stat-card {
-    @include card-base;
-    
-    .content {
-      @include card-content;
-      @include flex-between;
-      
-      .icon {
-        width: $spacing-5;
-        height: $spacing-5;
-      }
-      
-      .text {
-        h3 {
-          font-size: $font-sm;
-          font-weight: $font-medium;
-          color: $gray-600;
-          margin: 0 0 $spacing-1 0;
-        }
-        
-        .value {
-          font-size: $font-2xl;
-          font-weight: $font-bold;
-          color: $gray-900;
-          margin: 0 0 $spacing-1 0;
-        }
-        
-        .change {
-          font-size: 0.75rem;
-          color: $gray-500;
-          margin: 0;
-        }
-      }
+    margin-bottom: $spacing-8;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-  }
-  
-  .content-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: $spacing-6;
-    margin-bottom: $spacing-6;
-    
-    @media (min-width: $breakpoint-lg) {
-      grid-template-columns: 1fr 1fr;
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-  }
-  
-  .activity-card, .tasks-card {
-    @include card-base;
-    
-    .header {
-      @include card-header;
-      margin-bottom: 0;
-      
-      h2 {
-        @include card-title;
+
+    .stat-card {
+      background-color: $color-white;
+      border: 1px solid $color-gray-200;
+      border-radius: $border-radius-lg;
+      box-shadow: $shadow-sm;
+
+      .stat-header {
+        padding: $spacing-4;
         display: flex;
         align-items: center;
-        
-        .icon {
-          width: $spacing-5;
-          height: $spacing-5;
-          margin-right: $spacing-2;
-          color: $primary-color;
+        justify-content: space-between;
+        border-bottom: none;
+
+        .stat-title {
+          font-size: $font-size-sm;
+          font-weight: 500;
+          color: $color-gray-700;
+        }
+
+        .stat-icon {
+          width: 1rem;
+          height: 1rem;
+          color: $color-gray-400;
         }
       }
-    }
-    
-    .content {
-      @include card-content;
-      padding-top: 0;
-    }
-  }
-  
-  .activity-list {
-    .activity-item {
-      display: flex;
-      align-items: flex-start;
-      gap: $spacing-3;
-      padding: $spacing-3;
-      border-radius: $radius-lg;
-      transition: $transition-colors;
-      
-      &:hover {
-        background-color: $gray-50;
-      }
-      
-      .status-icon {
-        flex-shrink: 0;
-        margin-top: 0.125rem;
-        
-        .icon {
-          width: $spacing-4;
-          height: $spacing-4;
+
+      .stat-content {
+        padding: 0 $spacing-4 $spacing-4;
+
+        .stat-value {
+          font-size: $font-size-2xl;
+          font-weight: 700;
+          margin-bottom: $spacing-1;
         }
-      }
-      
-      .content {
-        flex: 1;
-        min-width: 0;
-        padding: 0;
-        
-        .title {
-          font-size: $font-sm;
-          font-weight: $font-medium;
-          color: $gray-900;
-          margin: 0 0 $spacing-1 0;
-          @extend .truncate;
-        }
-        
-        .meta {
-          display: flex;
-          align-items: center;
-          gap: $spacing-2;
-          margin-top: $spacing-1;
-          
-          .time {
-            font-size: 0.75rem;
-            color: $gray-500;
+
+        .stat-change {
+          font-size: $font-size-xs;
+
+          &.positive {
+            color: $color-success;
+          }
+
+          &.negative {
+            color: $color-warning;
           }
         }
       }
     }
   }
-  
-  .tasks-list {
-    .task-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: $spacing-3;
-      border-radius: $radius-lg;
-      transition: $transition-colors;
-      
-      &:hover {
-        background-color: $gray-50;
-      }
-      
-      .task-content {
-        flex: 1;
-        
-        .title {
-          font-size: $font-sm;
-          font-weight: $font-medium;
-          color: $gray-900;
-          margin: 0 0 $spacing-1 0;
-        }
-        
-        .date {
-          font-size: 0.75rem;
-          color: $gray-500;
-          margin: 0;
-        }
-      }
-      
-      .priority {
-        flex-shrink: 0;
-        margin-left: $spacing-3;
-      }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: $spacing-6;
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    
-    .view-all {
-      margin-top: $spacing-4;
-      padding-top: $spacing-4;
-      border-top: 1px solid $gray-100;
-    }
-  }
-  
-  .chart-card {
-    @include card-base;
-    
-    .header {
-      @include card-header;
-      
-      h2 {
-        @include card-title;
+
+    .activity-section {
+      @media (min-width: 1024px) {
+        grid-column: span 2 / span 2;
+      }
+
+      .activity-list {
         display: flex;
-        align-items: center;
-        
-        .icon {
-          width: $spacing-5;
-          height: $spacing-5;
-          margin-right: $spacing-2;
-          color: $primary-color;
+        flex-direction: column;
+        gap: $spacing-4;
+
+        .activity-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: $spacing-4;
+          border: 1px solid $color-gray-200;
+          border-radius: $border-radius-lg;
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: rgba(243, 244, 246, 0.5);
+          }
+
+          .activity-info {
+            flex: 1;
+
+            .activity-action {
+              font-weight: 500;
+              margin-bottom: $spacing-1;
+            }
+
+            .activity-employee {
+              font-size: $font-size-sm;
+              color: $color-gray-500;
+            }
+          }
+
+          .activity-details {
+            text-align: right;
+
+            .activity-amount {
+              font-weight: 600;
+              color: $color-success;
+              margin-bottom: $spacing-1;
+            }
+
+            .activity-time {
+              font-size: $font-size-xs;
+              color: $color-gray-500;
+            }
+          }
         }
       }
     }
-    
-    .content {
-      @include card-content;
-      
-      .chart-placeholder {
-        height: 16rem;
-        background-color: $gray-100;
-        border-radius: $radius-lg;
-        @include flex-center;
+
+    .quick-actions {
+      .actions-list {
+        display: flex;
         flex-direction: column;
-        
-        .icon {
-          width: 3rem;
-          height: 3rem;
-          color: $gray-400;
-          margin-bottom: $spacing-3;
-        }
-        
-        .title {
-          color: $gray-500;
-          margin: 0 0 $spacing-1 0;
-        }
-        
-        .subtitle {
-          font-size: $font-sm;
-          color: $gray-400;
-          margin: 0;
+        gap: $spacing-3;
+
+        .action-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: $spacing-3;
+          border: 1px solid;
+          border-radius: $border-radius-lg;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-decoration: none;
+          font-weight: 500;
+
+          &.primary {
+            border-color: $color-green-primary;
+            color: $color-green-primary;
+
+            &:hover {
+              background-color: $color-green-primary;
+              color: $color-white;
+            }
+          }
+
+          &.success {
+            border-color: $color-success;
+            color: $color-success;
+
+            &:hover {
+              background-color: $color-success;
+              color: $color-white;
+            }
+          }
+
+          &.warning {
+            border-color: $color-warning;
+            color: $color-warning;
+
+            &:hover {
+              background-color: $color-warning;
+              color: $color-gray-900;
+            }
+          }
+
+          &.secondary {
+            border-color: $color-gray-300;
+            color: $color-gray-700;
+
+            &:hover {
+              background-color: $color-gray-100;
+            }
+          }
+
+          .action-icon {
+            width: 1rem;
+            height: 1rem;
+          }
         }
       }
     }

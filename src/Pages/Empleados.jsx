@@ -1,224 +1,215 @@
 import React from 'react';
-import { Users, Search, Plus, Edit, Trash2, Mail, Phone, Calendar, Building } from 'lucide-react';
+import { Users, Search, Plus, Edit, Trash2, Mail, Phone, Calendar, Building, Eye, MoreHorizontal, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Dropdown, DropdownItem } from '../Components/Dropdown/Dropdown';
+import * as api from '../services/empleadosAPI'
+import '../styles/components/_employees.scss';
 
 export default function Empleados() {
-  const employees = [
-    {
-      id: 1,
-      name: 'María González',
-      position: 'Gerente de Ventas',
-      department: 'Ventas',
-      email: 'maria.gonzalez@empresa.com',
-      phone: '+54 11 1234-5678',
-      startDate: '2022-03-15',
-      salary: '$150.000',
-      status: 'active'
-    },
-    {
-      id: 2,
-      name: 'Carlos Ruiz',
-      position: 'Desarrollador Senior',
-      department: 'Tecnología',
-      email: 'carlos.ruiz@empresa.com',
-      phone: '+54 11 2345-6789',
-      startDate: '2023-01-10',
-      salary: '$120.000',
-      status: 'active'
-    },
-    {
-      id: 3,
-      name: 'Ana López',
-      position: 'Contadora',
-      department: 'Administración',
-      email: 'ana.lopez@empresa.com',
-      phone: '+54 11 3456-7890',
-      startDate: '2021-08-20',
-      salary: '$95.000',
-      status: 'active'
-    },
-    {
-      id: 4,
-      name: 'Juan Pérez',
-      position: 'Analista Marketing',
-      department: 'Marketing',
-      email: 'juan.perez@empresa.com',
-      phone: '+54 11 4567-8901',
-      startDate: '2023-06-01',
-      salary: '$85.000',
-      status: 'vacation'
-    },
-    {
-      id: 5,
-      name: 'Sofia Martín',
-      position: 'Diseñadora UX',
-      department: 'Diseño',
-      email: 'sofia.martin@empresa.com',
-      phone: '+54 11 5678-9012',
-      startDate: '2022-11-30',
-      salary: '$110.000',
-      status: 'active'
+  const [employees, setEmployees] = useState([]);
+  const [areas,setAreas]=useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [current, setCurrent] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filtered, setFiltered] = useState([]);
+  
+  const loadEmployees = async () => {
+    try {
+        setLoading(true);
+        const data = await api.getEmployees();
+        setEmployees(data);
+        setError("");
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setLoading(false);
     }
-  ];
+  };
 
-  const getStatusBadge = (status) => {
-    const labels = {
-      active: 'Activo',
-      vacation: 'Vacaciones',
-      inactive: 'Inactivo'
-    };
-    
-    return (
-      <span className={`badge status-badge ${status}`}>
-        {labels[status]}
-      </span>
-    );
+  const loadAreas = async () => {
+    try {
+        const data = await api.getAreas();
+        setAreas(data);
+    } catch (err) {
+        console.error("Error loading areas:", err);
+    }
+  };
+  
+  useEffect(() => {
+      loadEmployees();
+      loadAreas();
+  }, []);
+  
+  useEffect(() => {
+      const lower = search.toLowerCase();
+      setFiltered(
+        employees.filter(
+          (e) =>
+            e.legajo.toString().includes(search) ||
+            `${e.nombre} ${e.apellido}`.toLowerCase().includes(lower)
+        )
+      );
+  }, [search, employees]);
+  
+  const handleSaveEmployee = async (dto, isEdit) => {
+      try {
+        if (isEdit) {
+          await api.updateEmployee(dto.legajo, dto);
+        } else {
+          await api.createEmployee(dto);
+        }
+        await loadEmployees(); // Refresh list
+        setModalOpen(false);
+      } catch (err) {
+        alert("Error al registrar empleado: " + err.message);
+      }
+  };
+
+  const handleViewEmployee = (employee) => {
+    //setSelectedEmployee(employee);
+    setModalOpen(true);
+  };
+
+  const handleEditEmployee = (employee) => {
+    //setSelectedEmployee(employee);
+    setModalOpen(true);
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Activo':
+        return 'active';
+      case 'DADO_DE_BAJA':
+        return 'inactive';
+      default:
+        return 'active';
+    }
   };
 
   return (
-    <div className="employees">
+    <div className="empleados">
       {/* Header */}
-      <div className="header">
-        <div className="title-section">
-          <h1>Empleados</h1>
-          <p>Gestión del personal de la empresa</p>
+      <div className="empleados-header">
+        <div className="header-content">
+          <h1 className="title title-gradient animated-title">
+            Gestión de Empleados
+          </h1>
+          <p className="subtitle">
+            Administra la información y datos de todos los empleados
+          </p>
         </div>
-        <button className="btn">
-          <Plus className="w-4 h-4 mr-2" />
+        <button className="add-employee-btn">
+          <Plus className="btn-icon" />
           Nuevo Empleado
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="content">
-            <Users className="icon text-primary" />
-            <div className="text">
-              <p className="label">Total Empleados</p>
-              <p className="value">124</p>
-            </div>
-          </div>
+      {/* Stats Summary */}
+      <div className="stats-overview">
+        <div className="card stat-card">
+          <div className="stat-value success">{employees.length}</div>
+          <p className="stat-label">Total Empleados</p>
         </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <Calendar className="icon text-success" />
-            <div className="text">
-              <p className="label">Activos</p>
-              <p className="value">118</p>
-            </div>
+        <div className="card stat-card">
+          <div className="stat-value primary">
+            {employees.filter(emp => emp.estado === 'ACTIVO').length}
           </div>
+          <p className="stat-label">Empleados Activos</p>
         </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <Building className="icon text-warning" />
-            <div className="text">
-              <p className="label">Departamentos</p>
-              <p className="value">8</p>
-            </div>
+        <div className="card stat-card">
+          <div className="stat-value warning">
+            {employees.filter(emp => emp.estado === 'DADO_DE_BAJA').length}
           </div>
+          <p className="stat-label">Dados de baja</p>
         </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <Plus className="icon" style={{ color: '#3b82f6' }} />
-            <div className="text">
-              <p className="label">Nuevos (Este Mes)</p>
-              <p className="value">6</p>
-            </div>
-          </div>
+        <div className="card stat-card">
+          <div className="stat-value default">{areas.length} </div>
+          <p className="stat-label">Areas</p>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="search-filters">
-        <div className="content">
-          <div className="search-input-container">
+      {/* Filters */}
+      <div className="card filters-card">
+        <div className="filters-content">
+          <div className="search-container">
             <Search className="search-icon" />
-            <input 
+            <input
               type="text"
-              placeholder="Buscar empleados..." 
-              className="search-input"
+              placeholder="Buscar empleados por nombre, cargo o email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input search-input"
             />
           </div>
-          <div className="filter-actions">
-            <button className="btn btn-outline">Filtrar</button>
-            <button className="btn btn-outline">Exportar</button>
+          <div className="filter-controls">
+            <button className="filter-btn">
+              <Filter className="filter-icon" />
+              Filtros
+            </button>
           </div>
         </div>
       </div>
 
       {/* Employee List */}
-      <div className="employees-list">
-        <div className="header">
-          <h2>
-            <Users className="icon" />
-            Lista de Empleados
-          </h2>
+      <div className="card employees-list">
+        <div className="card-header list-header">
+          <h2 className="list-title section-title-effect">Lista de Empleados</h2>
+          <p className="list-description">
+            {filtered.length} empleados encontrados
+          </p>
         </div>
-        <div className="content">
-          <div className="space-y-4">
-            {employees.map((employee) => (
-              <div key={employee.id} className="employee-item">
-                <div className="employee-header">
+        <div className="card-content list-content">
+          <div className="employee-list">
+            {filtered.map((employee) => (
+              <div
+                key={employee.id}
+                className="employee-item"
+              >
+                <div className="employee-grid">
                   <div className="employee-info">
-                    <div className="avatar">
-                      <span>
-                        {employee.name.split(' ').map(n => n[0]).join('')}
-                      </span>
-                    </div>
-                    <div className="details">
-                      <h3>{employee.name}</h3>
-                      <p>{employee.position}</p>
-                      <div className="meta">
-                        <span className="meta-item">
-                          <Building className="icon" />
-                          {employee.department}
-                        </span>
-                        <span className="meta-item">
-                          <Calendar className="icon" />
-                          Desde {new Date(employee.startDate).toLocaleDateString('es-ES')}
-                        </span>
-                      </div>
-                    </div>
+                    <h3 className="employee-name">{`${employee.nombre} ${employee.apellido}`}</h3>
+                    <p className="employee-email">Legajo: {employee.legajo}</p>
                   </div>
-                  
-                  <div className="employee-actions">
-                    <div className="salary-info">
-                      <p className="amount">{employee.salary}</p>
-                      <p className="label">Salario mensual</p>
-                    </div>
-                    
-                    <div className="status">
-                      {getStatusBadge(employee.status)}
-                    </div>
-                    
-                    <div className="actions">
-                      <button className="btn">
-                        <Edit className="icon" />
-                      </button>
-                      <button className="btn">
-                        <Mail className="icon" />
-                      </button>
-                      <button className="btn delete">
-                        <Trash2 className="icon" />
-                      </button>
-                    </div>
+                  <div className="employee-position">
+                    <p className="position-title">{employee.gremio === "LUZ_Y_FUERZA" ? "Luz y Fuerza" : employee.gremio}</p>
+                    <p className="department">{employee.categoria}</p>
+                  </div>
+                  <div className="employee-salary">
+                    <p className="salary-amount">
+                      ${employee.legajo}
+                    </p>
+                    <p className="hire-date">Ingreso: {employee.inicioActividad}</p>
+                  </div>
+                  <div className="employee-status">
+                    <span className={`status-badge ${getStatusClass(employee.estado)}`}>
+                      {employee.estado === "ACTIVO" ? "Activo" : "Dado de baja"}
+                    </span>
                   </div>
                 </div>
-                
-                <div className="employee-contact">
-                  <div className="contact-info">
-                    <span className="contact-item">
-                      <Mail className="icon" />
-                      {employee.email}
-                    </span>
-                    <span className="contact-item">
-                      <Phone className="icon" />
-                      {employee.phone}
-                    </span>
-                  </div>
+                <div className="employee-actions">
+                  <Dropdown
+                    trigger={
+                      <button className="actions-trigger">
+                        <MoreHorizontal className="actions-icon" />
+                      </button>
+                    }
+                    align="right"
+                  >
+                    <DropdownItem
+                      icon={Eye}
+                      onClick={() => handleViewEmployee(employee)}
+                    >
+                      Ver
+                    </DropdownItem>
+                    <DropdownItem
+                      icon={Edit}
+                      onClick={() => handleEditEmployee(employee)}
+                    >
+                      Editar
+                    </DropdownItem>
+                  </Dropdown>
                 </div>
               </div>
             ))}

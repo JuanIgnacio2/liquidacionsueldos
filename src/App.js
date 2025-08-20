@@ -1,36 +1,29 @@
 import React from 'react';
-import {createRoot} from 'react-dom/client';
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
-//import Login from './Pages/Login/Login';
-import {SidebarLayout} from './Components/ui/sidebar-layout';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import Sidebar from './Components/ui/sidebar';
 import Dashboard from './Pages/Dashboard';
-import Liquidaciones from './Pages/Liquidaciones';
-//import HistorialPagos from './Pages/HistorialPagos/HistorialPagos';
-//import PanelDeControl from './Pages/PanelDeControl/PanelDeControl';
-//import Employees from './Pages/Employees/Employees';
+import Liquidacion from './Pages/Liquidacion';
 import Convenios from './Pages/Convenios';
 import NotFound from './Pages/NotFound';
 import Empleados from './Pages/Empleados';
-import './styles/App.scss';
-
-const queryClient = new QueryClient();
+import './styles/main.scss';
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <SidebarLayout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/empleados" element={<Empleados />} />
-            <Route path="/convenios" element={<Convenios />} />
-            <Route path="/liquidaciones" element={<Liquidaciones />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </SidebarLayout>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <BrowserRouter>
+       <div className="flex h-screen bg-gray-50">
+          <Sidebar />
+          <main className="flex-1 overflow-auto">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/empleados" element={<Empleados />} />
+              <Route path="/convenios" element={<Convenios/>}/>
+              <Route path="/liquidacion" element={<Liquidacion/>}/>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
 

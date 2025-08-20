@@ -1,98 +1,77 @@
 import React from 'react';
-import { FileText, Search, Plus, Calendar, Users, AlertTriangle } from 'lucide-react';
+import { FileText, Plus, Settings } from 'lucide-react';
+import '../styles/components/_PlaceHolder.scss';
 
 export default function Convenios() {
   return (
-    <div className="dashboard">
-      <div className="header">
-        <div className="title-section">
-          <h1>Convenios Colectivos</h1>
-          <p>Gestión de acuerdos salariales y condiciones laborales</p>
+    <div className="placeholder-page">
+      {/* Header */}
+      <div className="page-header">
+        <div className="header-content">
+          <h1 className="title title-gradient animated-title">
+            Gestión de Convenios
+          </h1>
+          <p className="subtitle">
+            Administra los convenios colectivos de trabajo y sus escalas salariales
+          </p>
         </div>
-        <button className="btn">
-          <Plus className="w-4 h-4 mr-2" />
+        <button className="add-btn">
+          <Plus className="btn-icon" />
           Nuevo Convenio
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="content">
-            <div className="text">
-              <h3>Total Convenios</h3>
-              <div className="value">15</div>
-              <p className="change">Activos</p>
-            </div>
-            <FileText className="icon text-primary" />
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <div className="text">
-              <h3>Vigentes</h3>
-              <div className="value">12</div>
-              <p className="change">En curso</p>
-            </div>
-            <Calendar className="icon text-success" />
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <div className="text">
-              <h3>Por Renovar</h3>
-              <div className="value">2</div>
-              <p className="change">Próximos 90 días</p>
-            </div>
-            <AlertTriangle className="icon text-warning" />
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="content">
-            <div className="text">
-              <h3>Empleados Cubiertos</h3>
-              <div className="value">128</div>
-              <p className="change">Total</p>
-            </div>
-            <Users className="icon" style={{ color: '#3b82f6' }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="card">
-        <div className="card-content">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input 
-                type="text"
-                placeholder="Buscar convenios..." 
-                className="input pl-10"
-              />
-            </div>
-            <button className="btn btn-outline">Filtrar por Sector</button>
-            <button className="btn btn-outline">Próximos a Vencer</button>
-          </div>
-        </div>
-      </div>
-
       {/* Placeholder Content */}
-      <div className="chart-card">
-        <div className="header">
-          <h2>
-            <FileText className="icon" />
-            Lista de Convenios
-          </h2>
+      <div className="main-content">
+        <div className="card main-section">
+          <div className="card-header section-header">
+            <h2 className="section-title section-title-effect">
+              <FileText className="title-icon" />
+              Convenios Activos
+            </h2>
+            <p className="section-description">
+              Lista de todos los convenios colectivos vigentes
+            </p>
+          </div>
+          <div className="card-content">
+            <div className="placeholder-content">
+              <FileText className="placeholder-icon" />
+              <h3 className="placeholder-title">Página en Desarrollo</h3>
+              <p className="placeholder-description">
+                Esta sección estará disponible próximamente. Aquí podrás gestionar todos los convenios colectivos de trabajo.
+              </p>
+              <p className="placeholder-note">
+                Continúa desarrollando la aplicación para completar esta funcionalidad.
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="content">
-          <div className="chart-placeholder">
-            <FileText className="icon" />
-            <p className="title">Sección en desarrollo</p>
-            <p className="subtitle">Esta funcionalidad estará disponible próximamente</p>
+
+        <div className="card sidebar-section">
+          <div className="card-header section-header">
+            <h2 className="section-title section-title-effect">
+              <Settings className="title-icon" />
+              Configuración
+            </h2>
+            <p className="section-description">
+              Próximas funcionalidades
+            </p>
+          </div>
+          <div className="card-content">
+            <div className="features-list">
+              <div className="feature-item">
+                <h4 className="feature-title">Escalas Salariales</h4>
+                <p className="feature-description">Gestión de escalas por convenio</p>
+              </div>
+              <div className="feature-item">
+                <h4 className="feature-title">Categorías</h4>
+                <p className="feature-description">Administrar categorías laborales</p>
+              </div>
+              <div className="feature-item">
+                <h4 className="feature-title">Actualizaciones</h4>
+                <p className="feature-description">Historial de cambios en convenios</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

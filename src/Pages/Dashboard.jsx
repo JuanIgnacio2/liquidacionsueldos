@@ -1,209 +1,135 @@
-import React from 'react';
-import {
-  Users,
-  Calculator,
-  FileText,
-  DollarSign,
-  TrendingUp,
-  Calendar,
-  AlertCircle,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
+import { Users, FileText, Calculator, TrendingUp, DollarSign, Clock } from 'lucide-react';
+import '../styles/components/_dashboard.scss';
 
 export default function Dashboard() {
   const stats = [
     {
-      title: 'Empleados Activos',
+      title: 'Total Empleados',
       value: '124',
-      change: '+12 este mes',
+      change: '+12%',
       icon: Users,
-      color: 'text-primary'
+      trend: 'up'
     },
     {
       title: 'Liquidaciones Pendientes',
       value: '8',
-      change: 'Vencen en 3 días',
-      icon: Calculator,
-      color: 'text-warning'
+      change: '-3',
+      icon: Clock,
+      trend: 'down'
     },
     {
-      title: 'Convenios Vigentes',
-      value: '15',
-      change: '2 por renovar',
-      icon: FileText,
-      color: 'text-primary'
-    },
-    {
-      title: 'Total Nómina Mensual',
-      value: '$2.450.000',
-      change: '+5.2% vs mes anterior',
+      title: 'Monto Total Mensual',
+      value: '$2,847,500',
+      change: '+8.2%',
       icon: DollarSign,
-      color: 'text-success'
+      trend: 'up'
+    },
+    {
+      title: 'Convenios Activos',
+      value: '15',
+      change: '+2',
+      icon: FileText,
+      trend: 'up'
     }
   ];
 
-  const recentActivity = [
+  const recentActivities = [
     {
       id: 1,
-      type: 'liquidation',
-      title: 'Liquidación procesada - María González',
-      time: 'Hace 2 horas',
-      status: 'completed',
-      amount: '$89.500'
+      action: 'Nueva liquidación procesada',
+      employee: 'María González',
+      time: 'hace 2 horas',
+      amount: '$45,000'
     },
     {
       id: 2,
-      type: 'employee',
-      title: 'Nuevo empleado registrado - Carlos Ruiz',
-      time: 'Hace 4 horas',
-      status: 'pending',
-      department: 'Ventas'
+      action: 'Empleado agregado',
+      employee: 'Carlos Rodríguez',
+      time: 'hace 4 horas',
+      amount: null
     },
     {
       id: 3,
-      type: 'agreement',
-      title: 'Convenio actualizado - Empleados Administrativos',
-      time: 'Hace 1 día',
-      status: 'completed',
-      change: '+3% aumento salarial'
+      action: 'Convenio actualizado',
+      employee: 'Convenio Metalúrgico',
+      time: 'hace 1 día',
+      amount: null
     },
     {
       id: 4,
-      type: 'liquidation',
-      title: 'Liquidación pendiente - Juan Pérez',
-      time: 'Hace 2 días',
-      status: 'warning',
-      amount: '$125.000'
+      action: 'Liquidación completada',
+      employee: 'Ana Martínez',
+      time: 'hace 1 día',
+      amount: '$52,300'
     }
   ];
-
-  const upcomingTasks = [
-    {
-      id: 1,
-      title: 'Procesamiento de nómina quincenal',
-      date: '15 Nov 2024',
-      priority: 'high'
-    },
-    {
-      id: 2,
-      title: 'Renovación convenio sector construcción',
-      date: '20 Nov 2024',
-      priority: 'medium'
-    },
-    {
-      id: 3,
-      title: 'Revisión aumentos salariales Q4',
-      date: '25 Nov 2024',
-      priority: 'low'
-    }
-  ];
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="icon text-success" />;
-      case 'warning':
-        return <AlertCircle className="icon text-warning" />;
-      default:
-        return <Clock className="icon" style={{ color: '#3b82f6' }} />;
-    }
-  };
-
-  const getPriorityBadge = (priority) => {
-    const variants = {
-      high: 'badge-error',
-      medium: 'badge-warning',
-      low: 'badge'
-    };
-    
-    const labels = {
-      high: 'Alta',
-      medium: 'Media',
-      low: 'Baja'
-    };
-    
-    return (
-      <span className={`badge ${variants[priority]}`}>
-        {labels[priority]}
-      </span>
-    );
-  };
 
   return (
     <div className="dashboard">
       {/* Header */}
-      <div className="header">
-        <div className="title-section">
-          <h1>Dashboard</h1>
-          <p>Resumen de actividad del sistema de gestión de sueldos</p>
-        </div>
-        <div className="actions">
-          <button className="btn btn-outline">
-            <Calendar className="w-4 h-4 mr-2" />
-            Generar Reporte
-          </button>
-          <button className="btn">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Procesar Nómina
-          </button>
-        </div>
+      <div className="dashboard-header">
+        <h1 className="title title-gradient animated-title">
+          Dashboard de Gestión de Sueldos
+        </h1>
+        <p className="subtitle">
+          Resumen de la actividad y métricas principales del sistema
+        </p>
       </div>
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        {stats.map((stat, index) => (
-          <div key={index} className="stat-card">
-            <div className="content">
-              <div className="text">
-                <h3>{stat.title}</h3>
-                <div className="value">{stat.value}</div>
-                <p className="change">{stat.change}</p>
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.title} className="card stat-card">
+              <div className="stat-header">
+                <h3 className="stat-title">
+                  {stat.title}
+                </h3>
+                <Icon className="stat-icon" />
               </div>
-              <stat.icon className={`icon ${stat.color}`} />
+              <div className="stat-content">
+                <div className="stat-value">{stat.value}</div>
+                <p className={`stat-change ${stat.trend === 'up' ? 'positive' : 'negative'}`}>
+                  {stat.change} desde el mes pasado
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="content-grid">
+      <div className="main-grid">
         {/* Recent Activity */}
-        <div className="activity-card">
-          <div className="header">
-            <h2>
-              <Clock className="icon" />
-              Actividad Reciente
-            </h2>
+        <div className="card activity-section">
+          <div className="card-header">
+            <h2 className="card-title section-title-effect">Actividad Reciente</h2>
+            <p className="card-description">
+              Últimas acciones realizadas en el sistema
+            </p>
           </div>
-          <div className="content">
-            <div className="activity-list space-y-4">
-              {recentActivity.map((activity) => (
-                <div key={activity.id} className="activity-item">
-                  <div className="status-icon">
-                    {getStatusIcon(activity.status)}
-                  </div>
-                  <div className="content">
-                    <p className="title">
-                      {activity.title}
+          <div className="card-content">
+            <div className="activity-list">
+              {recentActivities.map((activity) => (
+                <div 
+                  key={activity.id}
+                  className="activity-item"
+                >
+                  <div className="activity-info">
+                    <p className="activity-action">{activity.action}</p>
+                    <p className="activity-employee">
+                      {activity.employee}
                     </p>
-                    <div className="meta">
-                      <p className="time">{activity.time}</p>
-                      {activity.amount && (
-                        <span className="badge badge-outline">
-                          {activity.amount}
-                        </span>
-                      )}
-                      {activity.department && (
-                        <span className="badge">
-                          {activity.department}
-                        </span>
-                      )}
-                      {activity.change && (
-                        <span className="badge badge-outline text-success">
-                          {activity.change}
-                        </span>
-                      )}
-                    </div>
+                  </div>
+                  <div className="activity-details">
+                    {activity.amount && (
+                      <p className="activity-amount">
+                        {activity.amount}
+                      </p>
+                    )}
+                    <p className="activity-time">
+                      {activity.time}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -211,52 +137,33 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Upcoming Tasks */}
-        <div className="tasks-card">
-          <div className="header">
-            <h2>
-              <Calendar className="icon" />
-              Próximas Tareas
-            </h2>
+        {/* Quick Actions */}
+        <div className="card quick-actions">
+          <div className="card-header">
+            <h2 className="card-title section-title-effect">Acciones Rápidas</h2>
+            <p className="card-description">
+              Operaciones más utilizadas
+            </p>
           </div>
-          <div className="content">
-            <div className="tasks-list space-y-4">
-              {upcomingTasks.map((task) => (
-                <div key={task.id} className="task-item">
-                  <div className="task-content">
-                    <p className="title">
-                      {task.title}
-                    </p>
-                    <p className="date">{task.date}</p>
-                  </div>
-                  <div className="priority">
-                    {getPriorityBadge(task.priority)}
-                  </div>
-                </div>
-              ))}
-              <div className="view-all">
-                <button className="btn btn-outline w-full">
-                  Ver Todas las Tareas
-                </button>
-              </div>
+          <div className="card-content">
+            <div className="actions-list">
+              <button className="action-btn primary">
+                <span>Nueva Liquidación</span>
+                <Calculator className="action-icon" />
+              </button>
+              <button className="action-btn success">
+                <span>Agregar Empleado</span>
+                <Users className="action-icon" />
+              </button>
+              <button className="action-btn warning">
+                <span>Ver Reportes</span>
+                <TrendingUp className="action-icon" />
+              </button>
+              <button className="action-btn secondary">
+                <span>Gestionar Convenios</span>
+                <FileText className="action-icon" />
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Overview Chart Placeholder */}
-      <div className="chart-card">
-        <div className="header">
-          <h2>
-            <TrendingUp className="icon" />
-            Resumen Mensual de Nómina
-          </h2>
-        </div>
-        <div className="content">
-          <div className="chart-placeholder">
-            <TrendingUp className="icon" />
-            <p className="title">Gráfico de tendencias mensuales</p>
-            <p className="subtitle">Aquí se mostraría el análisis de datos</p>
           </div>
         </div>
       </div>
