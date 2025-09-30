@@ -1,0 +1,318 @@
+/*.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: $spacing-4;
+  animation: modalOverlayFadeIn 0.3s ease-out;
+
+  .modal-content {
+    background: $color-white;
+    border-radius: $border-radius-xl;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: 90vh;
+    overflow: hidden;
+    animation: modalContentSlideIn 0.3s ease-out;
+    position: relative;
+
+    &.small {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    &.medium {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    &.large {
+      width: 100%;
+      max-width: 800px;
+    }
+
+    &.xlarge {
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: $spacing-6;
+      border-bottom: 1px solid $color-gray-200;
+      background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
+
+      .modal-title {
+        font-size: $font-size-xl;
+        font-weight: 600;
+        color: $color-gray-900;
+        margin: 0;
+        @extend .section-title-effect;
+      }
+
+      .modal-close-btn {
+        background: none;
+        border: none;
+        padding: $spacing-2;
+        border-radius: $border-radius;
+        cursor: pointer;
+        color: $color-gray-500;
+        transition: all 0.15s ease;
+
+        &:hover {
+          background-color: $color-gray-100;
+          color: $color-gray-700;
+          transform: scale(1.1);
+        }
+
+        .close-icon {
+          width: 1.25rem;
+          height: 1.25rem;
+        }
+      }
+    }
+
+    .modal-body {
+      padding: $spacing-6;
+      max-height: calc(90vh - 120px);
+      overflow-y: auto;
+
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: $color-gray-100;
+        border-radius: 3px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: $color-gray-300;
+        border-radius: 3px;
+
+        &:hover {
+          background: $color-gray-400;
+        }
+      }
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: $spacing-3;
+      padding: $spacing-4 $spacing-6;
+      border-top: 1px solid $color-gray-200;
+      background: $color-gray-50;
+    }
+  }
+}
+
+@keyframes modalOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalContentSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Employee details styles
+.employee-details {
+  .detail-section {
+    margin-bottom: $spacing-6;
+
+    .section-title {
+      font-size: $font-size-lg;
+      font-weight: 600;
+      color: $color-gray-900;
+      margin-bottom: $spacing-4;
+      padding-bottom: $spacing-2;
+      border-bottom: 2px solid $color-gray-100;
+      @extend .section-title-effect;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: $spacing-4;
+
+      .detail-item {
+        .detail-label {
+          font-size: $font-size-sm;
+          font-weight: 500;
+          color: $color-gray-500;
+          margin-bottom: $spacing-1;
+        }
+
+        .detail-value {
+          font-size: $font-size-base;
+          color: $color-gray-900;
+          font-weight: 500;
+
+          &.highlight {
+            color: $color-success;
+            font-weight: 600;
+          }
+
+          &.status {
+            display: inline-flex;
+            align-items: center;
+            padding: $spacing-1 $spacing-2;
+            border-radius: $border-radius-sm;
+            font-size: $font-size-xs;
+            font-weight: 500;
+
+            &.active {
+              background-color: rgba(34, 197, 94, 0.1);
+              color: $color-green-dark;
+            }
+
+            &.inactive {
+              background-color: rgba(239, 68, 68, 0.1);
+              color: #dc2626;
+            }
+
+            &.license {
+              background-color: rgba(234, 179, 8, 0.1);
+              color: $color-yellow-dark;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: $spacing-3;
+    margin-top: $spacing-6;
+
+    .action-btn {
+      flex: 1;
+      padding: $spacing-3 $spacing-4;
+      border: none;
+      border-radius: $border-radius-lg;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: $spacing-2;
+
+      &.primary {
+        background: linear-gradient(135deg, $color-green-primary, $color-green-dark);
+        color: $color-white;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3);
+        }
+      }
+
+      &.secondary {
+        background: linear-gradient(135deg, $color-yellow-primary, $color-yellow-dark);
+        color: $color-gray-900;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(234, 179, 8, 0.3);
+        }
+      }
+
+      .btn-icon {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
+  }
+}
+
+// Employee form styles
+.employee-form {
+  .form-section {
+    margin-bottom: $spacing-6;
+
+    .section-title {
+      font-size: $font-size-lg;
+      font-weight: 600;
+      color: $color-gray-900;
+      margin-bottom: $spacing-4;
+      @extend .section-title-effect;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: $spacing-4;
+
+      .form-group {
+        .form-label {
+          display: block;
+          font-size: $font-size-sm;
+          font-weight: 500;
+          color: $color-gray-700;
+          margin-bottom: $spacing-2;
+        }
+
+        .form-input {
+          width: 100%;
+          padding: $spacing-3;
+          border: 1px solid $color-gray-300;
+          border-radius: $border-radius;
+          font-size: $font-size-sm;
+          transition: all 0.15s ease;
+
+          &:focus {
+            outline: none;
+            border-color: $color-green-primary;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+          }
+
+          &:disabled {
+            background-color: $color-gray-100;
+            color: $color-gray-500;
+            cursor: not-allowed;
+          }
+        }
+
+        .form-select {
+          width: 100%;
+          padding: $spacing-3;
+          border: 1px solid $color-gray-300;
+          border-radius: $border-radius;
+          font-size: $font-size-sm;
+          background-color: $color-white;
+          cursor: pointer;
+          transition: all 0.15s ease;
+
+          &:focus {
+            outline: none;
+            border-color: $color-green-primary;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+          }
+        }
+      }
+    }
+  }
+}*/

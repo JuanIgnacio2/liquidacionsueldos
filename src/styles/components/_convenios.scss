@@ -1,0 +1,84 @@
+@import '../main.scss';
+
+.conveniosContainer {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #004d1a 0%, #00a816 100%);
+  position: relative;
+}
+
+.mainContent {
+  padding: 2rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sectionContainer {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.contentBox {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h2 {
+    color: #fff;
+    font-size: 1.8rem;
+  }
+}
+
+.conveniosTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+
+  th, td {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  th {
+    background-color: #f0f0f0;
+    font-weight: 600;
+    border-bottom: 1px solid #ccc;
+  }
+
+  thead tr:first-child th{
+    background-color: #e0e0e0;
+    text-align: center;
+    font-size: 1rem;
+  }
+
+  thead tr:nth-child(2) th{
+    background-color: #f9f9f9;
+    font-weight: 500;
+    font-size: 0.95rem;
+  }
+
+  td {
+    font-size: 0.95rem;
+  }
+}
+
+// Grid para mostrar las cards de convenios una al lado de la otra
+.convenios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: $spacing-6;
+}
