@@ -1,128 +1,133 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { Search, Users, DollarSign, Download, Printer, Plus, X, Edit, CheckCircle, AlertCircle, User, Calendar, Badge, Clock, Star } from 'lucide-react';
+import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star } from 'lucide-react';
 import './ProcessPayrollModal.scss';
 import * as api from '../../services/empleadosAPI'
 
-// Mock data de empleados
-const employeesData = [
-  {
-    id: 1,
-    legajo: 8,
-    name: 'PAES GUILLERMO TOMAS',
-    section: 'Ant:00/00',
-    category: 'Medio Of.',
-    cuit: '20.37291900.1',
-    basicSalary: 326326.00,
-    ingressDate: '02/01/2025',
-    convenio: 'UOCRA'
-  },
-  {
-    id: 2,
-    legajo: 15,
-    name: 'GONZALEZ MARIA ELENA',
-    section: 'Adm:01/02',
-    category: 'Oficial Esp.',
-    cuit: '27.28456123.4',
-    basicSalary: 385000.00,
-    ingressDate: '15/03/2022',
-    convenio: 'UOCRA'
-  },
-  {
-    id: 3,
-    legajo: 23,
-    name: 'RODRIGUEZ CARLOS ALBERTO',
-    section: 'Tec:02/01',
-    category: 'Oficial',
-    cuit: '23.15789456.8',
-    basicSalary: 295000.00,
-    ingressDate: '10/07/2021',
-    convenio: 'UOCRA'
-  },
-  {
-    id: 4,
-    legajo: 7,
-    name: 'MARTINEZ ANA SOFIA',
-    section: 'Adm:01/01',
-    category: 'Ayudante',
-    cuit: '27.34567890.2',
-    basicSalary: 245000.00,
-    ingressDate: '28/11/2023',
-    convenio: 'UOCRA'
-  }
-];
-
-export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
-  const [currentStep, setCurrentStep] = useState('search'); // 'search', 'payroll', 'preview'
+export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees }) {
+  const [currentStep, setCurrentStep] = useState('search');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollData, setPayrollData] = useState({});
   const [concepts, setConcepts] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [employeeList, setEmployeeList] = useState(employeesData);
+  const [conceptos, setConceptos] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [periodo, setPeriodo] = useState(
+    new Date().toISOString().slice(0,7)
+  );
 
-  // Filtrar empleados por búsqueda
-  const filteredEmployees = employeesData.filter(employee =>
-    employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.legajo.toString().includes(searchTerm)
+  const calcTotal = (lista) =>
+    lista.reduce(
+    (s, c) => s + (c.tipo === 'DESCUENTO' ? -c.total : c.total),
+    0
   );
 
   // Seleccionar empleado
-  const handleSelectEmployee = (employee) => {
+  const handleSelectEmployee = async (employee) => {
     setSelectedEmployee(employee);
-    initializePayrollData(employee);
-    setCurrentStep('payroll');
+    setConceptos([]); // limpiamos la tabla anterior
+
+    try {
+      const categoria = await api.getCategoriaById(employee.idCategoria);
+      const basico = {
+        id: employee.idCategoria,
+        tipo: 'CATEGORIA', 
+        nombre: 'Básico',
+        montoUnitario: categoria.basico,
+        cantidad: 1,
+        total: categoria.basico ?? 0,
+      };
+      /*Boinificación área*/
+      const areas = (employee.idAreas || []).map((id, index) => ({
+        idArea: id,
+        nombre: employee.nombreAreas?.[index] ?? 'Área'
+      }));
+      const categoria_11 = await api.getCategoriaById(11);
+      const bonosDeAreas = await Promise.all(
+        areas.map(async (area)=>{
+          const porcentaje = await api.getPorcentajeArea(area.idArea, employee.idCategoria);
+          const bonoImporte = (categoria_11.basico * Number(porcentaje))/100;
+          return {
+            id: area.idArea,
+            tipo: 'BONIFICACION_VARIABLE',
+            nombre: `${area.nombre}`,
+            montoUnitario: bonoImporte,
+            cantidad: 1,
+            total: bonoImporte ?? 0,
+          };
+        })
+      );
+
+      /*Conceptos precargados en base de datos*/
+      const conceptosAsignados = await api.getConceptosAsignados(employee.legajo);
+      const bonificacionesFijas = await api.getConceptos();
+      const descuentos = await api.getDescuentos();
+
+      const mappedAsignados = conceptosAsignados.map((asignado)=>{
+        let concepto = null;
+
+        if(asignado.tipoConcepto === 'BONIFICACION_FIJA'){
+          concepto = bonificacionesFijas.find(b=>b.id === asignado.idReferencia);
+        } else if(asignado.tipoConcepto === 'DESCUENTO'){
+          concepto = descuentos.find(d=>d.idDescuento === asignado.idReferencia);
+        }
+          
+        if(!concepto) return null;
+
+        const tipo = asignado.tipoConcepto === 'DESCUENTO'
+          ? 'DESCUENTO'
+          : 'BONIFICACION_FIJA';
+        const signo = asignado.tipoConcepto === 'DESCUENTO' ? -1 : 1;
+        const montoUnitario = (categoria_11.basico * concepto.porcentaje) / 100 * signo;
+        
+        return{
+          id: asignado.idReferencia,
+          tipo,
+          nombre: concepto.nombre,
+          montoUnitario,
+          cantidad: asignado.unidades,
+          total: montoUnitario * asignado.unidades,
+        };
+      }).filter(Boolean);
+      /*Agregar conceptos y total*/
+      const lista = [basico, ...bonosDeAreas, ...mappedAsignados];
+
+      setTotal(calcTotal(lista));
+      setConceptos(lista);
+      setCurrentStep('payroll');
+    } catch (error) {
+      console.error('Error al obtener básico:', error);
+      alert('No se pudo obtener el sueldo básico del empleado.');
+    }
   };
 
-  // Inicializar datos de liquidación
-  const initializePayrollData = (employee) => {
-    const currentDate = new Date();
-    const period = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-
-    setPayrollData({
-      period: period,
-      periodDisplay: getCurrentPeriod(),
-      basicSalary: employee.basicSalary,
-      category: employee.category
-    });
-
-    // Conceptos predeterminados basados en el recibo
-    setConcepts([
-      { id: 1, code: 2, name: 'Hs.Normales', units: 91.0, unitValue: 3586.00, amount: 326326.00, type: 'remuneration' },
-      { id: 2, code: 3, name: 'Horas Extras', units: 1.5, unitValue: 5379.00, amount: 8068.50, type: 'remuneration' },
-      { id: 3, code: 4, name: 'Hs.Extras Dobles', units: 7.0, unitValue: 7172.00, amount: 50204.00, type: 'remuneration' },
-      { id: 4, code: 12, name: 'Asistencia', units: 99.5, unitValue: 717.50, amount: 71361.40, type: 'remuneration' },
-      { id: 5, code: 70, name: 'Jubilacion', units: 11.0, unitValue: 0, amount: -50155.59, type: 'deduction' },
-      { id: 6, code: 71, name: 'Ley 19032', units: 3.0, unitValue: 0, amount: -13678.80, type: 'deduction' },
-      { id: 7, code: 73, name: 'UOCRA', units: 3.0, unitValue: 0, amount: -13678.80, type: 'deduction' },
-      { id: 8, code: 75, name: 'Sindicato', units: 2.5, unitValue: 0, amount: -11399.00, type: 'deduction' },
-      { id: 9, code: 79, name: 'Seguro', units: 0, unitValue: 0, amount: -3366.60, type: 'deduction' }
-    ]);
+  // Actualizar cantidad de un concepto
+  const handleQtyChange = (index, nuevaCantidad) => {
+    const nuevos = [...conceptos];
+    nuevos[index].cantidad = nuevaCantidad;
+    nuevos[index].total = nuevos[index].montoUnitario * nuevaCantidad;
+    setConceptos(nuevos);
+    setTotal(calcTotal(nuevos));
   };
 
-  // Obtener período actual
-  const getCurrentPeriod = () => {
-    const currentDate = new Date();
-    const month = currentDate.toLocaleDateString('es-ES', { month: 'long' }).toUpperCase();
-    const year = currentDate.getFullYear();
-    const quarter = Math.ceil((currentDate.getMonth() + 1) / 6);
-    return `${quarter}°Q. ${month} ${year}`;
+  const handleAddConcepto = () => {
+    setModalOpen(true);
   };
 
-  // Agregar concepto manual
-  const addManualConcept = () => {
-    const newConcept = {
-      id: Date.now(),
-      code: '',
-      name: '',
-      units: 0,
-      unitValue: 0,
-      amount: 0,
-      type: 'remuneration',
-      isManual: true
-    };
-    setConcepts([...concepts, newConcept]);
+  const handleConfirmConeptos = (nuevos) => {
+    const lista = [...conceptos, ...nuevos];
+    setConceptos(lista);
+    setTotal(calcTotal(lista));
   };
+
+  // Filtrar empleados por búsqueda
+  const filteredEmployees = employees.filter(employees =>
+    employees.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employees.legajo.toString().includes(searchTerm) ||
+    employees.apellido.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Actualizar concepto
   const updateConcept = (id, field, value) => {
@@ -146,17 +151,50 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
 
   // Calcular totales
   const calculateTotals = () => {
-    const remunerations = concepts.filter(c => c.type === 'remuneration').reduce((sum, c) => sum + (c.amount || 0), 0);
-    const deductions = concepts.filter(c => c.type === 'deduction').reduce((sum, c) => sum + Math.abs(c.amount || 0), 0);
+    const remunerations = conceptos
+      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_VARIABLE' || c.tipo === 'BONIFICACION_FIJA')
+      .reduce((sum, c) => sum + (c.total || 0), 0);
+
+    const deductions = conceptos.filter(c => c.tipo === 'DESCUENTO')
+      .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+
     const netAmount = remunerations - deductions;
 
     return { remunerations, deductions, netAmount };
   };
 
-  // Generar recibo
-  const generatePayroll = () => {
+  // LIQUIDAR SUELDO Y GENERAR RECIBO
+  const generatePayroll = async () => {
+  if (!selectedEmployee) return;
+  setIsProcessing(true);
+
+  const payload = {
+      legajo: selectedEmployee.legajo,
+      periodoPago: periodo,
+      conceptos: conceptos.map((c) => ({
+        tipoConcepto: c.tipo,
+        idReferencia: c.id,
+        unidades: c.cantidad,
+      })),
+    };
+
+  try {
+    const result = await api.guardarLiquidacion(payload);
+    setPayrollData({
+      ...payrollData,
+      periodDisplay: result.periodoPago,
+      totalNeto: result.total_neto
+    });
+
     setCurrentStep('preview');
-  };
+  } catch (error) {
+    console.error('Error al liquidar sueldo:', error);
+    alert('Hubo un error al procesar la liquidación.');
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
 
   // Imprimir recibo
   const handlePrint = () => {
@@ -166,7 +204,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
   // Descargar recibo
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = 'data:text/plain;charset=utf-8,Recibo de Sueldo - ' + selectedEmployee?.name;
+    link.href = 'data:text/plain;charset=utf-8,Recibo de Sueldo - ' + selectedEmployee?.nombre;
     link.download = `recibo_${selectedEmployee?.legajo}_${payrollData.period}.txt`;
     link.click();
   };
@@ -190,7 +228,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
       onClose={resetModal}
       title={
         currentStep === 'search' ? 'Buscar Empleado' :
-        currentStep === 'payroll' ? `Liquidación - ${selectedEmployee?.name}` :
+        currentStep === 'payroll' ? `Liquidación - ${selectedEmployee?.nombre}` :
         'Vista Previa del Recibo'
       }
       size={currentStep === 'preview' ? 'large' : 'medium'}
@@ -236,7 +274,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
             <div className="employees-list">
               {filteredEmployees.length > 0 ? (
                 filteredEmployees.map(employee => (
-                  <div key={employee.id} className="employee-card" onClick={() => handleSelectEmployee(employee)}>
+                  <div key={employee.legajo} className="employee-card" onClick={() => handleSelectEmployee(employee)}>
                     <div className="employee-card-accent"></div>
                     <div className="employee-info">
                       <div className="employee-main">
@@ -245,21 +283,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                           <div className="status-dot"></div>
                         </div>
                         <div className="employee-details">
-                          <h4 className="employee-name">{employee.name}</h4>
+                          <h4 className="employee-name">{`${employee.nombre} ${employee.apellido}`}</h4>
                           <div className="employee-badges">
                             <span className="badge legajo-badge">#{employee.legajo}</span>
-                            <span className="badge category-badge">{employee.category}</span>
-                            <span className="badge convenio-badge">{employee.convenio}</span>
+                            <span className="badge category-badge">{employee.categoria}</span>
+                            <span className="badge convenio-badge">{employee.gremio.nombre}</span>
                           </div>
                           <p className="employee-meta">
                             <Clock className="meta-icon" />
-                            Ingreso: {employee.ingressDate}
+                            Ingreso: {employee.inicioActividad}
                           </p>
                         </div>
                       </div>
                       <div className="employee-salary">
                         <span className="salary-label">Sueldo Básico:</span>
-                        <span className="salary-amount">${employee.basicSalary.toLocaleString()}</span>
                         <div className="salary-indicator"></div>
                       </div>
                     </div>
@@ -298,11 +335,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                 <div className="status-dot-small"></div>
               </div>
               <div className="summary-details">
-                <h4>{selectedEmployee.name}</h4>
+                <h4>{selectedEmployee.nombre}</h4>
                 <div className="summary-badges">
                   <span className="badge">#{selectedEmployee.legajo}</span>
-                  <span className="badge">{selectedEmployee.category}</span>
-                  <span className="badge">{selectedEmployee.convenio}</span>
+                  <span className="badge">{selectedEmployee.categoria}</span>
+                  <span className="badge">{selectedEmployee.gremio.nombre}</span>
                 </div>
               </div>
             </div>
@@ -324,7 +361,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                   <span>{concepts.length} conceptos</span>
                 </div>
               </div>
-              <button className="btn btn-secondary btn-sm enhanced-btn" onClick={addManualConcept}>
+              <button className="btn btn-secondary btn-sm enhanced-btn">
                 <Plus className="h-4 w-4 mr-1" />
                 Agregar Concepto
                 <div className="btn-accent"></div>
@@ -341,19 +378,19 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                 <span>Acciones</span>
               </div>
 
-              {concepts.map(concept => (
+              {conceptos.map(concept => (
                 <div key={concept.id} className="concept-row">
                   <div className="concept-cell">
                     {concept.isManual ? (
                       <input
                         type="text"
-                        value={concept.code}
+                        value={concept.id}
                         onChange={(e) => updateConcept(concept.id, 'code', e.target.value)}
                         className="concept-input small"
                         placeholder="Cód"
                       />
                     ) : (
-                      <span>{concept.code}</span>
+                      <span>{concept.id}</span>
                     )}
                   </div>
 
@@ -361,20 +398,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                     {concept.isManual ? (
                       <input
                         type="text"
-                        value={concept.name}
+                        value={concept.nombre}
                         onChange={(e) => updateConcept(concept.id, 'name', e.target.value)}
                         className="concept-input"
                         placeholder="Nombre del concepto"
                       />
                     ) : (
-                      <span>{concept.name}</span>
+                      <span>{concept.nombre}</span>
                     )}
                   </div>
 
                   <div className="concept-cell">
                     <input
                       type="number"
-                      value={concept.units}
+                      value={concept.cantidad}
                       onChange={(e) => updateConcept(concept.id, 'units', parseFloat(e.target.value) || 0)}
                       className="concept-input small"
                       step="0.1"
@@ -382,17 +419,19 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                   </div>
 
                   <div className="concept-cell">
-                    {concept.type === 'remuneration' && (
+                    {(concept.tipo === 'CATEGORIA' ||
+                      concept.tipo === 'BONIFICACION_VARIABLE' ||
+                      concept.tipo === 'BONIFICACION_FIJA') && (
                       <span className="amount positive">
-                        ${Math.abs(concept.amount || 0).toLocaleString()}
+                        ${Math.abs(concept.montoUnitario || 0).toLocaleString()}
                       </span>
                     )}
                   </div>
 
                   <div className="concept-cell">
-                    {concept.type === 'deduction' && (
+                    {concept.tipo === 'DESCUENTO' && (
                       <span className="amount negative">
-                        ${Math.abs(concept.amount || 0).toLocaleString()}
+                        ${Math.abs(concept.total || 0).toLocaleString()}
                       </span>
                     )}
                   </div>
@@ -402,7 +441,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                       {concept.isManual && (
                         <>
                           <select
-                            value={concept.type}
+                            value={concept.tipo}
                             onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
                             className="type-select"
                           >
@@ -481,7 +520,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
               <div className="employee-data">
                 <div className="data-row">
                   <span className="label">APELLIDO Y NOMBRE:</span>
-                  <span className="value">{selectedEmployee.name}</span>
+                  <span className="value">{selectedEmployee.nombre} {selectedEmployee.apellido}</span>
                 </div>
                 <div className="data-row">
                   <span className="label">PERÍODO DE PAGO:</span>
@@ -512,16 +551,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
                 <span>DESCUENTOS</span>
               </div>
 
-              {concepts.map(concept => (
+              {conceptos.map(concept => (
                 <div key={concept.id} className="concept-line">
-                  <span className="concept-code">{concept.code}</span>
-                  <span className="concept-name">{concept.name}</span>
-                  <span className="concept-units">{concept.units}</span>
+                  <span className="concept-code">{concept.id}</span>
+                  <span className="concept-name">{concept.nombre}</span>
+                  <span className="concept-units">{concept.cantidad}</span>
                   <span className="concept-remuneration">
-                    {concept.type === 'remuneration' && concept.amount > 0 ? concept.amount.toLocaleString() : ''}
+                    {(concept.type === 'CATEGORIA' ||
+                      concept.type === 'BONIFICACION_VARIABLE' ||
+                      concept.type === 'BONIFICACION_FIJA') && concept.total > 0 ? concept.total.toLocaleString() : ''}
                   </span>
                   <span className="concept-deduction">
-                    {concept.type === 'deduction' && concept.amount < 0 ? Math.abs(concept.amount).toLocaleString() : ''}
+                    {concept.type === 'DESCUENTO' && concept.total < 0 ? Math.abs(concept.total).toLocaleString() : ''}
                   </span>
                 </div>
               ))}
@@ -569,7 +610,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess }) {
             <button className="btn btn-secondary" onClick={() => setCurrentStep('search')}>
               Volver
             </button>
-            <button className="btn btn-primary" onClick={generatePayroll}>
+            <button className="btn btn-primary" onClick={generatePayroll} disabled={isProcessing}>
               <CheckCircle className="h-4 w-4 mr-2" />
               Generar Recibo
             </button>

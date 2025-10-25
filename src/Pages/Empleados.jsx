@@ -80,7 +80,7 @@ export default function Empleados() {
         } else {
           await api.createEmployee(dto);
         }
-        await loadEmployees(); // Refresh list
+        await loadEmployees(); // Refrescar lista
         setModalOpen(false);
       } catch (err) {
         alert("Error al registrar empleado: " + err.message);
@@ -113,16 +113,18 @@ export default function Empleados() {
     }
   };
 
-  const handleStateEmployee = (employee) => {
+  const handleStateEmployee = async (employee) => {
     if (employee.estado === 'DADO_DE_BAJA') {
       if (window.confirm(`¿Está seguro de que desea dar de alta a ${`${employee.nombre} ${employee.apellido}`}?`)) {
         api.updateStateEmployee(employee.legajo);
         window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de alta`, 'info');
+        await loadEmployees(); // Refrescar lista
       }}
     if (employee.estado === 'ACTIVO') {
         if (window.confirm(`¿Está seguro de que desea dar de baja a ${`${employee.nombre} ${employee.apellido}`}?`)) {
             api.updateStateEmployee(employee.legajo);
             window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de baja`, 'info');
+            await loadEmployees(); // Refrescar lista
           }
     }
     loadEmployees();
@@ -239,9 +241,13 @@ export default function Empleados() {
                   </div>
                   <div className="employee-salary">
                     <p className="salary-amount">
-                      {Array.isArray(employee.nombreAreas)
-                        ? employee.nombreAreas.join(", ")
-                        : employee.nombreAreas || "-"}
+                      {employee.gremio?.nombre === "UOCRA" ? (
+                        employee.nombreZona || "-"
+                      ) : Array.isArray(employee.nombreAreas) ? (
+                        employee.nombreAreas.join(", ")
+                      ) : (
+                        employee.nombreAreas || "-"
+                      )}
                     </p>
                     <p className="hire-date">Ingreso: {employee.inicioActividad}</p>
                   </div>

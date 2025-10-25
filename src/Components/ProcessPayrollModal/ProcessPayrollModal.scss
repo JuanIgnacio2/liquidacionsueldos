@@ -486,6 +486,8 @@
       }
 
       .concepts-table {
+        display: flex;
+        flex-direction: column;
         border: 1px solid $color-gray-200;
         border-radius: $border-radius-lg;
         overflow: hidden;
@@ -524,6 +526,7 @@
 
           .concept-cell {
             display: flex;
+            text-align: center;
             align-items: center;
             justify-content: center;
 

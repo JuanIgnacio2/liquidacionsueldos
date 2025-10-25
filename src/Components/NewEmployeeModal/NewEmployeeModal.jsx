@@ -17,6 +17,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     nombre: '',
     apellido: '',
     domicilio: '',
+    idZona: null,
     areas: [],
     inicioActividad: new Date().toISOString().split('T')[0], // Fecha actual
     estado: 'ACTIVO',
@@ -177,6 +178,12 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     if (!Number.isFinite(id)) return;
     setFormData(prev => {
       const curr = Array.isArray(prev.areas) ? prev.areas : [];
+
+      if(formData.gremio === "UOCRA") {
+        // En UOCRA, solo una zona permitida
+        return { ...prev, zonaId: id };
+      }
+
       if (curr.includes(id)) return prev;
       return { ...prev, areas: [...curr, id] };
     });
@@ -256,8 +263,14 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       newErrors.gremio = 'Debe asignar un gremio al empleado';
     }
 
-    if (!Array.isArray(formData.areas) || formData.areas.length === 0) {
-      newErrors.areas = 'Debe asignar por lo menos un área al empleado';
+    if (formData.gremio === "UOCRA") {
+      if (!formData.zonaId) {
+        newErrors.areas = 'Debe asignar por lo menos una zona al empleado';
+      }
+    } else {
+      if (!Array.isArray(formData.areas) || formData.areas.length === 0) {
+        newErrors.areas = 'Debe asignar por lo menos un área al empleado';
+      }
     }
 
     if (!(formData.inicioActividad?.trim())) {
@@ -299,7 +312,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       if (formData.gremio === "UOCRA" && formData.zonaId) {
         payload.idZona = Number(formData.zonaId);
       }
-      console.log("Payload para crear empleado:", payload);
       // Llama al callback onSave si está definido
       if (onSave) await onSave(payload, false);
       handleClose();
@@ -324,6 +336,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       gremio: value,
       gremioId: GREMIOS[value] || null, // <-- asigna el id correcto
       areas: [], // limpia áreas al cambiar gremio
+      zonaId: null, // limpia zona al cambiar gremio
     }));
   };
 
@@ -508,67 +521,88 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
               {errors.salary && <span className="error-message">{errors.salary}</span>}
             </div>
 
-            {/* Áreas como chips + desplegable de disponibles */}
-            <div className={'form-group'}>
-              <label>
+            {/* Áreas o Zonas */}
+            <div className="form-group">
+              <label className="form-label">
                 {formData.gremio === "UOCRA" ? "Zona" : "Área"}
               </label>
 
-              {/* Chips de áreas asignadas */}
-              <div className="area-chips">
-                {(formData.areas || []).map((id, idx) => {
-                  const ref = areas.find(a => 
-                    (formData.gremio === "UOCRA" ? a.idZona : a.idArea) === Number(id)
-                  );
-                  return (
-                    <span key={idx} className="area-chip">
-                      {ref ? ref.nombre : `Área #${id}`}
-                      <button
-                        type="button"
-                        className="chip-remove"
-                        onClick={() => removeArea(id)}
-                        disabled={!areasHabilitadas}
-                      >
-                        –
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-
-              {/* Desplegable para agregar (solo muestra las disponibles) */}
-              <div className="area-actions" style={{ display: 'flex', gap: 8 }}>
+              {formData.gremio === "UOCRA" ? (
+                // 🔹 Caso UOCRA: solo un select simple de zona (sin chips ni botones)
                 <select
                   className="form-select"
-                  value={selectedAreaToAdd}
-                  onChange={(e) => handleAreaOrZonaSelect(e.target.value)}
+                  value={formData.zonaId || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      zonaId: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
                   disabled={!areasHabilitadas}
                 >
-                  <option value="">Seleccionar {formData.gremio === "UOCRA" ? "zona" : "área"}</option>
-                    {areas.map((item) => (
-                      <option key={item.idArea || item.idZona} value={item.idArea || item.idZona}>
-                        {item.nombre}
-                      </option>
-                    ))}
+                  <option value="">Seleccionar zona</option>
+                  {areas.map((zona) => (
+                    <option key={zona.idZona} value={zona.idZona}>
+                      {zona.nombre}
+                    </option>
+                  ))}
                 </select>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={addSelectedArea}
-                  disabled={!selectedAreaToAdd || !areasHabilitadas || !formData.gremio || formData.gremio === "Convenio General"}   // ✅ solo se desactiva si NO hay gremio
-                >
-                  +
-                </button>
-              </div>
+              ) : (
+                // 🔹 Caso general: múltiples áreas con chips y botón "+"
+                <>
+                  <div className="area-chips">
+                    {(formData.areas || []).map((id, idx) => {
+                      const ref = areas.find((a) => a.idArea === Number(id));
+                      return (
+                        <span key={idx} className="area-chip">
+                          {ref ? ref.nombre : `Área #${id}`}
+                          <button
+                            type="button"
+                            className="chip-remove"
+                            onClick={() => removeArea(id)}
+                            disabled={!areasHabilitadas}
+                          >
+                            –
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
 
-              {/* Mensaje si no quedan disponibles */}
-              {availableAreas.length === 0 && (
-                <small className="hint">No quedan áreas disponibles para asignar.</small>
+                  <div className="area-actions" style={{ display: "flex", gap: 8 }}>
+                    <select
+                      className="form-select"
+                      value={selectedAreaToAdd}
+                      onChange={(e) => handleAreaOrZonaSelect(e.target.value)}
+                      disabled={!areasHabilitadas}
+                    >
+                      <option value="">Seleccionar área</option>
+                      {areas
+                        .filter((item) => !((formData.areas || []).includes(item.idArea)))
+                        .map((item) => (
+                          <option key={item.idArea} value={item.idArea}>
+                            {item.nombre}
+                          </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={addSelectedArea}
+                      disabled={
+                        !selectedAreaToAdd ||
+                        !areasHabilitadas ||
+                        !formData.gremio ||
+                        formData.gremio === "Convenio General"
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </>
               )}
 
-              {errors?.areas && (
-                <span className="error-message">{errors.areas}</span>
-              )}
+              {errors?.areas && <span className="error-message">{errors.areas}</span>}
             </div>
 
             <div className="form-group">

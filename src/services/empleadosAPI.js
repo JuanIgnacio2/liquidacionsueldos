@@ -30,6 +30,9 @@ export const getPorcentajeArea = (idArea, idCat) =>
 export const getConceptos = () =>
     axiosClient.get(`/bonificaciones-fijas`).then((r)=>r.data);
 
+export const getDescuentos = () =>
+    axiosClient.get(`/descuento`).then((r)=>r.data);
+
 export const guardarLiquidacion = (dto) =>
     axiosClient.post('/liquidaciones', dto).then((r) => r.data);
 

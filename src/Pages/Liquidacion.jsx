@@ -1,11 +1,14 @@
-import React, {useState} from 'react';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, Printer, Download } from 'lucide-react';
+import React, {useEffect, useState} from 'react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, Printer, Download, FileText, CalendarDays, User } from 'lucide-react';
 import '../styles/components/_PlaceHolder.scss';
 import '../styles/components/_liquidacion.scss';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import {Modal, ModalFooter } from '../Components/Modal/Modal';
+import * as api from '../services/empleadosAPI'
 
 export default function Liquidacion() {
+  const [liquidaciones, setLiquidaciones] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
@@ -13,6 +16,30 @@ export default function Liquidacion() {
   const [payrollList, setPayrollList] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  
+  const loadPayrolls = async () => {
+    try {
+      const data = await api.getPagos();
+      setLiquidaciones(data);
+    } catch (error) {
+      console.error('Error al cargar las liquidaciones:', error);
+    }
+  };
+  
+  const loadEmployees = async () => {
+    try {
+      const data = await api.getEmployees(); 
+      const ordenados = data.sort((a, b) => a.legajo - b.legajo);
+      setEmployees(ordenados);
+    } catch (error) {
+      console.error('Error al cargar los empleados:', error);
+    }
+  };
+  
+  useEffect(() => {
+    loadEmployees();
+    loadPayrolls();
+  }, []);
 
   const handleViewDetails = (payroll) => {
     setSelectedPayroll(payroll);
@@ -103,27 +130,54 @@ export default function Liquidacion() {
       {/* Placeholder Content */}
       <div className="main-content">
         <div className="card main-section">
-          <div className="card-header section-header">
-            <h2 className="section-title section-title-effect">
-              <Calculator className="title-icon" />
-              Liquidaciones Recientes
-            </h2>
-            <p className="section-description">
-              Historial de liquidaciones procesadas
-            </p>
-          </div>
-          <div className="card-content">
-            <div className="placeholder-content">
-              <Calculator className="placeholder-icon" />
-              <h3 className="placeholder-title">Página en Desarrollo</h3>
-              <p className="placeholder-description">
-                Esta sección estará disponible próximamente. Aquí podrás procesar y gestionar todas las liquidaciones de sueldos.
-              </p>
-              <p className="placeholder-note">
-                Continúa desarrollando la aplicación para completar esta funcionalidad.
-              </p>
+          {liquidaciones.length === 0 ? (
+            <div className="empty-state">
+              <FileText className="empty-icon" />
+              <h3>Todavía no hay liquidaciones</h3>
+              <p>Cuando se generen, aparecerán aquí.</p>
             </div>
-          </div>
+            ) : (
+            <div className="payroll-grid">
+              {liquidaciones.map((liq) => (
+                <div
+                  key={liq.id}
+                  className="payroll-card employee-payroll"
+                  onClick={() => console.log(`Ver detalle de ${liq.id}`)}
+                >
+                  <div className="payroll-header">
+                    <div className="payroll-period">
+                      <CalendarDays className="period-icon" />
+                      <span className="period-name">{liq.periodoPago}</span>
+                    </div>
+                    <span className={`payroll-status ${liq.estado}`}>
+                      {liq.estado ? liq.estado.charAt(0).toUpperCase() + liq.estado.slice(1) : 'Completada'}
+                    </span>
+                  </div>
+
+                  <div className="salary-breakdown">
+                    <div className="salary-item total">
+                      <span className="salary-label">Total</span>
+                      <span className="salary-value">
+                        ${(liq.total_neto ?? 0).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="payroll-period-info">
+                    <div className="period-detail">
+                      <User className="period-icon" />
+                      <span>
+                        {liq.nombreEmpleado} {liq.apellidoEmpleado} - Legajo: {liq.legajoEmpleado}
+                      </span>
+                    </div>
+                    <span className="payment-date">
+                      Pago: {liq.fechaPago}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
@@ -161,6 +215,7 @@ export default function Liquidacion() {
         isOpen={showProcessModal}
         onClose={() => setShowProcessModal(false)}
         onProcess={handleProcessPayroll}
+        employees={employees}
       />
 
       {/* Payroll Detail Modal */}

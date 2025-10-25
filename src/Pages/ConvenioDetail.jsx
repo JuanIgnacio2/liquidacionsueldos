@@ -200,7 +200,6 @@ export default function ConvenioDetail() {
         await api.updateBasicoLyF(payload);
       } else if (controller === 'uocra') {
         const payload = buildUocraPayload(editableData, convenio);
-        console.log('UOCRA payload:', payload);
         await api.updateBasicoUocra(payload);
       }
 
@@ -382,7 +381,7 @@ export default function ConvenioDetail() {
                 <tr>
                   <th>CAT</th>
                   <th>SUELDO BÁSICO</th>
-                  <th colSpan={AREA_COLUMNS.length} style={{ textAlign: 'center' }}>BONIFICACIONES</th>
+                  <th colSpan={AREA_COLUMNS.length}>BONIFICACIONES</th>
                 </tr>
                 <tr>
                   {['', ''].concat(AREA_COLUMNS).map((hdr, i) => (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Settings, Download, TrendingUp, Users, Calculator, Upload } from 'lucide-react';
+import { FileText, MapPin, Settings, Download, TrendingUp, Users, Calculator, Upload } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import '../styles/components/_convenios.scss';
@@ -22,6 +22,8 @@ export default function Convenios() {
       description: c.descripcion,
       employeeCount: c.empleadosActivos,
       categories: c.cantidadCategorias,
+      cantAreas: c.cantidadAreas,
+      cantZonas: c.cantidadZonas,
       controller: c.controller,
       status: 'Activo',
     }));
