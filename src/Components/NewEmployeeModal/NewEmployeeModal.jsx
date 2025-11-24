@@ -971,6 +971,17 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                 <option value="Banco Macro">Banco Macro</option>
               </select>
             </div>
+
+            <div className="form-group">
+              <label className="form-label">Fecha de Inicio de Actividad *</label>
+              <input
+                type="date"
+                className={`form-input ${errors.inicioActividad ? 'error' : ''}`}
+                value={formData.inicioActividad || ''}
+                onChange={(e) => handleInputChange('inicioActividad', e.target.value)}
+              />
+              {errors.inicioActividad && <span className="error-message">{errors.inicioActividad}</span>}
+            </div>
           </div>
         </div>
         {/* Conceptos Adicionales */}

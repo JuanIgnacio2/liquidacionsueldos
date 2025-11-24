@@ -476,7 +476,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         categoria: employee.categoriaNombre || employee.categoria || '',
         idCategoria: employee.idCategoria || employee.categoriaId || null,
         bank: employee.banco || 'Banco Nación',
-        inicioActividad: employee.inicioActividad || '',
+        inicioActividad: employee.inicioActividad 
+          ? (employee.inicioActividad.includes('T') 
+              ? employee.inicioActividad.split('T')[0] 
+              : employee.inicioActividad)
+          : '',
         cuil: employee.cuil || '',
         salary: employee.salary ?? '',
         cbu: employee.cbu || '',
@@ -1020,6 +1024,17 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                 <option value="BBVA">BBVA</option>
                 <option value="Banco Macro">Banco Macro</option>
               </select>
+            </div>
+
+            <div className={'form-group'}>
+              <label className={'form-label'}>Fecha de Inicio de Actividad</label>
+              <input
+                type="date"
+                className={`form-input ${errors.inicioActividad ? 'error' : ''}`}
+                value={formData.inicioActividad || ''}
+                onChange={(e) => handleInputChange('inicioActividad', e.target.value)}
+              />
+              {errors.inicioActividad && <span className="error-message">{errors.inicioActividad}</span>}
             </div>
           </div>
         </div>
