@@ -28,8 +28,20 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         // Cargar conceptos asignados del empleado
         const asignados = await api.getConceptosAsignados(employee.legajo);
         
-        // Cargar catálogos necesarios
-        const bonificacionesFijas = await api.getConceptos();
+        // Determinar el gremio del empleado
+        const gremioNombre = employee.gremioNombre || employee.gremio || '';
+        const gremioUpper = gremioNombre.toUpperCase();
+        const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+        const isUocra = gremioUpper === 'UOCRA';
+        
+        // Cargar catálogos necesarios según el gremio
+        let bonificacionesFijas = [];
+        if (isLuzYFuerza) {
+          bonificacionesFijas = await api.getConceptosLyF();
+        } else if (isUocra) {
+          bonificacionesFijas = await api.getConceptosUocra();
+        }
+        
         const descuentos = await api.getDescuentos();
         const areasData = await api.getAreas();
         setAreas(areasData);

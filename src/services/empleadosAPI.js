@@ -27,8 +27,11 @@ export const getCategorias = () =>
 export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
-export const getConceptos = () =>
-    axiosClient.get(`/bonificaciones-fijas`).then((r)=>r.data);
+export const getConceptosLyF = () =>
+    axiosClient.get(`/conceptos_lyf`).then((r)=>r.data);
+
+export const getConceptosUocra = () =>
+    axiosClient.get(`/conceptos_uocra`).then((r)=>r.data);
 
 export const getDescuentos = () =>
     axiosClient.get(`/descuento`).then((r)=>r.data);
@@ -67,4 +70,4 @@ export const getZonas = () =>
     axiosClient.get(`/zonas`).then((r)=>r.data);
 
 export const getBasicoByCatAndZona = (idCategoria, idZona) =>
-    axiosClient.get(`/uocra/basico/${idCategoria}/${idZona}`).then((r)=>r.data);
+    axiosClient.get(`/categorias-zonas-uocra/categoria/${idCategoria}/zona/${idZona}`).then((r)=>r.data);

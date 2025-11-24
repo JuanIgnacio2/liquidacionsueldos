@@ -142,28 +142,25 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
   useEffect(() => {
     const loadConceptos = async () => {
       try {
-        // Cargar bonificaciones fijas filtradas por gremio
-        const bonificacionesData = await api.getConceptos();
-        let filteredBonificaciones = [];
+        // Solo cargar conceptos si hay un gremio seleccionado y no es Convenio General
+        if (!formData.gremio || formData.gremio === 'Convenio General') {
+          setConceptos([]);
+          return;
+        }
+
+        // Cargar bonificaciones fijas según el gremio
+        let bonificacionesData = [];
         if (formData.gremio === 'LUZ_Y_FUERZA') {
-          // Luz y Fuerza: IDs del 1 al 31
-          filteredBonificaciones = bonificacionesData.filter(concepto => {
-            const id = concepto.idBonificacion ?? concepto.id;
-            return id >= 1 && id <= 31;
-          });
+          bonificacionesData = await api.getConceptosLyF();
         } else if (formData.gremio === 'UOCRA') {
-          // UOCRA: IDs a partir del 32
-          filteredBonificaciones = bonificacionesData.filter(concepto => {
-            const id = concepto.idBonificacion ?? concepto.id;
-            return id >= 32;
-          });
+          bonificacionesData = await api.getConceptosUocra();
         }
         
         // Cargar descuentos (sin filtrar por gremio, son generales)
         const descuentosData = await api.getDescuentos();
         
         // Mapear bonificaciones - usar prefijo 'BON_' para evitar conflictos de IDs
-        const mappedBonificaciones = filteredBonificaciones.map((concepto) => {
+        const mappedBonificaciones = bonificacionesData.map((concepto) => {
           const originalId = concepto.idBonificacion ?? concepto.id;
           return {
             id: `BON_${originalId}`, // Prefijo para bonificaciones

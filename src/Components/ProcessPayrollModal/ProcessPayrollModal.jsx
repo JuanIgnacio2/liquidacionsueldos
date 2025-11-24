@@ -66,7 +66,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         basico = {
           id: employee.idCategoria,
           tipo: 'CATEGORIA',
-          nombre: `Básico - ${categoria.nombre}`,
+          nombre: `Básico ${categoria.nombre}`,
           montoUnitario: basicoValue,
           cantidad: 1,
           total: basicoValue ?? 0,
@@ -88,7 +88,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             const bonoImporte = (categoria_11.basico * Number(porcentaje)) / 100;
             return {
               id: area.idArea,
-              tipo: 'BONIFICACION_VARIABLE',
+              tipo: 'BONIFICACION_AREA',
               nombre: `${area.nombre}`,
               montoUnitario: bonoImporte,
               cantidad: 1,
@@ -100,7 +100,19 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       /* Conceptos precargados en base de datos */
       const conceptosAsignados = await api.getConceptosAsignados(employee.legajo);
-      const bonificacionesFijas = await api.getConceptos();
+      
+      // Cargar bonificaciones fijas según el gremio del empleado
+      let bonificacionesFijas = [];
+      const gremioUpper = gremio;
+      const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+      const isUocra = gremioUpper === 'UOCRA';
+      
+      if (isLuzYFuerza) {
+        bonificacionesFijas = await api.getConceptosLyF();
+      } else if (isUocra) {
+        bonificacionesFijas = await api.getConceptosUocra();
+      }
+      
       const descuentos = await api.getDescuentos();
 
       const mappedAsignados = conceptosAsignados
@@ -108,9 +120,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           let concepto = null;
 
           if (asignado.tipoConcepto === 'BONIFICACION_FIJA') {
-            concepto = bonificacionesFijas.find(b => b.id === asignado.idReferencia);
+            concepto = bonificacionesFijas.find(b => 
+              (b.idBonificacion ?? b.id) === asignado.idReferencia
+            );
           } else if (asignado.tipoConcepto === 'DESCUENTO') {
-            concepto = descuentos.find(d => d.idDescuento === asignado.idReferencia);
+            concepto = descuentos.find(d => 
+              (d.idDescuento ?? d.id) === asignado.idReferencia
+            );
           }
 
           if (!concepto) return null;
@@ -122,7 +138,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           return {
             id: asignado.idReferencia,
             tipo,
-            nombre: concepto.nombre,
+            nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
             montoUnitario,
             cantidad: asignado.unidades,
             total: montoUnitario * asignado.unidades,
@@ -210,7 +226,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   // Calcular totales
   const calculateTotals = () => {
     const remunerations = conceptos
-      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_VARIABLE' || c.tipo === 'BONIFICACION_FIJA')
+      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'BONIFICACION_FIJA')
       .reduce((sum, c) => sum + (c.total || 0), 0);
 
     const deductions = conceptos.filter(c => c.tipo === 'DESCUENTO')
@@ -486,7 +502,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                   <div className="concept-cell">
                     {(concept.tipo === 'CATEGORIA' ||
-                      concept.tipo === 'BONIFICACION_VARIABLE' ||
+                      concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'BONIFICACION_FIJA') && (
                       <span className="amount positive">
                         ${Math.abs(concept.montoUnitario || 0).toLocaleString()}
@@ -624,7 +640,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <span className="concept-units">{concept.cantidad}</span>
                   <span className="concept-remuneration">
                     {(concept.type === 'CATEGORIA' ||
-                      concept.type === 'BONIFICACION_VARIABLE' ||
+                      concept.type === 'BONIFICACION_AREA' ||
                       concept.type === 'BONIFICACION_FIJA') && concept.total > 0 ? concept.total.toLocaleString() : ''}
                   </span>
                   <span className="concept-deduction">
