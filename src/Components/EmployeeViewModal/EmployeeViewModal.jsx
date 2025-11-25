@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { User, Mail, Phone, MapPin, Calendar, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
+import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -13,11 +13,40 @@ const formatCurrencyAR = (value) => {
   return `$${integerPart},${parts[1]}`;
 };
 
+// Función helper para obtener el tipo de concepto según el gremio
+const getTipoConcepto = (gremioNombre) => {
+  if (!gremioNombre) return null;
+  const gremioUpper = gremioNombre.toUpperCase();
+  if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) return 'CONCEPTO_LYF';
+  if (gremioUpper === 'UOCRA') return 'CONCEPTO_UOCRA';
+  return null;
+};
+
+// Función helper para obtener el nombre legible del tipo de concepto
+const getTipoConceptoLabel = (tipoConcepto) => {
+  switch (tipoConcepto) {
+    case 'CONCEPTO_LYF':
+      return 'Concepto LyF';
+    case 'CONCEPTO_UOCRA':
+      return 'Concepto UOCRA';
+    case 'BONIFICACION_AREA':
+      return 'Bonificación de Área';
+    case 'CATEGORIA_ZONA':
+      return 'Categoría-Zona';
+    case 'DESCUENTO':
+      return 'Descuento';
+    default:
+      return tipoConcepto;
+  }
+};
+
 export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones }) {
   const [conceptosAsignados, setConceptosAsignados] = useState([]);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
   const [areas, setAreas] = useState([]);
+  const [zonas, setZonas] = useState([]);
   const [categoriaBasico, setCategoriaBasico] = useState(0);
+  const [salarioBasico, setSalarioBasico] = useState(0);
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
@@ -44,7 +73,19 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         
         const descuentos = await api.getDescuentos();
         const areasData = await api.getAreas();
+        
         setAreas(areasData);
+        
+        // Cargar zonas para UOCRA
+        let zonasData = [];
+        if (isUocra) {
+          try {
+            zonasData = await api.getZonas();
+            setZonas(zonasData);
+          } catch (error) {
+            console.error('Error al cargar zonas:', error);
+          }
+        }
 
         // Obtener el básico de categoría 11 para cálculos
         let basicoCat11 = categoriaBasico;
@@ -58,7 +99,27 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           }
         }
 
-        // Mapear los conceptos asignados
+        // Obtener el salario básico del empleado según su gremio
+        let basicoEmpleado = 0;
+        try {
+          const idZona = employee.idZona || employee.idZonaUocra;
+          if (isUocra && employee.idCategoria && idZona) {
+            // Para UOCRA: obtener básico por categoría y zona
+            const basicoData = await api.getBasicoByCatAndZona(employee.idCategoria, idZona);
+            basicoEmpleado = Number(basicoData?.basico ?? basicoData?.salarioBasico ?? basicoData?.monto ?? basicoData?.salario ?? 0);
+          } else if (employee.idCategoria) {
+            // Para Luz y Fuerza o Convenio General: obtener básico de la categoría
+            const categoria = await api.getCategoriaById(employee.idCategoria);
+            basicoEmpleado = Number(categoria?.basico ?? categoria?.salarioBasico ?? categoria?.sueldoBasico ?? categoria?.monto ?? categoria?.salario ?? 0);
+          }
+          setSalarioBasico(basicoEmpleado);
+        } catch (error) {
+          console.error('Error al obtener salario básico del empleado:', error);
+          setSalarioBasico(0);
+          basicoEmpleado = 0;
+        }
+
+        // Mapear los conceptos asignados (usando basicoEmpleado calculado arriba)
         const mappedConceptos = await Promise.all(
           asignados.map(async (asignado) => {
             let concepto = null;
@@ -69,7 +130,9 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             let tipoConcepto = asignado.tipoConcepto;
             let isDescuento = false;
 
-            if (asignado.tipoConcepto === 'BONIFICACION_FIJA') {
+            // Manejar CONCEPTO_LYF, CONCEPTO_UOCRA
+            if (asignado.tipoConcepto === 'CONCEPTO_LYF' || 
+                asignado.tipoConcepto === 'CONCEPTO_UOCRA') {
               concepto = bonificacionesFijas.find(b => 
                 (b.idBonificacion ?? b.id) === asignado.idReferencia
               );
@@ -86,14 +149,14 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                 porcentaje = concepto.porcentaje ?? null;
                 isDescuento = true;
               }
-            } else if (asignado.tipoConcepto === 'BONIFICACION_VARIABLE') {
+            } else if (asignado.tipoConcepto === 'BONIFICACION_AREA') {
               // Buscar el área
               area = areasData.find(a => a.idArea === asignado.idReferencia);
               if (area) {
                 nombre = area.nombre || `Área ${asignado.idReferencia}`;
                 // Obtener porcentaje de área
                 try {
-                  const porcentajeResponse = await api.getPorcentajeArea(asignado.idReferencia, 11);
+                  const porcentajeResponse = await api.getPorcentajeArea(asignado.idReferencia, employee.idCategoria);
                   porcentaje = typeof porcentajeResponse === 'number' 
                     ? porcentajeResponse 
                     : Number(porcentajeResponse?.porcentaje ?? porcentajeResponse) || 0;
@@ -111,11 +174,30 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             if (!nombre && !concepto && !area) return null;
 
             // Calcular total si hay porcentaje y básico
+            // Para bonificaciones de área: calcular sobre el básico de categoría 11
+            // Para conceptos CONCEPTO_LYF (Luz y Fuerza): calcular sobre el básico de categoría 11
+            // Para conceptos CONCEPTO_UOCRA: calcular sobre el salario básico del empleado
+            // Para descuentos: se calculará después sobre el total de remuneraciones
             let total = 0;
-            if (porcentaje && basicoCat11 > 0) {
-              const montoUnitario = (basicoCat11 * porcentaje) / 100;
-              total = isDescuento ? -(montoUnitario * unidades) : (montoUnitario * unidades);
+            if (porcentaje && !isDescuento) {
+              let baseCalculo = 0;
+              if (asignado.tipoConcepto === 'BONIFICACION_AREA') {
+                // Bonificaciones de área se calculan sobre categoría 11
+                baseCalculo = basicoCat11;
+              } else if (asignado.tipoConcepto === 'CONCEPTO_LYF') {
+                // Conceptos de Luz y Fuerza se calculan sobre categoría 11
+                baseCalculo = basicoCat11;
+              } else if (asignado.tipoConcepto === 'CONCEPTO_UOCRA') {
+                // Conceptos de UOCRA se calculan sobre el salario básico del empleado
+                baseCalculo = basicoEmpleado;
+              }
+              
+              if (baseCalculo > 0) {
+                const montoUnitario = (baseCalculo * porcentaje) / 100;
+                total = montoUnitario * unidades;
+              }
             }
+            // Los descuentos se calcularán después sobre el total de remuneraciones
 
             return {
               id: asignado.idEmpleadoConcepto || asignado.idReferencia,
@@ -129,6 +211,31 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             };
           })
         );
+
+        // Calcular total de remuneraciones (básico + bonificaciones + áreas)
+        // Incluir bonificaciones de área y conceptos CONCEPTO_LYF que se calculan sobre basicoCat11
+        const totalBonificacionesArea = mappedConceptos
+          .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
+        const totalConceptosLyF = mappedConceptos
+          .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
+        const totalConceptosUocra = mappedConceptos
+          .filter(c => c.tipoConcepto === 'CONCEPTO_UOCRA' && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
+        // Usar basicoEmpleado (variable local) en lugar del estado
+        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalConceptosUocra;
+
+        // Recalcular descuentos sobre el total de remuneraciones
+        mappedConceptos.forEach(concepto => {
+          if (concepto.isDescuento && concepto.porcentaje && totalRemuneraciones > 0) {
+            const montoUnitario = (totalRemuneraciones * concepto.porcentaje) / 100;
+            concepto.total = -(montoUnitario * concepto.unidades);
+          }
+        });
 
         // Filtrar nulls y establecer
         setConceptosAsignados(mappedConceptos.filter(Boolean));
@@ -144,10 +251,17 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
       loadConceptosAsignados();
     } else {
       setConceptosAsignados([]);
+      setSalarioBasico(0);
     }
   }, [isOpen, employee]);
 
   if (!employee) return null;
+
+  // Determinar el gremio del empleado para usar en el render
+  const gremioNombre = employee.gremioNombre || employee.gremio || '';
+  const gremioUpper = gremioNombre.toUpperCase();
+  const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+  const isUocra = gremioUpper === 'UOCRA';
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -199,8 +313,20 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           </h3>
           <div className={'detail-grid'}>
             <div className={'detail-item'}>
-              <div className={'detail-label'}>Áreas</div>
-              <div className={'detail-value'}>{employee.nombreAreas}</div>
+              <div className={'detail-label'}>
+                {isLuzYFuerza ? 'Áreas' : isUocra ? 'Zona' : 'Áreas'}
+              </div>
+              <div className={'detail-value'}>
+                {isLuzYFuerza && employee.nombreAreas 
+                  ? (Array.isArray(employee.nombreAreas) ? employee.nombreAreas.join(', ') : employee.nombreAreas)
+                  : isUocra && (employee.idZona || employee.idZonaUocra)
+                  ? (() => {
+                      const idZona = employee.idZona || employee.idZonaUocra;
+                      const zona = zonas.find(z => z.idZona === idZona);
+                      return zona ? zona.nombre : `Zona ${idZona}`;
+                    })()
+                  : employee.nombreAreas || '-'}
+              </div>
             </div>
             <div className={'detail-item'}>
               <div className={'detail-label'}>Fecha de Ingreso</div>
@@ -219,6 +345,12 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             <div className={'detail-item'}>
               <div className={'detail-label'}>Categoría</div>
               <div className={'detail-value'}>{employee.idCategoria || '1'}</div>
+            </div>
+            <div className={'detail-item'}>
+              <div className={'detail-label'}>Salario Básico</div>
+              <div className={'detail-value'}>
+                {salarioBasico > 0 ? formatCurrencyAR(salarioBasico) : '-'}
+              </div>
             </div>
             <div className={'detail-item'}>
               <div className={'detail-label'}>Banco</div>
@@ -246,14 +378,13 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               </p>
             ) : (
               <div className="conceptos-table">
-                <table className="conceptos-table-content">
+                <table className="conceptos-table-content" style={{ width: '100%', tableLayout: 'auto' }}>
                   <thead>
                     <tr>
-                      <th>Tipo</th>
-                      <th>Concepto</th>
-                      <th>Porcentaje</th>
-                      <th>Unidades</th>
-                      <th>Total</th>
+                      <th style={{ width: '50%', textAlign: 'left' }}>Concepto</th>
+                      <th style={{ width: '15%', textAlign: 'center' }}>Porcentaje</th>
+                      <th style={{ width: '15%', textAlign: 'center' }}>Unidades</th>
+                      <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,31 +392,18 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                       const isDescuento = concepto.tipoConcepto === 'DESCUENTO' || concepto.isDescuento;
                       return (
                         <tr key={concepto.id} className={`selected ${isDescuento ? 'descuento-row' : ''}`}>
-                          <td>
-                            <span className="concepto-label">
-                              {concepto.tipoConcepto === 'BONIFICACION_FIJA' 
-                                ? 'Bonificación Fija'
-                                : concepto.tipoConcepto === 'BONIFICACION_VARIABLE'
-                                ? 'Bonificación Variable'
-                                : concepto.tipoConcepto === 'CATEGORIA_ZONA'
-                                ? 'Categoría-Zona'
-                                : concepto.tipoConcepto === 'DESCUENTO'
-                                ? 'Descuento'
-                                : concepto.tipoConcepto}
-                            </span>
-                          </td>
-                          <td>
+                          <td style={{ textAlign: 'left' }}>
                             <span className="concepto-label">
                               {concepto.nombre}
                             </span>
                           </td>
-                          <td className="porcentaje-cell">
+                          <td className="porcentaje-cell" style={{ textAlign: 'center' }}>
                             {concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}
                           </td>
-                          <td>
+                          <td style={{ textAlign: 'center' }}>
                             {concepto.unidades || '-'}
                           </td>
-                          <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
+                          <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`} style={{ textAlign: 'right' }}>
                             {concepto.total && concepto.total !== 0
                               ? formatCurrencyAR(concepto.total)
                               : '-'

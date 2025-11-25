@@ -46,6 +46,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
   const [conceptosSeleccionados, setConceptosSeleccionados] = useState({});
   const [filteredCategorias, setFilteredCategorias] = useState([]);
   const [areasHabilitadas, setAreasHabilitadas] = useState(false);
+  const [basicoCat11, setBasicoCat11] = useState(0);
 
   // Rango de categorías por gremio
   const LUZ_Y_FUERZA_IDS = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -99,6 +100,13 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     'Convenio General': 0
   };
 
+  // Función helper para obtener el tipo de concepto según el gremio
+  const getTipoConcepto = (gremio) => {
+    if (gremio === 'LUZ_Y_FUERZA') return 'CONCEPTO_LYF';
+    if (gremio === 'UOCRA') return 'CONCEPTO_UOCRA';
+    return 'BONIFICACION_FIJA'; // Fallback (no debería usarse con Convenio General)
+  };
+
   useEffect(() => {
     setAreasHabilitadas(
       !!formData.gremio && formData.gremio !== "Convenio General"
@@ -138,7 +146,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     loadCategorias();
   }, []);
 
-  // Carga los conceptos (bonificaciones fijas y descuentos) desde la API
+  // Carga los conceptos ( y descuentos) desde la API
   useEffect(() => {
     const loadConceptos = async () => {
       try {
@@ -169,7 +177,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
             unidad: concepto.porcentaje ? '%' : 'monto',
             porcentaje: concepto.porcentaje ?? null,
             montoUnitario: concepto.montoUnitario ?? concepto.monto ?? null,
-            tipo: 'BONIFICACION_FIJA',
+            tipo: getTipoConcepto(formData.gremio),
             isDescuento: false
           };
         });
@@ -234,10 +242,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
               const basico = Number(basicoData?.basico ?? basicoData?.salarioBasico ?? basicoData?.monto ?? basicoData?.salario ?? 0);
               setFormData(prev => {
                 const currentSalary = Number(prev.salary) || 0;
-                if (currentSalary === basico && prev.categoria === getCatNombre(cat)) {
-                  return prev;
+                // Actualizar si el salario está vacío o si el básico es diferente
+                if (!prev.salary || currentSalary !== basico || prev.categoria !== getCatNombre(cat)) {
+                  return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
                 }
-                return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
+                return prev;
               });
             } catch (error) {
               console.error('Error al obtener básico por zona y categoría:', error);
@@ -245,10 +254,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
               const basico = Number(getCatBasico(cat)) || 0;
               setFormData(prev => {
                 const currentSalary = Number(prev.salary) || 0;
-                if (currentSalary === basico && prev.categoria === getCatNombre(cat)) {
-                  return prev;
+                // Actualizar si el salario está vacío o si el básico es diferente
+                if (!prev.salary || currentSalary !== basico || prev.categoria !== getCatNombre(cat)) {
+                  return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
                 }
-                return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
+                return prev;
               });
             }
           };
@@ -316,6 +326,27 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     }
   }, [categorias, formData.idCategoria, formData.categoria, formData.idZona, formData.gremio, employee?.categoria]);
 
+  // Cargar básico de categoría 11 para Luz y Fuerza (necesario para conceptos y bonos de área)
+  useEffect(() => {
+    const loadBasicoCat11 = async () => {
+      if (formData.gremio !== 'LUZ_Y_FUERZA') {
+        setBasicoCat11(0);
+        return;
+      }
+
+      try {
+        const categoria11 = await api.getCategoriaById(11);
+        const basicoCat11Value = getCatBasico(categoria11);
+        setBasicoCat11(basicoCat11Value || 0);
+      } catch (error) {
+        console.error('Error al obtener categoría 11:', error);
+        setBasicoCat11(0);
+      }
+    };
+
+    loadBasicoCat11();
+  }, [formData.gremio]);
+
   // Calcula el bono de área cuando cambian las áreas (siempre usa categoría 11)
   useEffect(() => {
     const calculateBonoArea = async () => {
@@ -326,15 +357,17 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
       }
 
       try {
-        // Obtener el básico de categoría 11
-        const categoria11 = await api.getCategoriaById(11);
-        // Usar getCatBasico para obtener el básico correctamente
-        const basicoCat11 = getCatBasico(categoria11);
-
-        if (!basicoCat11 || basicoCat11 === 0) {
-          console.warn('No se pudo obtener el básico de categoría 11');
-          setFormData(prev => ({ ...prev, bonoArea: 0 }));
-          return;
+        // Usar el básico de categoría 11 ya cargado, o cargarlo si no está disponible
+        let basicoCat11Value = basicoCat11;
+        if (basicoCat11Value === 0) {
+          const categoria11 = await api.getCategoriaById(11);
+          basicoCat11Value = getCatBasico(categoria11);
+          setBasicoCat11(basicoCat11Value || 0);
+          if (!basicoCat11Value || basicoCat11Value === 0) {
+            console.warn('No se pudo obtener el básico de categoría 11');
+            setFormData(prev => ({ ...prev, bonoArea: 0 }));
+            return;
+          }
         }
 
         // Calcular bonos para cada área usando siempre categoría 11
@@ -347,7 +380,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
               ? porcentajeResponse 
               : Number(porcentajeResponse?.porcentaje ?? porcentajeResponse) || 0;
             // Calcular: (básico_cat11 * porcentaje) / 100
-            return (basicoCat11 * porcentajeNum) / 100;
+            return (basicoCat11Value * porcentajeNum) / 100;
           } catch (error) {
             console.error(`Error al obtener porcentaje para área ${areaId}:`, error);
             return 0;
@@ -364,18 +397,22 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
       }
     };
 
-    calculateBonoArea();
-  }, [formData.areas, formData.gremio]); // Removido formData.idCategoria de las dependencias
+    // Solo calcular si el modal está abierto y hay datos válidos
+    if (isOpen) {
+      calculateBonoArea();
+    }
+  }, [formData.areas, formData.gremio, basicoCat11, isOpen]); // Agregado isOpen para recalcular al abrir
 
   // Calcula el salario básico cuando cambia la zona o categoría en UOCRA
   useEffect(() => {
     const calculateSalaryByZona = async () => {
       // Solo calcular si es UOCRA, hay categoría y zona seleccionadas
       if (formData.gremio !== 'UOCRA' || !formData.idCategoria || !formData.idZona) {
-        // Si es UOCRA pero falta zona o categoría, limpiar salario
-        if (formData.gremio === 'UOCRA') {
+        // Si es UOCRA pero falta zona o categoría, limpiar salario solo si ya tenía un valor
+        if (formData.gremio === 'UOCRA' && (!formData.idCategoria || !formData.idZona)) {
           setFormData(prev => {
-            if (prev.gremio === 'UOCRA' && (!prev.idCategoria || !prev.idZona) && prev.salary) {
+            // Solo limpiar si había un salario previo y ahora falta zona o categoría
+            if (prev.salary && (!prev.idCategoria || !prev.idZona)) {
               return { ...prev, salary: '' };
             }
             return prev;
@@ -392,8 +429,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           // Verificar que los valores todavía coinciden (para evitar actualizaciones obsoletas)
           if (prev.gremio === 'UOCRA' && prev.idCategoria === formData.idCategoria && prev.idZona === formData.idZona) {
             const currentSalary = Number(prev.salary) || 0;
-            if (currentSalary === basico) return prev;
-            return { ...prev, salary: String(basico) };
+            // Actualizar siempre si el básico es diferente o si el salario está vacío
+            if (currentSalary !== basico || !prev.salary) {
+              return { ...prev, salary: String(basico) };
+            }
+            return prev;
           }
           return prev;
         });
@@ -406,8 +446,19 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           setFormData(prev => {
             if (prev.gremio === 'UOCRA' && prev.idCategoria === formData.idCategoria && prev.idZona === formData.idZona) {
               const currentSalary = Number(prev.salary) || 0;
-              if (currentSalary === basico) return prev;
-              return { ...prev, salary: String(basico) };
+              // Actualizar siempre si el básico es diferente o si el salario está vacío
+              if (currentSalary !== basico || !prev.salary) {
+                return { ...prev, salary: String(basico) };
+              }
+              return prev;
+            }
+            return prev;
+          });
+        } else {
+          // Si no se encuentra la categoría, limpiar el salario
+          setFormData(prev => {
+            if (prev.gremio === 'UOCRA' && prev.idCategoria === formData.idCategoria && prev.idZona === formData.idZona) {
+              return { ...prev, salary: '' };
             }
             return prev;
           });
@@ -456,10 +507,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
 
   // ---------- Precarga de datos al editar ----------
   useEffect(() => {
-    if (employee) {
+    if (employee && isOpen) {
       // Mapear el gremio correctamente
       const gremioModal = mapGremioToModal(employee.gremioNombre || employee.gremio);
       const gremioId = GREMIOS[gremioModal] || null;
+      const idZona = employee.idZona || employee.idZonaUocra || null;
       
       setFormData(prev => ({
         ...prev,
@@ -482,13 +534,13 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         salary: employee.salary ?? '',
         cbu: employee.cbu || '',
         areas: Array.isArray(employee.idAreas) ? employee.idAreas : [],
-        idZona: employee.idZona || null,
-        bonoArea: employee.bonoArea ?? 0,
+        idZona: idZona,
+        bonoArea: 0, // Inicializar en 0 para que se recalcule
         sexo: employee.sexo || 'M',
       }));
       setErrors({});
     }
-  }, [employee]);
+  }, [employee, isOpen]);
 
   // Cargar conceptos asignados del empleado cuando se abre el modal o cambia el empleado/gremio
   useEffect(() => {
@@ -506,9 +558,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         // Cargar conceptos asignados del empleado
         const asignados = await api.getConceptosAsignados(employee.legajo);
         
-        // Filtrar bonificaciones fijas y descuentos
+        // Filtrar bonificaciones fijas y descuentos (incluyendo CONCEPTO_LYF y CONCEPTO_UOCRA)
         const conceptosAsignados = asignados.filter(
-          asignado => asignado.tipoConcepto === 'BONIFICACION_FIJA' || asignado.tipoConcepto === 'DESCUENTO'
+          asignado => asignado.tipoConcepto === 'CONCEPTO_LYF' || 
+                      asignado.tipoConcepto === 'CONCEPTO_UOCRA' || 
+                      asignado.tipoConcepto === 'DESCUENTO'
         );
 
         // Mapear a formato de conceptosSeleccionados: { conceptId: { units: 'X' } }
@@ -550,9 +604,19 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.areas || formData.areas.length === 0) {
-      newErrors.areas = 'Elegí al menos un área';
+    // Validación según el gremio
+    if (formData.gremio === 'LUZ_Y_FUERZA') {
+      // Para Luz y Fuerza: validar que haya al menos un área
+      if (!formData.areas || formData.areas.length === 0) {
+        newErrors.areas = 'Elegí al menos un área';
+      }
+    } else if (formData.gremio === 'UOCRA') {
+      // Para UOCRA: validar que haya una zona seleccionada
+      if (!formData.idZona) {
+        newErrors.areas = 'Elegí una zona';
+      }
     }
+    // Para Convenio General no se requiere validación de áreas/zonas
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -579,7 +643,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         if (concepto && units && units > 0) {
           const tipoConcepto = concepto.isDescuento || concepto.tipo === 'DESCUENTO' 
             ? 'DESCUENTO' 
-            : 'BONIFICACION_FIJA';
+            : getTipoConcepto(formData.gremio);
           // Usar originalId para enviar al backend (sin prefijo)
           conceptosAsignados.push({
             idEmpleadoConcepto: null, // Nuevo concepto
@@ -597,7 +661,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           conceptosAsignados.push({
             idEmpleadoConcepto: null,
             legajo: Number(formData.legajo),
-            tipoConcepto: 'BONIFICACION_VARIABLE',
+            tipoConcepto: 'BONIFICACION_AREA',
             idReferencia: Number(areaId),
             unidades: 1 // Por defecto 1 unidad para área
           });
@@ -677,20 +741,40 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
   });
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
-  const calculateConceptTotal = (concepto, units) => {
+  // Para descuentos, se calcula sobre el total de remuneraciones
+  // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
+  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
-    if (!formData.salary || !concepto.porcentaje) return 0;
+    if (!concepto.porcentaje) return 0;
     
-    const basico = Number(formData.salary) || 0;
     const porcentaje = Number(concepto.porcentaje) || 0;
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
     
-    // Total = (básico * porcentaje / 100) * unidades
-    // Si es descuento, el total es negativo
-    const montoUnitario = (basico * porcentaje) / 100;
-    const total = montoUnitario * unidades;
-    return isDescuento ? -total : total;
+    // Si es descuento, calcular sobre el total de remuneraciones
+    if (isDescuento) {
+      if (!totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
+      return -(montoUnitario * unidades);
+    }
+    
+    // Si es bonificación, determinar la base de cálculo
+    let baseCalculo = 0;
+    
+    // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
+    // Verificar si es un concepto de Luz y Fuerza por el gremio y el tipo
+    if (formData.gremio === 'LUZ_Y_FUERZA' && !concepto.isDescuento) {
+      // Todos los conceptos de Luz y Fuerza (CONCEPTO_LYF) se calculan sobre categoría 11
+      baseCalculo = basicoCat11;
+    } else {
+      // Para otros casos (UOCRA o si no hay básico de cat 11): usar el básico del empleado
+      if (!formData.salary) return 0;
+      baseCalculo = Number(formData.salary) || 0;
+    }
+    
+    if (baseCalculo <= 0) return 0;
+    const montoUnitario = (baseCalculo * porcentaje) / 100;
+    return montoUnitario * unidades;
   };
 
   // Calcula el salario total estipulado inicial
@@ -698,23 +782,43 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     const salarioBasico = Number(formData.salary) || 0;
     const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
     
-    // Sumar todos los conceptos adicionales seleccionados (incluyendo descuentos que son negativos)
-    const totalConceptos = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
-      // conceptId ahora puede ser 'BON_X' o 'DESC_X' (string con prefijo)
+    // Primero sumar todas las remuneraciones (básico + bono área + bonificaciones)
+    const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
       const concepto = conceptos.find(c => c.id === conceptId);
       if (!concepto) return sum;
+      const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+      if (isDescuento) return sum; // Los descuentos se calculan después
+      
       const units = conceptosSeleccionados[conceptId]?.units ?? '';
       const unitsNum = Number(units);
       if (!unitsNum || unitsNum <= 0) return sum;
       
-      // Calcular total del concepto
+      // Calcular total de la bonificación sobre el básico
       const total = calculateConceptTotal(concepto, unitsNum);
-      
-      // Los descuentos ya vienen negativos de calculateConceptTotal, así que se restan al sumar
       return sum + total;
     }, 0);
     
-    return salarioBasico + bonoArea + totalConceptos;
+    // Total de remuneraciones
+    const totalRemuneraciones = salarioBasico + bonoArea + totalBonificaciones;
+    
+    // Luego calcular descuentos sobre el total de remuneraciones
+    const totalDescuentos = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+      const concepto = conceptos.find(c => c.id === conceptId);
+      if (!concepto) return sum;
+      const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+      if (!isDescuento) return sum; // Solo procesar descuentos
+      
+      const units = conceptosSeleccionados[conceptId]?.units ?? '';
+      const unitsNum = Number(units);
+      if (!unitsNum || unitsNum <= 0) return sum;
+      
+      // Calcular descuento sobre el total de remuneraciones
+      const descuento = calculateConceptTotal(concepto, unitsNum, totalRemuneraciones);
+      return sum + Math.abs(descuento); // Sumar el valor absoluto porque ya viene negativo
+    }, 0);
+    
+    // Retornar: remuneraciones - descuentos
+    return totalRemuneraciones - totalDescuentos;
   };
 
   // Maneja el toggle de selección de conceptos adicionales
@@ -1051,14 +1155,14 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
               </p>
             ) : (
               <div className="conceptos-table">
-                <table className="conceptos-table-content">
+                <table className="conceptos-table-content" style={{ width: '100%', tableLayout: 'auto' }}>
                   <thead>
                     <tr>
-                      <th>Seleccionar</th>
-                      <th>Concepto</th>
-                      <th>Porcentaje</th>
-                      <th>Unidades</th>
-                      <th>Total</th>
+                      <th style={{ width: '10%', textAlign: 'center' }}>Seleccionar</th>
+                      <th style={{ width: '30%', textAlign: 'left' }}>Concepto</th>
+                      <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje</th>
+                      <th style={{ width: '20%', textAlign: 'center' }}>Unidades</th>
+                      <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1067,9 +1171,25 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                       const units = conceptosSeleccionados[concepto.id]?.units ?? '';
                       const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
                       
+                      // Calcular total de remuneraciones para descuentos
+                      const calcularTotalRemuneraciones = () => {
+                        const salarioBasico = Number(formData.salary) || 0;
+                        const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+                        const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+                          const c = conceptos.find(cc => cc.id === conceptId);
+                          if (!c || c.isDescuento || c.tipo === 'DESCUENTO') return sum;
+                          const u = conceptosSeleccionados[conceptId]?.units ?? '';
+                          const uNum = Number(u);
+                          if (!uNum || uNum <= 0) return sum;
+                          return sum + calculateConceptTotal(c, uNum);
+                        }, 0);
+                        return salarioBasico + bonoArea + totalBonificaciones;
+                      };
+                      
                       // Calcular total solo si está seleccionado y tiene unidades válidas
+                      const totalRemuneraciones = isDescuento ? calcularTotalRemuneraciones() : null;
                       const total = isSelected && units && Number(units) > 0 
-                        ? calculateConceptTotal(concepto, Number(units))
+                        ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones)
                         : 0;
                       
                       return (

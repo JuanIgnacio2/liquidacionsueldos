@@ -181,8 +181,6 @@ export default function Empleados() {
   };
 
   const handleProcessPayroll = (result) => {
-    console.log('Procesamiento completado:', result);
-    // Puedes agregar lógica adicional aquí si es necesario
     loadEmployees(); // Refrescar lista si es necesario
   };
 
@@ -466,9 +464,6 @@ export default function Empleados() {
         isOpen={showViewModal}
         onClose={closeModals}
         employee={selectedEmployee}
-        //onConceptos={handleConceptos}
-        //onLiquidarSueldo={handleLiquidarSueldo}
-        //onHistorialLiquidaciones={handleHistorialLiquidaciones}
       />
       <ProcessPayrollModal
         isOpen={showProcessPayrollModal}

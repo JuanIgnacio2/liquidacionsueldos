@@ -38,7 +38,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     banco: '',
     cuil: '',
     salary: '',
-    bonoArea: 0
+    bonoArea: 0,
+    legajo: '' // Inicializar legajo vacío para que se calcule
   });
   
   const [errors, setErrors] = useState({});
@@ -55,6 +56,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const [areasHabilitadas, setAreasHabilitadas] = useState(false);
   const [areasSeleccionadas, setAreasSeleccionadas] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [basicoCat11, setBasicoCat11] = useState(0);
 
   // Rango de categorías por gremio
   const LUZ_Y_FUERZA_IDS = Array.from({ length: 18 }, (_, i) => i + 1); // Luz y Fuerza usa los id de categoria 1-18
@@ -88,15 +90,23 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     loadEmployees();
   }, []);
 
-  // Auto-calcular legajo
+  // Auto-calcular legajo cuando el modal se abre o cambian los empleados
   useEffect(() => {
+    if (!isOpen) return; // Solo calcular cuando el modal está abierto
+    
     if (!employees || employees.length === 0) {
       setFormData(prev => ({ ...prev, legajo: 1 }));
       return;
     }
     const lastLegajo = Math.max(...employees.map(e => Number(e.legajo) || 0));
-    setFormData(prev => ({ ...prev, legajo: lastLegajo + 1 }));
-  }, [employees]);
+    setFormData(prev => {
+      // Solo actualizar si el legajo no está establecido o es 0
+      if (!prev.legajo || prev.legajo === 0) {
+        return { ...prev, legajo: lastLegajo + 1 };
+      }
+      return prev;
+    });
+  }, [employees, isOpen]);
     
   useEffect(() => {
     setAreasHabilitadas(
@@ -249,6 +259,27 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     }
   }, [formData.idCategoria, formData.zonaId, formData.gremio, categorias]);
 
+  // Cargar básico de categoría 11 para Luz y Fuerza (necesario para conceptos y bonos de área)
+  useEffect(() => {
+    const loadBasicoCat11 = async () => {
+      if (formData.gremio !== 'LUZ_Y_FUERZA') {
+        setBasicoCat11(0);
+        return;
+      }
+
+      try {
+        const categoria11 = await api.getCategoriaById(11);
+        const basicoCat11Value = getCatBasico(categoria11);
+        setBasicoCat11(basicoCat11Value || 0);
+      } catch (error) {
+        console.error('Error al obtener categoría 11:', error);
+        setBasicoCat11(0);
+      }
+    };
+
+    loadBasicoCat11();
+  }, [formData.gremio]);
+
   // Calcula el bono de área cuando cambian las áreas (siempre usa categoría 11)
   useEffect(() => {
     const calculateBonoArea = async () => {
@@ -259,28 +290,30 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       }
 
       try {
-        // Obtener el básico de categoría 11
-        const categoria11 = await api.getCategoriaById(11);
-        // Usar getCatBasico para obtener el básico correctamente
-        const basicoCat11 = getCatBasico(categoria11);
-
-        if (!basicoCat11 || basicoCat11 === 0) {
-          console.warn('No se pudo obtener el básico de categoría 11');
-          setFormData(prev => ({ ...prev, bonoArea: 0 }));
-          return;
+        // Usar el básico de categoría 11 ya cargado, o cargarlo si no está disponible
+        let basicoCat11Value = basicoCat11;
+        if (basicoCat11Value === 0) {
+          const categoria11 = await api.getCategoriaById(11);
+          basicoCat11Value = getCatBasico(categoria11);
+          setBasicoCat11(basicoCat11Value || 0);
+          if (!basicoCat11Value || basicoCat11Value === 0) {
+            console.warn('No se pudo obtener el básico de categoría 11');
+            setFormData(prev => ({ ...prev, bonoArea: 0 }));
+            return;
+          }
         }
 
         // Calcular bonos para cada área usando siempre categoría 11
         const bonosPromises = formData.areas.map(async (areaId) => {
           try {
             // Usar categoría 11 para obtener el porcentaje (no la categoría del empleado)
-            const porcentajeResponse = await api.getPorcentajeArea(Number(areaId), 11);
+            const porcentajeResponse = await api.getPorcentajeArea(Number(areaId), formData.idCategoria);
             // El porcentaje puede venir como número directo o como objeto con propiedad porcentaje
             const porcentajeNum = typeof porcentajeResponse === 'number' 
               ? porcentajeResponse 
               : Number(porcentajeResponse?.porcentaje ?? porcentajeResponse) || 0;
             // Calcular: (básico_cat11 * porcentaje) / 100
-            return (basicoCat11 * porcentajeNum) / 100;
+            return (basicoCat11Value * porcentajeNum) / 100;
           } catch (error) {
             console.error(`Error al obtener porcentaje para área ${areaId}:`, error);
             return 0;
@@ -298,7 +331,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     };
 
     calculateBonoArea();
-  }, [formData.areas, formData.gremio]); // Removido formData.idCategoria de las dependencias
+  }, [formData.areas, formData.gremio, basicoCat11]); // Removido formData.idCategoria de las dependencias
 
   // Calcula el salario básico cuando cambia la zona o categoría en UOCRA
   useEffect(() => {
@@ -640,7 +673,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       cuil: '',
       sexo: 'M',
       salary: '',
-      bonoArea: 0
+      bonoArea: 0,
+      legajo: '' // Resetear legajo para que se recalcule al abrir
     });
     setErrors({});
     setConceptosSeleccionados({});
@@ -648,21 +682,40 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   };
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
-  const calculateConceptTotal = (concepto, units) => {
+  // Para descuentos, se calcula sobre el total de remuneraciones
+  // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
+  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
-    if (!formData.salary || !concepto.porcentaje) return 0;
+    if (!concepto.porcentaje) return 0;
     
-    const basico = Number(formData.salary) || 0;
     const porcentaje = Number(concepto.porcentaje) || 0;
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
     
-    // Total = (básico * porcentaje / 100) * unidades
-    // Si es descuento, el total es negativo
-    const montoUnitario = (basico * porcentaje) / 100;
-    const total = montoUnitario * unidades;
-    console.log('total', total);
-    return isDescuento ? -total : total;
+    // Si es descuento, calcular sobre el total de remuneraciones
+    if (isDescuento) {
+      if (!totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
+      return -(montoUnitario * unidades);
+    }
+    
+    // Si es bonificación, determinar la base de cálculo
+    let baseCalculo = 0;
+    
+    // Para Luz y Fuerza: los conceptos se calculan sobre categoría 11
+    // En NewEmployeeModal, todos los conceptos tienen tipo 'BONIFICACION_FIJA', 
+    // pero para Luz y Fuerza deben calcularse sobre categoría 11
+    if (formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'BONIFICACION_FIJA' && !concepto.isDescuento) {
+      baseCalculo = basicoCat11;
+    } else {
+      // Para otros casos (UOCRA o si no hay básico de cat 11): usar el básico del empleado
+      if (!formData.salary) return 0;
+      baseCalculo = Number(formData.salary) || 0;
+    }
+    
+    if (baseCalculo <= 0) return 0;
+    const montoUnitario = (baseCalculo * porcentaje) / 100;
+    return montoUnitario * unidades;
   };
 
   // Calcula el salario total estipulado inicial
@@ -670,23 +723,43 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     const salarioBasico = Number(formData.salary) || 0;
     const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
     
-    // Sumar todos los conceptos adicionales seleccionados (incluyendo descuentos que son negativos)
-    const totalConceptos = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
-      // conceptId ahora puede ser 'BON_X' o 'DESC_X'
+    // Primero sumar todas las remuneraciones (básico + bono área + bonificaciones)
+    const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
       const concepto = conceptos.find(c => c.id === conceptId);
       if (!concepto) return sum;
+      const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+      if (isDescuento) return sum; // Los descuentos se calculan después
+      
       const units = conceptosSeleccionados[conceptId]?.units ?? '';
       const unitsNum = Number(units);
       if (!unitsNum || unitsNum <= 0) return sum;
       
-      // Calcular total del concepto
+      // Calcular total de la bonificación sobre el básico
       const total = calculateConceptTotal(concepto, unitsNum);
-      
-      // Los descuentos ya vienen negativos de calculateConceptTotal, así que se restan al sumar
       return sum + total;
     }, 0);
     
-    return salarioBasico + bonoArea + totalConceptos;
+    // Total de remuneraciones
+    const totalRemuneraciones = salarioBasico + bonoArea + totalBonificaciones;
+    
+    // Luego calcular descuentos sobre el total de remuneraciones
+    const totalDescuentos = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+      const concepto = conceptos.find(c => c.id === conceptId);
+      if (!concepto) return sum;
+      const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+      if (!isDescuento) return sum; // Solo procesar descuentos
+      
+      const units = conceptosSeleccionados[conceptId]?.units ?? '';
+      const unitsNum = Number(units);
+      if (!unitsNum || unitsNum <= 0) return sum;
+      
+      // Calcular descuento sobre el total de remuneraciones
+      const descuento = calculateConceptTotal(concepto, unitsNum, totalRemuneraciones);
+      return sum + Math.abs(descuento); // Sumar el valor absoluto porque ya viene negativo
+    }, 0);
+    
+    // Retornar: remuneraciones - descuentos
+    return totalRemuneraciones - totalDescuentos;
   };
 
   // Maneja el toggle de selección de conceptos adicionales
@@ -1012,9 +1085,25 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                       const units = conceptosSeleccionados[concepto.id]?.units ?? '';
                       const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
                       
+                      // Calcular total de remuneraciones para descuentos
+                      const calcularTotalRemuneraciones = () => {
+                        const salarioBasico = Number(formData.salary) || 0;
+                        const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+                        const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+                          const c = conceptos.find(cc => cc.id === conceptId);
+                          if (!c || c.isDescuento || c.tipo === 'DESCUENTO') return sum;
+                          const u = conceptosSeleccionados[conceptId]?.units ?? '';
+                          const uNum = Number(u);
+                          if (!uNum || uNum <= 0) return sum;
+                          return sum + calculateConceptTotal(c, uNum);
+                        }, 0);
+                        return salarioBasico + bonoArea + totalBonificaciones;
+                      };
+                      
                       // Calcular total solo si está seleccionado y tiene unidades válidas
+                      const totalRemuneraciones = isDescuento ? calcularTotalRemuneraciones() : null;
                       const total = isSelected && units && Number(units) > 0 
-                        ? calculateConceptTotal(concepto, Number(units))
+                        ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones)
                         : 0;
                       
                       return (
@@ -1066,7 +1155,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         {/* Resumen del Salario Total */}
         <div className="form-section salary-summary-section">
           <div className="salary-summary">
-            <label className="salary-summary-label">Salario Estipulado Inicial</label>
+            <label className="salary-summary-label">Sueldo estipulado inicial</label>
             <div className="salary-summary-total">
               {formatCurrencyAR(calculateTotalSalary())}
             </div>
