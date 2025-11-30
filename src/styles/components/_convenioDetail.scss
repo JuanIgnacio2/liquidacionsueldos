@@ -312,59 +312,39 @@
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 2rem;
-  
+
           .bonif-section, .titles-section {
-            .section-header {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 1rem;
-  
-              h3 {
-                font-size: 1.2rem;
+            /* Estilos para las tablas de bonificaciones y títulos */
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 0.9rem;
+              margin-bottom: 0;
+
+              th, td {
+                border: 1px solid #ddd;
+                padding: 0.75rem 0.5rem;
+                text-align: center;
+                vertical-align: middle;
+              }
+              thead {
+                background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+                color: white;
+              }
+              thead th {
+                background: transparent;
+                color: inherit;
                 font-weight: 600;
+              }
+              tbody tr:nth-child(even) {
+                background: rgba(0, 0, 0, 0.01);
+              }
+              tbody tr:hover {
+                background: rgba(16, 185, 129, 0.05);
+              }
+              td {
+                font-weight: 500;
                 color: var(--text-primary);
-                margin: 0;
-                padding-bottom: 0.5rem;
-                border-bottom: 2px solid var(--primary-color);
-                flex: 1;
-              }
-  
-              .section-actions {
-                display: flex;
-                gap: 0.5rem;
-                margin-left: 1rem;
-              }
-            }
-  
-            .action-btn.edit-small, .action-btn.add-small {
-              padding: 0.4rem 0.8rem;
-              font-size: 0.8rem;
-              border-radius: 6px;
-  
-              .action-icon-small {
-                width: 14px;
-                height: 14px;
-              }
-  
-              &.edit-small {
-                background: var(--primary-color);
-                color: white;
-                border: none;
-  
-                &:hover {
-                  background: var(--primary-dark);
-                }
-              }
-  
-              &.add-small {
-                background: var(--accent-color);
-                color: white;
-                border: none;
-  
-                &:hover {
-                  background: var(--accent-dark);
-                }
               }
             }
           }
@@ -855,33 +835,41 @@
       .salary-table-container {
         .additional-bonifications {
           grid-template-columns: 1fr;
+          .bonif-section, .titles-section {
+            table {
+              font-size: 0.85rem;
+              th, td {
+                padding: 0.5rem 0.3rem;
+              }
+            }
+          }
         }
       }
     }
   
     @media (max-width: 768px) {
       padding: 1rem;
-  
+
       .detail-header {
         padding: 1.5rem;
-  
+
         .header-content {
           flex-direction: column;
           align-items: flex-start;
           gap: 1rem;
-  
+
           .detail-title {
             font-size: 2rem;
           }
-  
+
           .header-meta {
             gap: 1rem;
           }
-  
+
           .header-actions {
             width: 100%;
             justify-content: flex-start;
-  
+
             .action-btn {
               flex: 1;
               justify-content: center;
@@ -890,20 +878,29 @@
           }
         }
       }
-  
+
       .salary-table-container {
         padding: 1rem;
         overflow-x: auto;
-  
+
         .table-header h2 {
           font-size: 1.4rem;
         }
-  
+
         .salary-grid, .uocra-table {
           font-size: 0.8rem;
-  
           th, td {
             padding: 0.5rem 0.3rem;
+          }
+        }
+        .additional-bonifications {
+          .bonif-section, .titles-section {
+            table {
+              font-size: 0.8rem;
+              th, td {
+                padding: 0.4rem 0.2rem;
+              }
+            }
           }
         }
       }
@@ -913,16 +910,24 @@
       .detail-header {
         .header-actions {
           flex-direction: column;
-  
           .action-btn {
             width: 100%;
           }
         }
       }
-  
       .salary-table-container {
         .salary-grid, .uocra-table {
           font-size: 0.75rem;
+        }
+        .additional-bonifications {
+          .bonif-section, .titles-section {
+            table {
+              font-size: 0.75rem;
+              th, td {
+                padding: 0.3rem 0.1rem;
+              }
+            }
+          }
         }
       }
     }

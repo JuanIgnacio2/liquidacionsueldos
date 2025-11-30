@@ -180,7 +180,16 @@ export default function ConvenioDetail() {
         const raw = await api.getConveniosNombre(controller);
         const norm = normalizeConvenioDetail(raw, controller);
         setConvenio(norm);
-        setEditableData(norm);
+        // Usar una copia profunda para que `editableData` no comparta referencias con `convenio`
+        // y convertir los básicos a string para permitir edición con separador decimal
+        const cloned = JSON.parse(JSON.stringify(norm));
+        if (Array.isArray(cloned.salaryTable?.categories)) {
+          cloned.salaryTable.categories = cloned.salaryTable.categories.map(c => ({
+            ...c,
+            basicSalary: c.basicSalary != null ? String(c.basicSalary) : ''
+          }));
+        }
+        setEditableData(cloned);
     } catch (error) {
         console.error('Error cargando convenio:', error);
   }
@@ -202,9 +211,27 @@ export default function ConvenioDetail() {
         const payload = buildUocraPayload(editableData, convenio);
         await api.updateBasicoUocra(payload);
       }
+    // Convertir los básicos a número antes de actualizar el estado `convenio`
+    const saved = JSON.parse(JSON.stringify(editableData || {}));
+    if (Array.isArray(saved.salaryTable?.categories)) {
+      saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
+        ...c,
+        basicSalary: c.basicSalary != null && c.basicSalary !== '' ? Number(String(c.basicSalary).replace(/,/g, '.')) : 0
+      }));
+    }
 
-    setConvenio(editableData);
+    setConvenio(saved);
     setIsEditing(false);
+
+    // Mantener editableData como cadenas para permitir seguir editando con separador decimal
+    const editClone = JSON.parse(JSON.stringify(saved));
+    if (Array.isArray(editClone.salaryTable?.categories)) {
+      editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
+        ...c,
+        basicSalary: c.basicSalary != null ? String(c.basicSalary) : ''
+      }));
+    }
+    setEditableData(editClone);
     window.showNotification('Convenio actualizado exitosamente', 'success');
     } catch (error) {
       console.error('Error guardando convenio:', error);
@@ -344,25 +371,30 @@ export default function ConvenioDetail() {
           const base11 = getBase11(cats);
 
           const onEditBasic = (catIndex, value) => {
-            // Siempre convertir a string por seguridad
-            const strValue = String(value ?? "");
+            // Mantener el valor como cadena mientras el usuario escribe para permitir
+            // separador decimal (punto o coma). La conversión a número se hace al guardar.
+            const raw = String(value ?? "");
+            // Permitimos dígitos, punto y coma; normalizamos la coma a punto para consistencia
+            const cleaned = raw.replace(/[^0-9.,]/g, "").replace(/,/g, ".");
 
-            // Limpiar cualquier carácter que no sea número, punto o coma
-            const cleanValue = strValue.replace(/[^0-9.,]/g, "").replace(",", ".");
-
-            // Convertir a número
-            const numericValue = parseFloat(cleanValue);
-            const finalValue = isNaN(numericValue) ? 0 : numericValue;
-
-            // Actualizar estado
+            // Actualizar estado: buscar por idCategoria si es posible, sino usar índice
             setEditableData(prev => {
-              const newData = { ...prev };
-              if (!newData.salaryTable?.categories?.[catIndex]) return newData;
+              if (!prev || !prev.salaryTable || !Array.isArray(prev.salaryTable.categories)) return prev;
 
-              newData.salaryTable.categories[catIndex] = {
-                ...newData.salaryTable.categories[catIndex],
-                basicSalary: finalValue
-              };
+              const newData = JSON.parse(JSON.stringify(prev));
+
+              // Si el catIndex corresponde a un idCategoria (número), buscar por id
+              const byIdIndex = newData.salaryTable.categories.findIndex(c => c.idCategoria === catIndex);
+              if (byIdIndex !== -1) {
+                newData.salaryTable.categories[byIdIndex].basicSalary = cleaned;
+                return newData;
+              }
+
+              // Si no encontramos por id, intentar usarlo como índice (caída)
+              const idx = Number(catIndex);
+              if (!Number.isNaN(idx) && newData.salaryTable.categories[idx]) {
+                newData.salaryTable.categories[idx].basicSalary = cleaned;
+              }
 
               return newData;
             });
@@ -402,7 +434,7 @@ export default function ConvenioDetail() {
                           type="text"
                           className="salary-input"
                           value={row.basicSalary ?? 0}
-                          onChange={(e) => onEditBasic(idx, e.target.value)}
+                          onChange={(e) => onEditBasic(row.idCategoria ?? idx, e.target.value)}
                         />
                       ) : (
                         formatCurrencyAR(row.basicSalary ?? 0)
@@ -421,8 +453,82 @@ export default function ConvenioDetail() {
           );
         })()}
         <div className="additional-bonifications">
-            <div className="bonif-section">{/* … */}</div>
-            <div className="titles-section">{/* … */}</div>
+          {/* Variables locales para las tablas adicionales */}
+          {(() => {
+            const data = currentData;
+            const cats = [...(data.salaryTable?.categories || [])];
+            const base11 = getBase11(cats);
+
+            return (
+              <>
+                {/* Tabla Bonificaciones Fijas */}
+                <div className="bonif-section">
+                  <table className="bonif-table">
+                    <thead>
+                      <tr>
+                        <th>BONIFICACIÓN</th>
+                        <th>VALOR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(data.bonificacionesFijas) ? data.bonificacionesFijas : [])
+                        .filter(b => Number(b?.id) < 16)
+                        .map((b, i) => {
+                          const nombre = b?.nombre || b?.descripcion || `Bonif ${i+1}`;
+                          const porcentaje = Number(b?.porcentaje) || 0;
+                          const valor = base11 * (porcentaje / 100);
+                          return (
+                            <tr key={nombre}>
+                              <td>{nombre}</td>
+                              <td>{formatCurrencyAR(valor)}</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Tabla Títulos */}
+                <div className="titles-section">
+                  <table className="titles-table">
+                    <thead>
+                      <tr>
+                        <th>TÍTULO</th>
+                        <th>VALOR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Conceptos con id >= 16 de bonificacionesFijas */}
+                      {(Array.isArray(data.bonificacionesFijas) ? data.bonificacionesFijas : [])
+                        .filter(b => Number(b?.id) >= 16)
+                        .map((b, i) => {
+                          const nombre = b?.nombre || b?.descripcion || `Título ${i+1}`;
+                          const porcentaje = Number(b?.porcentaje) || 0;
+                          const valor = base11 * (porcentaje / 100);
+                          return (
+                            <tr key={nombre}>
+                              <td>{nombre}</td>
+                              <td>{formatCurrencyAR(valor)}</td>
+                            </tr>
+                          );
+                        })}
+                      {/* Si existen títulos en data.titles, también los mostramos */}
+                      {(data.titles && typeof data.titles === 'object') ? Object.entries(data.titles).map(([nombre, porcentaje], i) => {
+                        const pct = Number(porcentaje) || 0;
+                        const valor = base11 * (pct / 100);
+                        return (
+                          <tr key={nombre}>
+                            <td>{nombre}</td>
+                            <td>{formatCurrencyAR(valor)}</td>
+                          </tr>
+                        );
+                      }) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     )}
