@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { User, Building, X, UserPlus, ListChecks } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
-import { form } from 'framer-motion/client';
+import { useNotification } from '../../Hooks/useNotification';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -15,6 +15,7 @@ const formatCurrencyAR = (value) => {
 };
 
 export function NewEmployeeModal({ isOpen, onClose, onSave }) {
+  const notify = useNotification();
   const removeArea = (id) => {
     const numId = Number(id);
     setFormData(prev => ({
@@ -81,6 +82,13 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const findCategoriaByName = (name) => 
     categorias.find(c => sameName(getCatNombre(c), name));
 
+  // Función helper para obtener el tipo de concepto según el gremio
+  const getTipoConcepto = (gremio) => {
+    if (gremio === 'LUZ_Y_FUERZA') return 'CONCEPTO_LYF';
+    if (gremio === 'UOCRA') return 'CONCEPTO_UOCRA';
+    return 'BONIFICACION_FIJA'; // Fallback (no debería usarse con Convenio General)
+  };
+
   // Load employees al montar
   useEffect(() => {
     const loadEmployees = async () => {
@@ -141,7 +149,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           const ordenadas = data.sort((a, b) => a.idCategoria - b.idCategoria);
           setCategorias(ordenadas); // guarda las categorías ordenadas en el estado
         } catch (err) {
-          console.error("Error loading categories:", err);
+          notify.error("Error al cargar categorías");
         }
       };
       loadCategorias();
@@ -178,7 +186,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             unidad: concepto.porcentaje ? '%' : 'monto',
             porcentaje: concepto.porcentaje ?? null,
             montoUnitario: concepto.montoUnitario ?? concepto.monto ?? null,
-            tipo: 'BONIFICACION_FIJA',
+            tipo: getTipoConcepto(formData.gremio),
             isDescuento: false
           };
         });
@@ -201,7 +209,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         // Combinar bonificaciones y descuentos
         setConceptos([...mappedBonificaciones, ...mappedDescuentos]);
       } catch (error) {
-        console.error('Error al cargar conceptos:', error);
+        notify.error("Error al cargar conceptos");
         setConceptos([]);
       }
     };
@@ -229,7 +237,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                 return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
               });
             } catch (error) {
-              console.error('Error al obtener básico por zona y categoría:', error);
+              notify.error("Error al obtener básico por zona y categoría");
               // Fallback al básico de la categoría
               const basico = Number(getCatBasico(cat)) || 0;
               setFormData(prev => {
@@ -272,7 +280,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         const basicoCat11Value = getCatBasico(categoria11);
         setBasicoCat11(basicoCat11Value || 0);
       } catch (error) {
-        console.error('Error al obtener categoría 11:', error);
+        notify.error("Error al obtener categoría 11");
         setBasicoCat11(0);
       }
     };
@@ -297,7 +305,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           basicoCat11Value = getCatBasico(categoria11);
           setBasicoCat11(basicoCat11Value || 0);
           if (!basicoCat11Value || basicoCat11Value === 0) {
-            console.warn('No se pudo obtener el básico de categoría 11');
+            notify.warning("No se pudo obtener el básico de categoría 11");
             setFormData(prev => ({ ...prev, bonoArea: 0 }));
             return;
           }
@@ -315,7 +323,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             // Calcular: (básico_cat11 * porcentaje) / 100
             return (basicoCat11Value * porcentajeNum) / 100;
           } catch (error) {
-            console.error(`Error al obtener porcentaje para área ${areaId}:`, error);
+            notify.error(`Error al obtener porcentaje para área ${areas[areaId-1].nombre}`);
             return 0;
           }
         });
@@ -325,7 +333,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
         setFormData(prev => ({ ...prev, bonoArea: bonoTotal }));
       } catch (error) {
-        console.error('Error al calcular bono de área:', error);
+        notify.error("Error al calcular bono de área");
         setFormData(prev => ({ ...prev, bonoArea: 0 }));
       }
     };
@@ -364,7 +372,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           return prev;
         });
       } catch (error) {
-        console.error('Error al obtener básico por zona y categoría:', error);
+        notify.error("Error al obtener básico por zona y categoría");
         // Si falla, usar el básico de la categoría como fallback
         const cat = findCategoriaById(formData.idCategoria);
         if (cat) {
@@ -613,15 +621,14 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         estado: "ACTIVO",
         conceptosAsignados: conceptosAsignados.length > 0 ? conceptosAsignados : null
       };
-      console.log('Payload enviado:', payload);
 
       // Llama al callback onSave si está definido
       if (onSave) await onSave(payload, false);
+      notify.success("Empleado creado correctamente");
       handleClose();
 
     } catch (err) {
-      console.error("Error al crear empleado:", err);
-      alert("No se pudo crear el empleado. Revisá los datos e intentá de nuevo.");
+      notify.error("Error al crear empleado");
     } finally {
       setIsLoading(false);
     }
@@ -702,13 +709,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     // Si es bonificación, determinar la base de cálculo
     let baseCalculo = 0;
     
-    // Para Luz y Fuerza: los conceptos se calculan sobre categoría 11
-    // En NewEmployeeModal, todos los conceptos tienen tipo 'BONIFICACION_FIJA', 
-    // pero para Luz y Fuerza deben calcularse sobre categoría 11
-    if (formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'BONIFICACION_FIJA' && !concepto.isDescuento) {
+    // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
+    if (concepto.tipo === 'CONCEPTO_LYF' && !concepto.isDescuento) {
       baseCalculo = basicoCat11;
     } else {
-      // Para otros casos (UOCRA o si no hay básico de cat 11): usar el básico del empleado
+      // Para otros casos (CONCEPTO_UOCRA o si no hay básico de cat 11): usar el básico del empleado
       if (!formData.salary) return 0;
       baseCalculo = Number(formData.salary) || 0;
     }
@@ -889,6 +894,22 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
               </select>
             </div>
 
+            <div className="form-group">
+              <label className="form-label">Banco</label>
+              <select
+                className="form-select"
+                value={formData.banco}
+                onChange={(e) => handleInputChange('banco', e.target.value)}
+              >
+                <option value="Banco Nación">Banco Nación</option>
+                <option value="Banco Provincia">Banco Provincia</option>
+                <option value="Banco Santander">Banco Santander</option>
+                <option value="Banco Galicia">Banco Galicia</option>
+                <option value="BBVA">BBVA</option>
+                <option value="Banco Macro">Banco Macro</option>
+              </select>
+            </div>
+
             <div className={'form-group'}>
               <label className={'form-label'}>Categoría *</label>
               <select
@@ -920,21 +941,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
               />
               {errors.salary && <span className="error-message">{errors.salary}</span>}
             </div>
-
-            {formData.gremio === 'LUZ_Y_FUERZA' && (
-              <div className={'form-group'}>
-                <label className={'form-label'}>Bono de Área</label>
-                <input
-                  type="text"
-                  className={'form-input'}
-                  value={formData.bonoArea ? formatCurrencyAR(formData.bonoArea) : ''} 
-                  placeholder="—"
-                  disabled
-                  readOnly
-                  title="Este valor se calcula automáticamente según las áreas seleccionadas y el básico de categoría 11"
-                />
-              </div>
-            )}
 
             {/* Áreas o Zonas */}
             <div className="form-group">
@@ -1026,22 +1032,21 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
               {errors?.areas && <span className="error-message">{errors.areas}</span>}
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Banco</label>
-              <select
-                className="form-select"
-                value={formData.banco}
-                onChange={(e) => handleInputChange('banco', e.target.value)}
-              >
-                <option value="Banco Nación">Banco Nación</option>
-                <option value="Banco Provincia">Banco Provincia</option>
-                <option value="Banco Santander">Banco Santander</option>
-                <option value="Banco Galicia">Banco Galicia</option>
-                <option value="BBVA">BBVA</option>
-                <option value="Banco Macro">Banco Macro</option>
-              </select>
-            </div>
-
+            {formData.gremio === 'LUZ_Y_FUERZA' && (
+              <div className={'form-group'}>
+                <label className={'form-label'}>Bono de Área</label>
+                <input
+                  type="text"
+                  className={'form-input'}
+                  value={formData.bonoArea ? formatCurrencyAR(formData.bonoArea) : ''} 
+                  placeholder="—"
+                  disabled
+                  readOnly
+                  title="Este valor se calcula automáticamente según las áreas seleccionadas y el básico de categoría 11"
+                />
+              </div>
+            )}
+            
             <div className="form-group">
               <label className="form-label">Fecha de Inicio de Actividad *</label>
               <input

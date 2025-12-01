@@ -31,6 +31,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   );
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
+  const [remunerationAssigned, setRemunerationAssigned] = useState(0);
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -40,6 +41,34 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return 'Luz y Fuerza';
     }
     return gremioNombre;
+  };
+
+  // Formatea fecha ISO a dd/mm/yyyy
+  const formatDateDDMMYYYY = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
+  const formatPeriodToMonthYear = (period) => {
+    if (!period) return '—';
+    // Si ya contiene letras, devolver tal cual
+    if (/[A-Za-zÀ-ÿ]/.test(period)) return period;
+    // Aceptar formatos: 'YYYY-MM' o 'YYYY-MM-DD'
+    const parts = String(period).split('-');
+    if (parts.length >= 2) {
+      const year = parts[0];
+      const month = Number(parts[1]);
+      const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const mName = months[Math.max(0, Math.min(11, month - 1))] || parts[1];
+      return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${year}`;
+    }
+    return period;
   };
 
   const calcTotal = (lista) =>
@@ -111,6 +140,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           })
         );
       }
+
+      // Remuneración asignada = básico de la categoría + suma de bonos de área
+      const sumBonosAreas = bonosDeAreas.reduce((s, b) => s + (b.total || 0), 0);
+      const assignedRemuneration = (basicoValue || 0) + sumBonosAreas;
+      setRemunerationAssigned(assignedRemuneration);
 
       /* Conceptos precargados en base de datos */
       const conceptosAsignados = await api.getConceptosAsignados(employee.legajo);
@@ -586,7 +620,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span>Código</span>
                 <span>Concepto</span>
                 <span>Unidades</span>
-                <span>Remuneraciones</span>
+                <span>Remuneraciones Sujetas a retenciones</span>
                 <span>Descuentos</span>
                 <span>Acciones</span>
               </div>
@@ -711,113 +745,156 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           </div>
 
           <div className="receipt-container">
-            <div className="receipt-stamp">
-              <CheckCircle className="stamp-icon" />
-              <span>RECIBO GENERADO</span>
-            </div>
-
-            <div className="receipt-header">
-              <div className="company-info">
-                <div className="company-logo">
-                  <div className="logo-circle">
-                    <span>C</span>
+            {/* ENCABEZADO DEL RECIBO */}
+            <div className="receipt-header-wrapper">
+              <div className="company-logo">
+                <div className="logo-box">
+                  <div className="logo-text">
+                    Marca
+                    <br />
+                    Empresa
                   </div>
                 </div>
-                <div className="company-details">
-                  <h3>COOP.SERV.PUB.25 DE MAYO LTDA.</h3>
-                  <p>Domicilio: RAMIREZ 367 - CUIT: 30-54569238-0</p>
-                  <div className="company-accent"></div>
-                </div>
+              </div>
+
+              <div className="company-info">
+                <div className="company-name">COOP. DE SERV. PUB. 25 DE MAYO LTDA</div>
+                <div className="company-detail">Domicilio: Ramirez 367</div>
+                <div className="company-detail highlight">C.U.I.T.: 30-54569238-0</div>
+              </div>
+
+              <div className="receipt-title">
+                <span className="title-main">RECIBO DE HABERES</span>
+                <span className="title-number">Ley nº 20.744</span>
               </div>
             </div>
 
-            <div className="receipt-employee-info">
-              <div className="employee-data">
-                <div className="data-row">
-                  <span className="label">APELLIDO Y NOMBRE:</span>
-                  <span className="value">{selectedEmployee.nombre} {selectedEmployee.apellido}</span>
-                </div>
-                <div className="data-row">
-                  <span className="label">PERÍODO DE PAGO:</span>
-                  <span className="value">{payrollData.periodDisplay || periodo}</span>
-                </div>
+            {/* INFORMACIÓN DEL EMPLEADO */}
+            <div className="employee-info-section">
+              <div className="info-row">
+                <span className="label">Apellido y Nombre</span>
+                <span className="value">{selectedEmployee.apellido}, {selectedEmployee.nombre}</span>
               </div>
-              <div className="employee-meta">
-                <div className="meta-item">
-                  <span className="label">SECCIÓN:</span>
-                  <span className="value">{selectedEmployee.section}</span>
-                </div>
-                <div className="meta-item">
-                  <span className="label">LEGAJO:</span>
-                  <span className="value">{selectedEmployee.legajo}</span>
-                </div>
-                <div className="meta-item">
-                  <span className="label">CATEGORÍA:</span>
-                  <span className="value">{selectedEmployee.category}</span>
-                </div>
+              <div className="info-row">
+                <span className="label">Legajo</span>
+                <span className="value">{selectedEmployee.legajo}</span>
               </div>
-            </div>
-
-            <div className="receipt-concepts">
-              <div className="concepts-header">
-                <span>CONCEPTO</span>
-                <span>UNIDADES</span>
-                <span>REMUNERACIONES</span>
-                <span>DESCUENTOS</span>
+              <div className="info-row">
+                <span className="label">C.U.I.L.</span>
+                <span className="value">{selectedEmployee.cuil || '—'}</span>
               </div>
-
-              {conceptos.map(concept => (
-                <div key={concept.id} className="concept-line">
-                  <span className="concept-code">{concept.id}</span>
-                  <span className="concept-name">{concept.nombre}</span>
-                  <span className="concept-units">{concept.cantidad}</span>
-                  <span className="concept-remuneration">
-                    {(concept.tipo === 'CATEGORIA' ||
-                      concept.tipo === 'BONIFICACION_AREA' ||
-                      concept.tipo === 'CONCEPTO_LYF' ||
-                      concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0 ? formatCurrencyAR(concept.total) : ''}
-                  </span>
-                  <span className="concept-deduction">
-                    {concept.tipo === 'DESCUENTO' && concept.total < 0 ? formatCurrencyAR(Math.abs(concept.total)) : ''}
-                  </span>
-                </div>
-              ))}
-              {/* Mostrar básico para UOCRA en el recibo */}
-              {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') && basicSalary > 0 && (
-                <div className="concept-line">
-                  <span className="concept-code">-</span>
-                  <span className="concept-name">Básico</span>
-                  <span className="concept-units">1</span>
-                  <span className="concept-remuneration">{formatCurrencyAR(basicSalary)}</span>
-                  <span className="concept-deduction"></span>
-                </div>
-              )}
-            </div>
-
-            <div className="receipt-totals">
-              <div className="total-breakdown">
-                <div className="breakdown-line">
-                  <span>Total Remuneraciones:</span>
-                  <span className="amount-positive">+{formatCurrencyAR(remunerations)}</span>
-                </div>
-                <div className="breakdown-line">
-                  <span>Total Descuentos:</span>
-                  <span className="amount-negative">-{formatCurrencyAR(deductions)}</span>
-                </div>
+              <div className="info-row">
+                <span className="label">Fecha Ingreso</span>
+                <span className="value">{formatDateDDMMYYYY(selectedEmployee.inicioActividad)}</span>
               </div>
-              <div className="total-line">
-                <span>TOTAL NETO:</span>
-                <span className="final-amount">{formatCurrencyAR(netAmount)}</span>
-                <div className="amount-indicator"></div>
+              <div className="info-row">
+                <span className="label">Categoría</span>
+                <span className="value">{selectedEmployee.categoria || selectedEmployee.category || '—'}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Período</span>
+                <span className="value">{formatPeriodToMonthYear(payrollData.periodDisplay || periodo)}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Remuneración asignada</span>
+                <span className="value">{formatCurrencyAR(remunerationAssigned)}</span>
               </div>
             </div>
 
+            {/* TABLA DE CONCEPTOS */}
+            <table className="concepts-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '60px' }}>Código</th>
+                  <th style={{ width: '40%' }}>Concepto</th>
+                  <th style={{ width: '70px', textAlign: 'center' }}>Unidades</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Remuneraciones</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Descuentos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conceptos.map(concept => (
+                  <tr key={concept.id}>
+                    <td className="concept-code">{concept.id}</td>
+                    <td className="concept-name">{concept.nombre}</td>
+                    <td className="concept-units">{concept.cantidad}</td>
+                    <td className="concept-remuneration">
+                      {(concept.tipo === 'CATEGORIA' ||
+                        concept.tipo === 'BONIFICACION_AREA' ||
+                        concept.tipo === 'CONCEPTO_LYF' ||
+                        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
+                        ? formatCurrencyAR(concept.total)
+                        : ''}
+                    </td>
+                    <td className="concept-deduction">
+                      {concept.tipo === 'DESCUENTO' && concept.total < 0
+                        ? formatCurrencyAR(Math.abs(concept.total))
+                        : ''}
+                    </td>
+                  </tr>
+                ))}
+                {/* Mostrar básico para UOCRA en el recibo */}
+                {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') && basicSalary > 0 && (
+                  <tr>
+                    <td className="concept-code">—</td>
+                    <td className="concept-name">Básico</td>
+                    <td className="concept-units">1</td>
+                    <td className="concept-remuneration">{formatCurrencyAR(basicSalary)}</td>
+                    <td className="concept-deduction"></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* SECCIÓN DE TOTALES */}
+            <div className="totals-section">
+              <div className="totals-info">
+                <div className="total-row">
+                  <span className="label">LUGAR Y FECHA DE PAGO</span>
+                  <span className="value">{new Date().toLocaleDateString('es-ES')}</span>
+                </div>
+                <div className="total-row">
+                  <span className="label">Total Remuneraciones</span>
+                  <span className="value positive">{formatCurrencyAR(remunerations)}</span>
+                </div>
+                <div className="total-row">
+                  <span className="label">Total Descuentos</span>
+                  <span className="value negative">{formatCurrencyAR(deductions)}</span>
+                </div>
+              </div>
+
+              <div className="totals-highlight">
+                <span className="amount-label">Total Neto</span>
+                <span className="amount-value">{formatCurrencyAR(netAmount)}</span>
+              </div>
+            </div>
+
+            {/* DETALLES DE PAGO */}
+            <div className="payment-details">
+              <div className="detail-item">
+                <span className="label">Banco Acreditación</span>
+                <span className="value">{selectedEmployee.banco || 'Banco Nación'}</span>
+              </div>
+              <div className="detail-item">
+                <span className="label">Cuenta</span>
+                <span className="value">{selectedEmployee.cbu || '—'}</span>
+              </div>
+            </div>
+
+            {/* PIE DEL RECIBO */}
             <div className="receipt-footer">
-              <div className="payment-info">
-                <span>LUGAR Y FECHA DE PAGO: HASENKAMP - {new Date().toLocaleDateString('es-ES')}</span>
-              </div>
-              <div className="amount-words">
-                <span>SON PESOS: {formatCurrencyAR(netAmount)} * * * *</span>
+              <p className="footer-text">
+                El presente es duplicado del recibo original que obra en nuestro poder. Firmado por el empleado.
+              </p>
+              <div className="signature-section">
+                <div className="signature-block">
+                  <div className="line"></div>
+                  <span className="label">Firma del Empleador</span>
+                </div>
+                <div className="signature-block">
+                  <div className="line"></div>
+                  <span className="label">Firma del Empleado</span>
+                </div>
               </div>
             </div>
           </div>

@@ -1,5 +1,20 @@
 @import '../../styles/main.scss';
 
+:root {
+  --primary-color: #22c55e;
+  --primary-dark: #16a34a;
+  --accent-color: #f3c849;
+  --accent-dark: #ca8a04;
+  --success-color: #22c55e;
+  --success-dark: #16a34a;
+  --error-color: #ef4444;
+  --error-dark: #dc2626;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --bg-light: #f9fafb;
+}
+
 .process-payroll-modal {
   // Enhanced section headers with step indicators
   .section-header-enhanced {
@@ -997,4 +1012,387 @@
 
 .receipt-container {
   animation: slideInRight 0.4s ease-out;
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-family: 'Courier New', monospace;
+  max-width: 800px;
+  margin: 0 auto;
+
+  /* Encabezado del recibo */
+  .receipt-header-wrapper {
+    display: grid;
+    grid-template-columns: 120px 1fr 120px;
+    gap: 1.5rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 3px solid var(--primary-color);
+
+    .company-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .logo-box {
+        width: 100px;
+        height: 100px;
+        border: 2px solid var(--text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        text-align: center;
+        padding: 0.5rem;
+
+        .logo-text {
+          font-weight: bold;
+          font-size: 0.75rem;
+          line-height: 1.2;
+          color: var(--text-primary);
+        }
+      }
+    }
+
+    .company-info {
+      flex: 1;
+
+      .company-name {
+        font-weight: bold;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .company-detail {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+
+        &.highlight {
+          font-weight: 600;
+        }
+      }
+    }
+
+    .receipt-title {
+      text-align: right;
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: var(--primary-color);
+
+      .title-main {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .title-number {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        font-weight: normal;
+      }
+    }
+  }
+
+  /* Información del empleado */
+  .employee-info-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 1rem;
+      align-items: center;
+
+      .label {
+        font-weight: bold;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+      }
+
+      .value {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+
+      .info-row {
+        grid-template-columns: 120px 1fr;
+      }
+    }
+  }
+
+  /* Tabla de conceptos */
+  .concepts-table {
+    margin-bottom: 1.5rem;
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85rem;
+
+    thead {
+      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      color: white;
+
+      tr {
+        th {
+          padding: 0.75rem;
+          text-align: left;
+          font-weight: 600;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+
+          &:last-child {
+            text-align: right;
+          }
+        }
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid var(--border-color);
+
+        &:nth-child(even) {
+          background: var(--bg-light);
+        }
+
+        &:hover {
+          background: rgba(34, 197, 94, 0.05);
+        }
+
+        td {
+          padding: 0.6rem 0.75rem;
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+
+          &.concept-code {
+            font-weight: 600;
+            text-align: center;
+            width: 60px;
+          }
+
+          &.concept-name {
+            flex: 1;
+          }
+
+          &.concept-units {
+            text-align: center;
+            width: 70px;
+          }
+
+          &.concept-remuneration {
+            text-align: right;
+            width: 120px;
+            color: var(--success-color);
+            font-weight: 600;
+          }
+
+          &.concept-deduction {
+            text-align: right;
+            width: 120px;
+            color: var(--error-color);
+            font-weight: 600;
+          }
+        }
+      }
+    }
+  }
+
+  /* Sección de totales */
+  .totals-section {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+
+    .totals-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+
+      .total-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+
+        .label {
+          font-weight: 600;
+          color: var(--text-primary);
+          font-size: 0.9rem;
+        }
+
+        .value {
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-align: right;
+
+          &.positive {
+            color: var(--success-color);
+          }
+
+          &.negative {
+            color: var(--error-color);
+          }
+
+          &.final {
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            padding: 0.5rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 4px;
+          }
+        }
+      }
+    }
+
+    .totals-highlight {
+      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+
+      .amount-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .amount-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Detalles de pago */
+  .payment-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+
+      .label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+
+      .value {
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Pie del recibo */
+  .receipt-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+
+    .footer-text {
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 1.5rem;
+
+      .signature-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+
+        .line {
+          width: 120px;
+          height: 1px;
+          background: var(--text-primary);
+        }
+
+        .label {
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+      }
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    background: white;
+    box-shadow: none;
+    padding: 0;
+
+    .receipt-header-wrapper {
+      border-bottom: 2px solid var(--text-primary);
+    }
+
+    .payment-details,
+    .employee-info-section {
+      background: white;
+      border: 1px solid var(--text-primary);
+    }
+
+    .concepts-table {
+      thead {
+        background: var(--bg-light);
+        color: var(--text-primary);
+
+        th {
+          border: 1px solid var(--text-primary);
+          background: var(--bg-light);
+        }
+      }
+    }
+  }
 }
