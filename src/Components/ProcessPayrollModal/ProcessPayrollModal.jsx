@@ -171,7 +171,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           const cat11 = await api.getCategoriaById(11);
           basicoCat11 = cat11?.basico ?? cat11?.salarioBasico ?? cat11?.sueldoBasico ?? cat11?.monto ?? cat11?.salario ?? 0;
         } catch (error) {
-          console.error('Error al obtener categoría 11:', error);
+          notify.error('Error al obtener categoría 11:', error);
         }
       }
 
@@ -245,7 +245,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setConceptos(lista);
       setCurrentStep('payroll');
     } catch (error) {
-      console.error('Error al obtener básico:', error);
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
     }
   };
@@ -397,7 +396,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       setCurrentStep('preview');
     } catch (error) {
-      console.error('Error al liquidar sueldo:', error);
+      notify.error('Error al liquidar sueldo:', error);
       
       // Manejar error 409 (período ya liquidado)
       if (error.response?.status === 409) {

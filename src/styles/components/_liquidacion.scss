@@ -155,10 +155,10 @@
     width: 100%;
     max-width: 100%;
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 2fr 1fr;
     gap: $spacing-6;
 
-    @media (min-width: 1024px) {
+    @media (min-width: 768px) {
       grid-template-columns: 2fr 1fr;
     }
   }

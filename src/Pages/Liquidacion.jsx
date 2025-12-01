@@ -1,12 +1,16 @@
 import React, {useEffect, useState} from 'react';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, Printer, Download, FileText, CalendarDays, User, Eye, CheckCircle } from 'lucide-react';
-import '../styles/components/_PlaceHolder.scss';
-import '../styles/components/_liquidacion.scss';
+import { useNavigate } from 'react-router-dom';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, Printer, Download, FileText, DollarSign, User, Eye, CheckCircle } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import {Modal, ModalFooter } from '../Components/Modal/Modal';
+import { useNotification } from '../Hooks/useNotification';
+import '../styles/components/_PlaceHolder.scss';
+import '../styles/components/_liquidacion.scss';
 import * as api from '../services/empleadosAPI'
 
 export default function Liquidacion() {
+  const notify = useNotification();
+  const navigate = useNavigate();
   const [liquidaciones, setLiquidaciones] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -18,13 +22,14 @@ export default function Liquidacion() {
   const [payrollList, setPayrollList] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [dashboardStats, setDashboardStats] = useState(null);
   
   const loadPayrolls = async () => {
     try {
-      const data = await api.getPagos();
+      const data = await api.getUltimosPagos();
       setLiquidaciones(data);
     } catch (error) {
-      console.error('Error al cargar las liquidaciones:', error);
+      notify.error('Error al cargar las liquidaciones');
     }
   };
   
@@ -34,14 +39,24 @@ export default function Liquidacion() {
       const ordenados = data.sort((a, b) => a.legajo - b.legajo);
       setEmployees(ordenados);
     } catch (error) {
-      console.error('Error al cargar los empleados:', error);
+      notify.error('Error al cargar los empleados');
     }
   };
   
   useEffect(() => {
     loadEmployees();
     loadPayrolls();
+    loadDashboardStats();
   }, []);
+
+  const loadDashboardStats = async () => {
+    try {
+      const data = await api.getDashboardStats();
+      setDashboardStats(data || null);
+    } catch (error) {
+      console.error('Error al cargar estadísticas del dashboard:', error);
+    }
+  };
 
   const handleViewDetails = async (liquidacion) => {
     setSelectedPayroll(liquidacion);
@@ -54,45 +69,68 @@ export default function Liquidacion() {
       const detalle = await api.getDetallePago(liquidacion.id || liquidacion.idPago);
       setPayrollDetails(detalle);
     } catch (error) {
-      console.error('Error al cargar detalles de la liquidación:', error);
-      alert('No se pudieron cargar los detalles de la liquidación.');
+      notify.error('Error al cargar detalles de la liquidación');
+      notify('No se pudieron cargar los detalles de la liquidación.');
     } finally {
       setLoadingDetails(false);
     }
   };
 
   const handleProcessPayroll = (result) => {
-    console.log('Procesamiento completado:', result);
+    notify('Procesamiento completado:', result);
     // Actualizar la lista de liquidaciones después de procesar
     loadPayrolls();
   };
 
   const handlePrintPayroll = (payroll) => {
-    console.log('Imprimiendo liquidación:', payroll.periodName);
+    notify('Imprimiendo liquidación:', payroll.periodName);
     window.print();
   };
 
   const handleDownloadPayroll = (payroll) => {
-    console.log('Descargando liquidación:', payroll.periodName);
+    notify('Descargando liquidación:', payroll.periodName);
     const link = document.createElement('a');
     link.href = `data:text/plain;charset=utf-8,Liquidación ${payroll.periodName}`;
     link.download = `liquidacion_${payroll.period}.txt`;
     link.click();
   };
 
-  const filteredPayrolls = payrollList.filter(payroll => {
-    const matchesSearch = payroll.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         payroll.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         payroll.department.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'Todos' || payroll.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   const pendingCount = payrollList.filter(p => p.status === 'Pendiente').length;
   const completedCount = payrollList.filter(p => p.status === 'Procesada').length;
   const totalMonthAmount = payrollList.reduce((sum, p) => sum + p.netSalary, 0);
 
-
+  const statsList = [
+    {
+      title: 'Total Bruto Mes',
+      value: dashboardStats?.totalBrutoMes ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: Calculator,
+      colorClass: 'primary'
+    },
+    {
+      title: 'Total Neto Mes',
+      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: DollarSign,
+      colorClass: 'success'
+    },
+    {
+      title: 'Cantidad Empleados',
+      value: dashboardStats?.cantidadEmpleados ?? '—',
+      icon: User,
+      colorClass: 'primary'
+    },
+    {
+      title: 'Liquidaciones Hechas',
+      value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
+      icon: TrendingUp,
+      colorClass: 'success'
+    },
+    {
+      title: 'Liquidaciones Pendientes',
+      value: dashboardStats?.cantidadLiquidacionesPendientes ?? '—',
+      icon: Clock,
+      colorClass: 'warning'
+    }
+  ];
 
   return (
     <div className="placeholder-page">
@@ -114,33 +152,17 @@ export default function Liquidacion() {
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value warning">8</div>
-              <p className="stat-label">Pendientes</p>
+        {statsList.map((s) => (
+          <div key={s.title} className="card stat-card">
+            <div className="stat-content">
+              <div className="stat-info">
+                <div className={`stat-value ${s.colorClass}`}>{s.value}</div>
+                <p className="stat-label">{s.title}</p>
+              </div>
+              <s.icon className={`stat-icon ${s.colorClass}`} />
             </div>
-            <Clock className="stat-icon warning" />
           </div>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value success">116</div>
-              <p className="stat-label">Completadas</p>
-            </div>
-            <TrendingUp className="stat-icon success" />
-          </div>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value primary">$2,847,500</div>
-              <p className="stat-label">Total del Mes</p>
-            </div>
-            <Calculator className="stat-icon primary" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Placeholder Content */}
@@ -224,7 +246,7 @@ export default function Liquidacion() {
                 <span>Generar Reportes</span>
                 <TrendingUp className="action-icon" />
               </button>
-              <button className="action-btn warning">
+              <button className="action-btn warning" onClick={() => navigate('/historial-pagos')}>
                 <span>Historial</span>
                 <History className="action-icon" />
               </button>

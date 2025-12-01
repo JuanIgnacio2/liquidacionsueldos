@@ -6,6 +6,7 @@ import Liquidacion from './Pages/Liquidacion';
 import Convenios from './Pages/Convenios';
 import NotFound from './Pages/NotFound';
 import Empleados from './Pages/Empleados';
+import HistorialPagos from './Pages/HistorialPagos';
 import './styles/main.scss';
 import ConvenioDetail from './Pages/ConvenioDetail';
 import { NotificationSystem } from './Components/NotificationSystem/NotificationSystem';
@@ -23,6 +24,7 @@ function App() {
               <Route path="/convenios" element={<Convenios/>}/>
               <Route path="/convenios/:controller" element={<ConvenioDetail/>}/>
               <Route path="/liquidacion" element={<Liquidacion/>}/>
+              <Route path="/historial-pagos" element={<HistorialPagos/>}/>
               <Route path="*" element={<NotFound />} />
             </Routes>
         </main>

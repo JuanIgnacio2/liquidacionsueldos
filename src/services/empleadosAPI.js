@@ -45,6 +45,9 @@ export const getConceptosAsignados = (legajo) =>
 export const getPagos = () =>
     axiosClient.get(`/liquidaciones`).then((r)=>r.data);
 
+export const getUltimosPagos = () =>
+    axiosClient.get(`/liquidaciones/ultimos`).then((r)=>r.data);
+
 export const getDetallePago = (idPago) =>
     axiosClient.get(`/liquidaciones/${idPago}`).then((r)=>r.data);
 
@@ -74,3 +77,6 @@ export const getBasicoByCatAndZona = (idCategoria, idZona) =>
 
 export const getLiquidacionesByPeriodo = (periodo) =>
     axiosClient.get(`/liquidaciones/periodo/${periodo}`).then((r)=>r.data);
+
+export const getDashboardStats = () =>
+    axiosClient.get(`liquidaciones/dashboard/mes-actual`).then((r)=>r.data);

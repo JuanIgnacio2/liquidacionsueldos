@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showNewEmployeeModal, setShowNewEmployeeModal] = useState(false);
   const [employees, setEmployees] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState(null);
 
   const countActiveEmployees = async () => {
     try {
@@ -46,7 +47,17 @@ export default function Dashboard() {
     countActiveEmployees();
     countGremios();
     loadEmployees();
+    loadDashboardStats();
   }, []);
+
+  const loadDashboardStats = async () => {
+    try {
+      const data = await api.getDashboardStats();
+      setDashboardStats(data || null);
+    } catch (error) {
+      console.error('Error al cargar estadísticas del dashboard:', error);
+    }
+  };
 
   const handleProcessPayroll = (result) => {
     console.log('Procesamiento completado:', result);
@@ -72,27 +83,33 @@ export default function Dashboard() {
   const stats = [
     {
       title: 'Total Empleados Activos',
-      value: activeEmployees || 'Cargando...',
+      value: dashboardStats?.cantidadEmpleados ?? activeEmployees ?? 'Cargando...',
       icon: Users,
       colorClass: 'success',
     },
     {
       title: 'Liquidaciones Pendientes',
-      value: '8',
+      value: dashboardStats?.cantidadLiquidacionesPendientes ?? 'Cargando...',
       icon: Clock,
       colorClass: 'warning',
     },
     {
-      title: 'Monto Total Mensual',
-      value: '$2,847,500',
+      title: 'Liquidaciones Procesadas',
+      value: dashboardStats?.cantidadLiquidacionesHechas ?? 'Cargando...',
+      icon: TrendingUp,
+      colorClass: 'primary',
+    },
+    {
+      title: 'Total Neto',
+      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Cargando...',
       icon: DollarSign,
       colorClass: 'primary',
     },
     {
-      title: 'Convenios Activos',
-      value: gremiosCount || 'Cargando...',
-      icon: FileText,
-      colorClass: 'default',
+      title: 'Total Bruto',
+      value: dashboardStats?.totalBrutoMes ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Cargando...',
+      icon: DollarSign,
+      colorClass: 'primary',
     }
   ];
 
