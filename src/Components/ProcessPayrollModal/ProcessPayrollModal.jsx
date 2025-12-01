@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star } from 'lucide-react';
 import './ProcessPayrollModal.scss';
-import * as api from '../../services/empleadosAPI'
+import * as api from '../../services/empleadosAPI';
+import { useNotification } from '../../Hooks/useNotification';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -15,6 +16,7 @@ const formatCurrencyAR = (value) => {
 };
 
 export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, initialEmployee = null }) {
+  const notify = useNotification();
   const [currentStep, setCurrentStep] = useState('search');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -210,7 +212,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setCurrentStep('payroll');
     } catch (error) {
       console.error('Error al obtener básico:', error);
-      alert('No se pudo obtener el sueldo básico del empleado.');
+      notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
     }
   };
 
@@ -335,10 +337,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // LIQUIDAR SUELDO Y GENERAR RECIBO
   const generatePayroll = async () => {
-  if (!selectedEmployee) return;
-  setIsProcessing(true);
+    if (!selectedEmployee) return;
+    setIsProcessing(true);
 
-  const payload = {
+    const payload = {
       legajo: selectedEmployee.legajo,
       periodoPago: periodo,
       conceptos: conceptos.map((c) => ({
@@ -348,22 +350,43 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       })),
     };
 
-  try {
-    const result = await api.guardarLiquidacion(payload);
-    setPayrollData({
-      ...payrollData,
-      periodDisplay: result.periodoPago,
-      totalNeto: result.total_neto
-    });
+    try {
+      const result = await api.guardarLiquidacion(payload);
+      setPayrollData({
+        ...payrollData,
+        periodDisplay: result.periodoPago,
+        totalNeto: result.total_neto
+      });
 
-    setCurrentStep('preview');
-  } catch (error) {
-    console.error('Error al liquidar sueldo:', error);
-    alert('Hubo un error al procesar la liquidación.');
-  } finally {
-    setIsProcessing(false);
-  }
-};
+      // Notificación de éxito
+      notify.success(`Liquidación realizada exitosamente para el período ${periodo}`);
+      
+      setCurrentStep('preview');
+    } catch (error) {
+      console.error('Error al liquidar sueldo:', error);
+      
+      // Manejar error 409 (período ya liquidado)
+      if (error.response?.status === 409) {
+        notify.error(
+          `El período ${periodo} ya está liquidado para este empleado. Por favor, seleccione otro período.`,
+          8000 // Duración más larga para mensajes importantes
+        );
+      } else if (error.response?.status === 400) {
+        // Error de validación
+        const errorMessage = error.response?.data?.message || 'Error de validación en los datos enviados.';
+        notify.error(errorMessage, 7000);
+      } else if (error.response?.status >= 500) {
+        // Error del servidor
+        notify.error('Error del servidor al procesar la liquidación. Por favor, intente nuevamente más tarde.', 7000);
+      } else {
+        // Otros errores
+        const errorMessage = error.response?.data?.message || 'Hubo un error al procesar la liquidación.';
+        notify.error(errorMessage, 6000);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
 
   // Imprimir recibo

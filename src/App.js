@@ -8,6 +8,8 @@ import NotFound from './Pages/NotFound';
 import Empleados from './Pages/Empleados';
 import './styles/main.scss';
 import ConvenioDetail from './Pages/ConvenioDetail';
+import { NotificationSystem } from './Components/NotificationSystem/NotificationSystem';
+import { ConfirmDialog } from './Components/ConfirmDialog/ConfirmDialog';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
         </main>
+        <NotificationSystem />
+        <ConfirmDialog />
       </div>
     </BrowserRouter>
   );

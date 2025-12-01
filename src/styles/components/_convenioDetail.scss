@@ -264,17 +264,21 @@
             background: rgba(16, 185, 129, 0.03);
             font-weight: 600;
             min-width: 120px;
+            text-align: center;
+            padding: 0.75rem 0.5rem;
           }
   
           .bonus-cell {
             background: rgba(245, 158, 11, 0.03);
             min-width: 100px;
-  
+            text-align: center;
+            padding: 0.75rem 0.5rem;
+
             &:empty {
               background: rgba(0, 0, 0, 0.02);
             }
           }
-  
+
           .salary-input, .bonus-input {
             width: 100%;
             padding: 0.4rem;
@@ -345,6 +349,10 @@
               td {
                 font-weight: 500;
                 color: var(--text-primary);
+                &:last-child {
+                  text-align: center;
+                  padding: 0.75rem 0.5rem;
+                }
               }
             }
           }
@@ -603,6 +611,8 @@
             font-weight: 600;
             color: var(--success-color);
             min-width: 80px;
+            text-align: center;
+            padding: 0.6rem 0.4rem;
           }
   
           .zone-cell {

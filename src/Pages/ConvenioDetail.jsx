@@ -10,6 +10,7 @@ export default function ConvenioDetail() {
   const [convenio, setConvenio] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editableData, setEditableData] = useState(null);
+  const [employees, setEmployees] = useState([]);
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -195,7 +196,17 @@ export default function ConvenioDetail() {
   }
     };
 
+    const loadEmployees = async () => {
+      try {
+        const data = await api.getEmployees();
+        setEmployees(data || []);
+      } catch (error) {
+        console.error('Error cargando empleados:', error);
+      }
+    };
+
     loadConvenio();
+    loadEmployees();
   }, [controller]);
 
   const handleEdit = () => {
@@ -250,6 +261,21 @@ export default function ConvenioDetail() {
 
   const handleGoBack = () => {
     navigate('/convenios');
+  };
+
+  // Contar empleados del gremio seleccionado
+  const getEmployeeCountByController = () => {
+    if (!Array.isArray(employees)) return 0;
+    const controllerUpper = controller?.toUpperCase() ?? '';
+    return employees.filter(emp => {
+      const gremioUpper = emp.gremio?.nombre?.toUpperCase() ?? '';
+      if (controllerUpper === 'LYF') {
+        return gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+      } else if (controllerUpper === 'UOCRA') {
+        return gremioUpper === 'UOCRA';
+      }
+      return false;
+    }).length;
   };
 
   // columnas en el mismo orden del diseño
@@ -309,7 +335,7 @@ export default function ConvenioDetail() {
             <div className="header-meta">
               <div className="meta-item">
                 <Users className="meta-icon" />
-                <span>{currentData.employeeCount} empleados</span>
+                <span>{getEmployeeCountByController()} empleados</span>
               </div>
               {currentData.validTo && (
                 <div className="meta-item">
