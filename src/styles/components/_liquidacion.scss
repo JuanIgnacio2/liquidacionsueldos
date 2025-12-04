@@ -1,6 +1,8 @@
 @import '../main.scss';
 
 .quick-actions {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
   .actions-list {
     display: flex;
     flex-direction: column;
@@ -166,6 +168,7 @@
   .employees-list {
     width: 100%;
     max-width: 100%;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 
     .list-header {
       .list-title {

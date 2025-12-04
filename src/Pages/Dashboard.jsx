@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, FileText, Calculator, TrendingUp, DollarSign, Clock } from 'lucide-react';
+import { Users, FileText, Calculator, TrendingUp, DollarSign, Clock, Eye } from 'lucide-react';
 import '../styles/components/_dashboard.scss';
 import * as api from '../services/empleadosAPI'
 import { ProcessPayrollModal } from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import { NewEmployeeModal } from '../Components/NewEmployeeModal/NewEmployeeModal';
+import { Modal, ModalFooter } from '../Components/Modal/Modal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -14,6 +15,9 @@ export default function Dashboard() {
   const [showNewEmployeeModal, setShowNewEmployeeModal] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [actividades, setActividades] = useState([]);
+  const [showActivitiesModal, setShowActivitiesModal] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(false);
 
   const countActiveEmployees = async () => {
     try {
@@ -48,6 +52,7 @@ export default function Dashboard() {
     countGremios();
     loadEmployees();
     loadDashboardStats();
+    loadActividades();
   }, []);
 
   const loadDashboardStats = async () => {
@@ -57,6 +62,48 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error al cargar estadísticas del dashboard:', error);
     }
+  };
+
+  const loadActividades = async () => {
+    setLoadingActivities(true);
+    try {
+      const data = await api.getActividadesRecientes();
+      setActividades(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error al cargar actividades recientes:', error);
+      setActividades([]);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  // Helper para formatear tipo de referencia
+  const getReferenciaLabel = (referenciaTipo) => {
+    const labels = {
+      'ALTA_EMPLEADO': 'Empleado agregado',
+      'BAJA_EMPLEADO': 'Empleado dado de baja',
+      'EDIT_EMPLEADO': 'Empleado editado',
+      'PAGO': 'Liquidación procesada',
+      'EDIT_CONVENIO': 'Convenio actualizado'
+    };
+    return labels[referenciaTipo] || referenciaTipo || 'Acción';
+  };
+
+  // Helper para formatear fecha
+  const formatFecha = (fecha) => {
+    if (!fecha) return '-';
+    const date = new Date(fecha);
+    const ahora = new Date();
+    const diff = ahora - date;
+    const minutos = Math.floor(diff / 60000);
+    const horas = Math.floor(diff / 3600000);
+    const dias = Math.floor(diff / 86400000);
+
+    if (minutos < 60) return `hace ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
+    if (horas < 24) return `hace ${horas} hora${horas !== 1 ? 's' : ''}`;
+    if (dias < 7) return `hace ${dias} día${dias !== 1 ? 's' : ''}`;
+    
+    return date.toLocaleDateString('es-AR');
   };
 
   const handleProcessPayroll = (result) => {
@@ -113,36 +160,8 @@ export default function Dashboard() {
     }
   ];
 
-  const recentActivities = [
-    {
-      id: 1,
-      action: 'Nueva liquidación procesada',
-      employee: 'María González',
-      time: 'hace 2 horas',
-      amount: '$45,000'
-    },
-    {
-      id: 2,
-      action: 'Empleado agregado',
-      employee: 'Carlos Rodríguez',
-      time: 'hace 4 horas',
-      amount: null
-    },
-    {
-      id: 3,
-      action: 'Convenio actualizado',
-      employee: 'Convenio Metalúrgico',
-      time: 'hace 1 día',
-      amount: null
-    },
-    {
-      id: 4,
-      action: 'Liquidación completada',
-      employee: 'Ana Martínez',
-      time: 'hace 1 día',
-      amount: '$52,300'
-    }
-  ];
+  // Obtener las últimas 4 actividades
+  const recentActivities = actividades.slice(0, 4);
 
   return (
     <div className="dashboard">
@@ -180,31 +199,61 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="card-content">
-            <div className="activity-list">
-              {recentActivities.map((activity) => (
-                <div 
-                  key={activity.id}
-                  className="activity-item"
-                >
-                  <div className="activity-info">
-                    <p className="activity-action">{activity.action}</p>
-                    <p className="activity-employee">
-                      {activity.employee}
-                    </p>
-                  </div>
-                  <div className="activity-details">
-                    {activity.amount && (
-                      <p className="activity-amount">
-                        {activity.amount}
-                      </p>
-                    )}
-                    <p className="activity-time">
-                      {activity.time}
-                    </p>
-                  </div>
+            {loadingActivities ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                <p>Cargando actividades...</p>
+              </div>
+            ) : recentActivities.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                <p>No hay actividades recientes</p>
+              </div>
+            ) : (
+              <>
+                <div className="activity-list">
+                  {recentActivities.map((activity, index) => (
+                    <div 
+                      key={activity.id || index}
+                      className="activity-item"
+                    >
+                      <div className="activity-info">
+                        <p className="activity-action">{getReferenciaLabel(activity.referenciaTipo)}</p>
+                        <p className="activity-employee">
+                          {activity.descripcion || activity.usuario || 'Sin descripción'}
+                        </p>
+                      </div>
+                      <div className="activity-details">
+                        <p className="activity-time">
+                          {formatFecha(activity.fecha)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {actividades.length > 4 && (
+                  <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      onClick={() => setShowActivitiesModal(true)}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#22c55e',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <Eye size={16} />
+                      Ver todas las actividades
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -261,6 +310,61 @@ export default function Dashboard() {
         onClose={() => setShowNewEmployeeModal(false)}
         onSave={handleSaveEmployee}
       />
+
+      {/* Modal Actividades Completas */}
+      <Modal
+        isOpen={showActivitiesModal}
+        onClose={() => setShowActivitiesModal(false)}
+        title="Historial de Actividades Completo"
+        size="large"
+      >
+        <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          {loadingActivities ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <p>Cargando actividades...</p>
+            </div>
+          ) : actividades.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+              <p>No hay actividades registradas</p>
+            </div>
+          ) : (
+            <div style={{ paddingBottom: '16px' }}>
+              {actividades.map((activity, idx) => (
+                <div
+                  key={activity.id || idx}
+                  style={{
+                    padding: '16px',
+                    borderBottom: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'start',
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: '0 0 4px 0', fontWeight: '600', color: '#1f2937' }}>
+                      {getReferenciaLabel(activity.referenciaTipo)}
+                    </p>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
+                      {activity.descripcion}
+                    </p>
+                    <p style={{ margin: '0', fontSize: '12px', color: '#9ca3af' }}>
+                      <strong>{activity.usuario}</strong> • {formatFecha(activity.fecha)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <ModalFooter>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowActivitiesModal(false)}
+          >
+            Cerrar
+          </button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }

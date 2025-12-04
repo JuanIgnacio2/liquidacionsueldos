@@ -104,15 +104,6 @@ export function ConvenioCard({ convenio, onView, onEdit, onUploadDocument }) {
               <Edit className="action-icon" />
             </button>
           </Tooltip>
-
-          <Tooltip content="Subir documento" position="top">
-            <button
-              className="action-btn upload"
-              onClick={() => onUploadDocument && onUploadDocument(convenio)}
-            >
-              <Upload className="action-icon" />
-            </button>
-          </Tooltip>
         </div>
       </div>
     </div>

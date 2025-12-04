@@ -116,10 +116,28 @@ export default function Empleados() {
   
   const handleSaveEmployee = async (dto, isEdit) => {
       try {
+        const usuario = 'ADMIN';
+        
         if (isEdit) {
           await api.updateEmployee(dto.legajo, dto);
+          // Registrar actividad de edición
+          await api.registrarActividad({
+            usuario,
+            accion: 'EDITAR',
+            descripcion: `Se modificó el empleado ${dto.nombre} ${dto.apellido}`,
+            referenciaTipo: 'EDIT_EMPLEADO',
+            referenciaId: dto.legajo
+          });
         } else {
-          await api.createEmployee(dto);
+          const response = await api.createEmployee(dto);
+          // Registrar actividad de alta
+          await api.registrarActividad({
+            usuario,
+            accion: 'CREAR',
+            descripcion: `Se creó el empleado ${dto.nombre} ${dto.apellido}`,
+            referenciaTipo: 'ALTA_EMPLEADO',
+            referenciaId: response.legajo || dto.legajo
+          });
         }
         await loadEmployees(); // Refrescar lista
       } catch (err) {
@@ -154,15 +172,31 @@ export default function Empleados() {
   };
 
   const handleStateEmployee = async (employee) => {
+    const usuario = localStorage.getItem('usuario') || 'Sistema';
+    
     if (employee.estado === 'DADO_DE_BAJA') {
       if (window.confirm(`¿Está seguro de que desea dar de alta a ${`${employee.nombre} ${employee.apellido}`}?`)) {
-        api.updateStateEmployee(employee.legajo);
+        await api.updateStateEmployee(employee.legajo);
+        await api.registrarActividad({
+          usuario,
+          accion: 'REACTIVAR',
+          descripcion: `Se reactivó el empleado ${employee.nombre} ${employee.apellido}`,
+          referenciaTipo: 'EDIT_EMPLEADO',
+          referenciaId: employee.legajo
+        });
         window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de alta`, 'info');
         await loadEmployees(); // Refrescar lista
       }}
     if (employee.estado === 'ACTIVO') {
         if (window.confirm(`¿Está seguro de que desea dar de baja a ${`${employee.nombre} ${employee.apellido}`}?`)) {
-            api.updateStateEmployee(employee.legajo);
+            await api.updateStateEmployee(employee.legajo);
+            await api.registrarActividad({
+              usuario,
+              accion: 'BAJA',
+              descripcion: `Se dio de baja el empleado ${employee.nombre} ${employee.apellido}`,
+              referenciaTipo: 'BAJA_EMPLEADO',
+              referenciaId: employee.legajo
+            });
             window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de baja`, 'info');
             await loadEmployees(); // Refrescar lista
           }
@@ -178,6 +212,7 @@ export default function Empleados() {
     setShowProcessPayrollModal(false);
     setSelectedEmployee(null);
     setEmployeeForPayroll(null);
+    loadEmployees();
   };
 
   const handleProcessPayroll = (result) => {

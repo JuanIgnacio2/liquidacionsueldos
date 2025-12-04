@@ -923,6 +923,18 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                 placeholder="20-12345678-9"
               />
             </div>
+            <div className={'form-group'}>
+              <label className={'form-label'}>Sexo</label>
+              <select
+                className={'form-select'}
+                value={formData.sexo}
+                onChange={(e) => handleInputChange('sexo', e.target.value)}
+              >
+                <option value="">Seleccione...</option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
           </div>
         </div>
 

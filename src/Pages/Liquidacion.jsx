@@ -258,7 +258,9 @@ export default function Liquidacion() {
       {/* Modals */}
       <ProcessPayrollModal
         isOpen={showProcessModal}
-        onClose={() => setShowProcessModal(false)}
+        onClose={() => {
+          setShowProcessModal(false);
+          loadPayrolls();}}
         onProcess={handleProcessPayroll}
         employees={employees}
       />

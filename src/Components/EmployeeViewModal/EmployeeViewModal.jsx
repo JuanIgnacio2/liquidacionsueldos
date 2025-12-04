@@ -302,6 +302,10 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               <div className={'detail-label'}>Dirección</div>
               <div className={'detail-value'}>{`${employee.domicilio}` || 'S/N'}</div>
             </div>
+            <div className={'detail-item'}>
+              <div className={'detail-label'}>Sexo</div>
+              <div className={'detail-value'}>{employee.sexo === 'M' ? 'Masculino' : employee.sexo === 'F' ? 'Femenino' : (employee.sexo || '-')}</div>
+            </div>
           </div>
         </div>
 

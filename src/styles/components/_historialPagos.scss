@@ -1,7 +1,9 @@
 @import '../main.scss';
 
 .placeholder-page {
-	padding: 1.5rem;
+	padding: $spacing-4 $spacing-6;
+  	padding-top: $spacing-4;
+  	background-color: rgba(217, 247, 226, 0.3);
 
     .back-button {
         width: fit-content;

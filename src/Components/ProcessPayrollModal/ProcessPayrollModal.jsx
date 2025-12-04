@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star } from 'lucide-react';
-import './ProcessPayrollModal.scss';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
+import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -26,12 +26,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-  const [periodo, setPeriodo] = useState(
-    new Date().toISOString().slice(0,7)
-  );
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
+  const [periodo, setPeriodo] = useState(
+    new Date().toISOString().slice(0,7)
+  );
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -385,10 +385,21 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
     try {
       const result = await api.guardarLiquidacion(payload);
+      const usuario = localStorage.getItem('usuario') || 'Sistema';
+      
       setPayrollData({
         ...payrollData,
         periodDisplay: result.periodoPago,
         totalNeto: result.total_neto
+      });
+
+      // Registrar actividad de liquidación
+      await api.registrarActividad({
+        usuario,
+        accion: 'LIQUIDAR',
+        descripcion: `Se liquidó el sueldo del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido} para el período ${periodo}`,
+        referenciaTipo: 'PAGO',
+        referenciaId: result.id || result.idLiquidacion || selectedEmployee.legajo
       });
 
       // Notificación de éxito
@@ -453,7 +464,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       isOpen={isOpen}
       onClose={resetModal}
       title={
-        currentStep === 'search' ? 'Buscar Empleado' :
+        currentStep === 'search' ? 'Seleccionar Empleado' :
         currentStep === 'payroll' ? `Liquidación - ${selectedEmployee?.nombre}` :
         'Vista Previa del Recibo'
       }
@@ -464,20 +475,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {currentStep === 'search' && (
         <div className="employee-search">
           <div className="search-section">
-            <div className="section-header-enhanced">
-              <div className="step-indicator">
-                <span className="step-number">1</span>
-                <Star className="step-star" />
-              </div>
-              <div className="header-content">
-                <h3 className="section-title section-title-effect">
-                  <Users className="title-icon" />
-                  Seleccionar Empleado
-                </h3>
-                <p className="section-subtitle">Busca y selecciona el empleado para generar su liquidación</p>
-              </div>
-            </div>
-
             <div className="search-container">
               <div className="search-input-container">
                 <Search className="search-icon" />
@@ -504,10 +501,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     <div className="employee-card-accent"></div>
                     <div className="employee-info">
                       <div className="employee-main">
-                        <div className="employee-avatar">
-                          <User className="employee-icon" />
-                          <div className="status-dot"></div>
-                        </div>
                         <div className="employee-details">
                           <h4 className="employee-name">{`${employee.nombre} ${employee.apellido}`}</h4>
                           <div className="employee-badges">
@@ -524,7 +517,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       <div className="employee-salary">
                         <span className="salary-label">Sueldo Básico:</span>
                         <span className="salary-value">
-                          {formatCurrencyAR(employee.salary || employee.sueldoBasico || 0)}
+                          {formatCurrencyAR(employee.basico || employee.sueldoBasico || 0)}
                         </span>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, MapPin, Settings, Download, TrendingUp, Users, Calculator, Upload } from 'lucide-react';
+import { FileText, Users, Calculator, Upload } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import '../styles/components/_convenios.scss';
@@ -90,7 +90,7 @@ export default function Convenios() {
   const totalCategorias = convenios.reduce((total, conv) => total + conv.categories || 0, 0);
 
   return (
-    <div className="placeholder-page">
+    <div className="placeholder-page convenios">
       {/* Header */}
       <div className="page-header">
         <div className="header-content">
@@ -139,17 +139,17 @@ export default function Convenios() {
       </div>
 
       {/* Convenios Cards */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="section-title section-title-effect">
+      <div className="conveniosContainer">
+        <div className="convenios-header">
+          <h2 className="convenios-title section-title-effect">
             <FileText className="title-icon" />
             Convenios Activos
           </h2>
-          <p className="card-description">
+          <p className="convenios-description">
             Gestiona los convenios colectivos vigentes
           </p>
         </div>
-        <div className="card-content">
+        <div className="convenios-content">
           <div className="convenios-grid">
             {convenios.map((convenio) => (
               <ConvenioCard

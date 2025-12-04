@@ -79,10 +79,22 @@ export const getLiquidacionesByPeriodo = (periodo) =>
     axiosClient.get(`/liquidaciones/periodo/${periodo}`).then((r)=>r.data);
 
 export const getDashboardStats = () =>
-    axiosClient.get(`liquidaciones/dashboard/mes-actual`).then((r)=>r.data);
+    axiosClient.get(`/liquidaciones/dashboard/mes-actual`).then((r)=>r.data);
 
 export const getResumeMonth = () =>
-    axiosClient.get(`liquidaciones/resumen-conceptos/mes-actual`).then((r)=>r.data);
+    axiosClient.get(`/liquidaciones/resumen-conceptos/mes-actual`).then((r)=>r.data);
 
 export const getResumeCustomMonth = (periodo) =>
-    axiosClient.get(`liquidaciones/resumen-conceptos/${periodo}`).then((r)=>r.data);
+    axiosClient.get(`/liquidaciones/resumen-conceptos/${periodo}`).then((r)=>r.data);
+
+export const registrarActividad = (dto) =>
+    axiosClient.post(`/actividad`, dto).then((r)=>r.data);
+
+export const getActividadesRecientes = () =>
+    axiosClient.get(`/actividad/reciente`).then((r)=>r.data);
+
+export const getActividadesRecientesTipo = (tipo) =>
+    axiosClient.get(`/actividad/reciente/tipo/${tipo}`).then((r)=>r.data);
+
+export const getActividadesRecientesUsuario = (usuario) =>
+    axiosClient.get(`/actividad/reciente/usuario/${usuario}`).then((r)=>r.data);

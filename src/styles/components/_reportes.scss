@@ -52,10 +52,12 @@
     padding: $spacing-4;
     border-radius: $border-radius-lg;
     box-shadow: $shadow-sm;
-
+    display: flex;
+    
     .filter-group {
       display: flex;
       align-items: center;
+      padding-left: $spacing-6;
       gap: $spacing-3;
 
       label {
@@ -72,21 +74,38 @@
         }
       }
 
-      .month-input {
+      .month-select,
+      .year-select {
         padding: $spacing-2 $spacing-3;
         border: 1px solid $color-gray-300;
         border-radius: $border-radius;
-        font-size: $font-size-base;
-        color: $color-gray-900;
+        font-size: $font-size-sm;
         background-color: $color-white;
+        color: $color-gray-900;
         cursor: pointer;
-        transition: border-color 0.2s ease;
 
         &:focus {
           outline: none;
-          border-color: $color-green-primary;
-          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+          border-color: $color-white;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
         }
+      }
+    }
+
+    .search-button {
+      margin-left: auto;
+      padding: $spacing-2 $spacing-4;
+      background-color: $color-green-primary;
+      color: $color-white;
+      border: none;
+      border-radius: $border-radius-lg;
+      font-size: $font-size-sm;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+
+      &:hover {
+        background-color: darken($color-green-primary, 10%);
       }
     }
   }
@@ -186,14 +205,14 @@
       border-collapse: collapse;
 
       thead {
-        background-color: $color-gray-50;
+        background-color: $color-green-light;
         border-bottom: 2px solid $color-gray-200;
 
         th {
           padding: $spacing-4;
           text-align: left;
           font-weight: 600;
-          color: $color-gray-900;
+          color: $color-white;
           font-size: $font-size-sm;
           text-transform: uppercase;
           letter-spacing: 0.05em;

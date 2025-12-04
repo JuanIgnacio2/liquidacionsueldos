@@ -215,6 +215,8 @@ export default function ConvenioDetail() {
 
   const handleSave = async () => {
     try {
+      const usuario = localStorage.getItem('usuario') || 'Sistema';
+      
       if (controller === 'lyf') {
         const payload = buildLyfPayload(editableData);
         await api.updateBasicoLyF(payload);
@@ -222,6 +224,16 @@ export default function ConvenioDetail() {
         const payload = buildUocraPayload(editableData, convenio);
         await api.updateBasicoUocra(payload);
       }
+      
+      // Registrar actividad de modificación de convenio
+      await api.registrarActividad({
+        usuario,
+        accion: 'ACTUALIZAR',
+        descripcion: `Se actualizó el convenio ${convenio?.name || controller?.toUpperCase()}`,
+        referenciaTipo: 'EDIT_CONVENIO',
+        referenciaId: controller === 'lyf' ? 1 : (controller === 'uocra' ? 2 : 0)
+      });
+      
     // Convertir los básicos a número antes de actualizar el estado `convenio`
     const saved = JSON.parse(JSON.stringify(editableData || {}));
     if (Array.isArray(saved.salaryTable?.categories)) {
@@ -248,7 +260,7 @@ export default function ConvenioDetail() {
       console.error('Error guardando convenio:', error);
       window.showNotification('Error al guardar el convenio', 'error');
     }
-  };
+  };;
 
   const handleCancel = () => {
     setEditableData(JSON.parse(JSON.stringify(convenio)));

@@ -32,6 +32,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     areas: [],
     inicioActividad: new Date().toISOString().split('T')[0], // Fecha actual
     estado: 'ACTIVO',
+    sexo: 'M',
     gremio: null,
     idGremio: null,
     idCategoria: null,

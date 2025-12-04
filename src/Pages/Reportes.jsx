@@ -6,7 +6,6 @@ import '../styles/components/_reportes.scss';
 
 export default function Reportes() {
   const navigate = useNavigate();
-  const [liquidaciones, setLiquidaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [resumenConceptos, setResumenConceptos] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(() => {
