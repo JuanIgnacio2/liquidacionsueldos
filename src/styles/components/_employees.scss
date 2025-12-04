@@ -49,21 +49,28 @@
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: $spacing-4;
-    margin-bottom: $spacing-6;
+    margin-bottom: $spacing-3;
 
     @media (min-width: 768px) {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .stat-card {
-      padding: $spacing-4;
+      padding: $spacing-3 $spacing-4;
       cursor: pointer;
       transition: box-shadow 0.3s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+      .stat-label {
+        font-size: $font-size-sm;
+        color: $color-gray-500;
+        margin-bottom: $spacing-1;
+      }
 
       .stat-value {
         font-size: $font-size-2xl;
         font-weight: 700;
-        margin-bottom: $spacing-1;
+        margin-top: 0;
 
         &.success {
           color: $color-success;
@@ -81,18 +88,14 @@
           color: $color-gray-900;
         }
       }
-
-      .stat-label {
-        font-size: $font-size-sm;
-        color: $color-gray-500;
-      }
     }
   }
 
   .filters-card {
-    margin-bottom: $spacing-6;
+    margin-bottom: $spacing-3;
     overflow: visible;
     position: relative;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 
     .filters-content {
       padding: $spacing-4;
@@ -307,65 +310,60 @@
     }
   }
 
-  .employees-table-container {
-    background: $color-white;
-    border-radius: $border-radius-lg;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    overflow: hidden;
+  .employees-section {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+    .employees-header {
+      padding: $spacing-4;
+      
+      .card-title {
+        font-size: $font-size-base;
+        margin-bottom: $spacing-1;
+      }
+
+      .card-description {
+        font-size: $font-size-xs;
+      }
+    }
+
+    .employees-content {
+      padding: $spacing-3 $spacing-4;
+    }
 
     .employees-table {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      background: $color-white;
 
-      thead {
-        background: $color-white;
-        color: $color-gray-900;
-        position: sticky;
-        top: 0;
-        z-index: 10;
+      .employees-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
 
-        th {
-          padding: $spacing-3 $spacing-4;
-          font-size: $font-size-sm;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          text-transform: uppercase;
-          border-bottom: 1px solid $color-gray-200;
-          color: $color-gray-900;
-          text-align: left;
-
-          &:first-child {
-            padding-left: $spacing-5;
-          }
-
-          &:last-child {
-            padding-right: $spacing-5;
-            text-align: right;
-          }
-        }
-      }
-
-      tbody {
-        tr {
-          border-bottom: 1px solid $color-gray-100;
+        .employees-item {
+          display: grid;
+          grid-template-columns: 2.5fr 2fr 1.5fr 2fr;
+          gap: $spacing-4;
+          align-items: center;
+          padding: $spacing-3;
+          border: 1px solid rgba(209, 213, 219, 1);
+          border-radius: $border-radius;
+          margin-bottom: $spacing-1;
           transition: all 0.2s ease;
 
-          &:hover {
-            background: rgba(16, 185, 129, 0.05);
-          }
-
           &:last-child {
-            border-bottom: none;
+            margin-bottom: 0;
           }
 
-          td {
-            padding: $spacing-4;
-            vertical-align: middle;
+          &:hover {
+            background-color: rgba(243, 244, 246, 0.4);
+            border-color: rgba(156, 163, 175, 1);
+          }
 
-            &.employee-cell {
-              padding-left: $spacing-5;
+          .employees-col {
+            display: flex;
+            align-items: center;
+
+            &.employee-col {
+              justify-content: flex-start;
 
               .employee-info {
                 display: flex;
@@ -373,44 +371,54 @@
                 gap: $spacing-3;
 
                 .employee-icon {
-                  width: 2rem;
-                  height: 2rem;
+                  width: 1.5rem;
+                  height: 1.5rem;
                   color: $color-gray-400;
                   flex-shrink: 0;
                 }
 
-                .employee-details {
-                  flex: 1;
+                  .employee-details {
+                   display: flex;
+                   flex-direction: column;
+                   gap: 0.25rem;
 
-                  .employee-name {
-                    font-size: $font-size-base;
-                    font-weight: 600;
-                    color: $color-gray-900;
-                    margin-bottom: $spacing-1;
-                  }
+                   .employee-name {
+                     font-weight: 700;
+                     font-size: calc(#{$font-size-sm} - 2px);
+                     color: $color-gray-900;
+                   }
+                 }
+               }
+             }
 
-                  .employee-legajo {
-                    font-size: $font-size-sm;
-                    color: $color-gray-600;
+             &.legajo-col {
+               display: flex;
+               flex-direction: row;
+               align-items: center;
+               gap: 0.5rem;
+               justify-content: flex-start;
 
-                    .convenio-name {
-                      color: #2563eb;
-                      font-weight: 500;
-                    }
-                  }
-                }
+               .employee-legajo {
+                 font-size: calc(#{$font-size-sm} - 2px);
+                 color: $color-gray-700;
+                 font-weight: 400;
+               }
 
-                .employee-status-icon {
-                  width: 0.5rem;
-                  height: 0.5rem;
-                  border-radius: 50%;
-                  background: $color-gray-300;
-                  flex-shrink: 0;
-                }
-              }
-            }
+               .convenio-separator {
+                 font-size: calc(#{$font-size-sm} - 2px);
+                 color: $color-gray-400;
+               }
 
-            &.status-cell {
+               .convenio-name {
+                 font-size: calc(#{$font-size-sm} - 2px);
+                 color: #2563eb;
+                 font-weight: 500;
+               }
+             }
+
+            &.status-col {
+              justify-content: center;
+
               .status-badge {
                 display: inline-block;
                 padding: $spacing-1 $spacing-2;
@@ -431,9 +439,8 @@
               }
             }
 
-            &.action-cell {
-              padding-right: $spacing-5;
-              text-align: right;
+            &.action-col {
+              justify-content: flex-end;
 
               .employee-actions {
                 display: flex;
@@ -459,16 +466,18 @@
                   }
 
                   &.view-action {
-                    color: $color-info;
+                    color: $color-gray-500;
                     &:hover {
-                      background-color: rgba(59, 130, 246, 0.1);
+                      background-color: rgba(243, 244, 246, 0.5);
+                      color: $color-gray-700;
                     }
                   }
 
                   &.edit-action {
-                    color: $color-warning;
+                    color: $color-gray-500;
                     &:hover {
-                      background-color: rgba(234, 179, 8, 0.1);
+                      background-color: rgba(243, 244, 246, 0.5);
+                      color: $color-gray-700;
                     }
                     &:disabled {
                       opacity: 0.3;
@@ -477,9 +486,10 @@
                   }
 
                   &.liquidate-action {
-                    color: $color-success;
+                    color: $color-gray-500;
                     &:hover {
-                      background-color: rgba(34, 197, 94, 0.1);
+                      background-color: rgba(243, 244, 246, 0.5);
+                      color: $color-gray-700;
                     }
                     &:disabled {
                       opacity: 0.3;
@@ -489,9 +499,10 @@
 
                   &.deactivate-action,
                   &.activate-action {
-                    color: $color-danger;
+                    color: $color-gray-500;
                     &:hover {
-                      background-color: rgba(239, 68, 68, 0.1);
+                      background-color: rgba(243, 244, 246, 0.5);
+                      color: $color-gray-700;
                     }
                   }
                 }
