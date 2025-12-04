@@ -2,15 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, DollarSign, Search, Users, ArrowLeft, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
+import { useNotification } from '../Hooks/useNotification';
+import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import '../styles/components/_PlaceHolder.scss';
 import '../styles/components/_liquidacion.scss';
 import '../styles/components/_historialPagos.scss';
 
 export default function HistorialPagos() {
+  const notify = useNotification();
   const navigate = useNavigate();
   const [pagos, setPagos] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const [payrollDetails, setPayrollDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     loadPagos();
@@ -65,6 +72,37 @@ export default function HistorialPagos() {
     typeof value === 'number'
       ? `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : value;
+
+  const handleViewDetails = async (liquidacion) => {
+    setSelectedPayroll(liquidacion);
+    setShowDetailModal(true);
+    setLoadingDetails(true);
+    setPayrollDetails(null);
+  
+    try {
+      // Cargar detalles de la liquidación desde la API
+      const detalle = await api.getDetallePago(liquidacion.id || liquidacion.idPago);
+      setPayrollDetails(detalle);
+    } catch (error) {
+      notify.error('Error al cargar detalles de la liquidación');
+      notify('No se pudieron cargar los detalles de la liquidación.');
+    } finally {
+      setLoadingDetails(false);
+    }
+   };
+
+  const handlePrintPayroll = (payroll) => {
+    notify('Imprimiendo liquidación:', payroll.periodName || payroll.periodoPago);
+    window.print();
+  };
+
+  const handleDownloadPayroll = (payroll) => {
+    notify('Descargando liquidación:', payroll.periodName || payroll.periodoPago);
+    const link = document.createElement('a');
+    link.href = `data:text/plain;charset=utf-8,Liquidación ${payroll.periodoPago || payroll.period}`;
+    link.download = `liquidacion_${payroll.periodoPago || payroll.period}.txt`;
+    link.click();
+  };
 
   return (
     <div className="placeholder-page">
@@ -151,28 +189,40 @@ export default function HistorialPagos() {
                     className="employee-item"
                   >
                     <div className="employee-grid">
-                      <div className="employee-info">
-                        <h3 className="employee-name">{`${pago.apellidoEmpleado || ''} ${pago.nombreEmpleado || ''}`}</h3>
-                        <p className="employee-email">Legajo: {pago.legajoEmpleado || '-'}</p>
+                        <div className="employee-info">
+                          <h3 className="employee-name">{`${pago.apellidoEmpleado || ''} ${pago.nombreEmpleado || ''}`}</h3>
+                          <p className="employee-email">Legajo: {pago.legajoEmpleado || '-'}</p>
+                        </div>
+                        <div className="employee-position">
+                          <p className="position-title">Período: {pago.periodoPago || '-'}</p>
+                          <p className="department">
+                            Fecha: {pago.fechaPago ? new Date(pago.fechaPago).toLocaleDateString('es-AR') : '-'}
+                          </p>
+                        </div>
+                        <div className="employee-salary">
+                          <p className="salary-amount">
+                            {formatCurrency(pago.total_neto || 0)}
+                          </p>
+                          <p className="hire-date">Total Neto</p>
+                        </div>
+                        <div className="employee-status">
+                          <span className={`status-badge ${pago.estado?.toLowerCase() || 'completada'}`}>
+                            {pago.estado ? pago.estado.charAt(0).toUpperCase() + pago.estado.slice(1) : 'Completada'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="employee-position">
-                        <p className="position-title">Período: {pago.periodoPago || '-'}</p>
-                        <p className="department">
-                          Fecha: {pago.fechaPago ? new Date(pago.fechaPago).toLocaleDateString('es-AR') : '-'}
-                        </p>
+                      <div className="employee-actions">
+                        <button
+                          className="action-icon-button view-action"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(pago);
+                          }}
+                          title="Ver detalle"
+                        >
+                          <Eye className="action-icon" />
+                        </button>
                       </div>
-                      <div className="employee-salary">
-                        <p className="salary-amount">
-                          {formatCurrency(pago.total_neto || 0)}
-                        </p>
-                        <p className="hire-date">Total Neto</p>
-                      </div>
-                      <div className="employee-status">
-                        <span className={`status-badge ${pago.estado?.toLowerCase() || 'completada'}`}>
-                          {pago.estado ? pago.estado.charAt(0).toUpperCase() + pago.estado.slice(1) : 'Completada'}
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 ))}
               </div>
@@ -186,6 +236,19 @@ export default function HistorialPagos() {
           </div>
         </div>
       </div>
+      <PayrollDetailModal
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedPayroll(null);
+          setPayrollDetails(null);
+        }}
+        selectedPayroll={selectedPayroll}
+        payrollDetails={payrollDetails}
+        loadingDetails={loadingDetails}
+        onPrint={handlePrintPayroll}
+        onDownload={handleDownloadPayroll}
+      />
     </div>
   );
 }

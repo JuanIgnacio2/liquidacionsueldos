@@ -80,3 +80,9 @@ export const getLiquidacionesByPeriodo = (periodo) =>
 
 export const getDashboardStats = () =>
     axiosClient.get(`liquidaciones/dashboard/mes-actual`).then((r)=>r.data);
+
+export const getResumeMonth = () =>
+    axiosClient.get(`liquidaciones/resumen-conceptos/mes-actual`).then((r)=>r.data);
+
+export const getResumeCustomMonth = (periodo) =>
+    axiosClient.get(`liquidaciones/resumen-conceptos/${periodo}`).then((r)=>r.data);

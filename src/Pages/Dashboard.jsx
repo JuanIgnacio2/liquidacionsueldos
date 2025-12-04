@@ -232,8 +232,9 @@ export default function Dashboard() {
                 <span>Agregar Empleado</span>
                 <Users className="action-icon" />
               </button>
-              <button className="action-btn warning">
-                <span>Ver Reportes</span>
+              <button className="action-btn warning"
+                onClick={() => navigate('/reportes')}>
+                <span>Resumenes</span>
                 <TrendingUp className="action-icon" />
               </button>
               <button 
