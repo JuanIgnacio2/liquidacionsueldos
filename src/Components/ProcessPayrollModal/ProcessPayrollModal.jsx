@@ -5,6 +5,7 @@ import './ProcessPayrollModal.scss';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { Button } from '../ui/button';
+import { StatCard } from '../ui/StatCard';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -695,34 +696,25 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           </div>
 
           <div className="totals-summary">
-            <div className="total-cards">
-              <div className="total-card remuneraciones">
-                <div className="total-icon-wrapper">
-                  <TrendingUp className="total-icon" />
-                </div>
-                <div className="total-content">
-                  <div className="total-label">Total Remuneraciones</div>
-                  <div className="total-amount positive">{formatCurrencyAR(remunerations)}</div>
-                </div>
-              </div>
-              <div className="total-card descuentos">
-                <div className="total-icon-wrapper">
-                  <TrendingDown className="total-icon" />
-                </div>
-                <div className="total-content">
-                  <div className="total-label">Total Descuentos</div>
-                  <div className="total-amount negative">{formatCurrencyAR(deductions)}</div>
-                </div>
-              </div>
-              <div className="total-card final">
-                <div className="total-icon-wrapper">
-                  <DollarSign className="total-icon" />
-                </div>
-                <div className="total-content">
-                  <div className="total-label">NETO A COBRAR</div>
-                  <div className="total-amount final">{formatCurrencyAR(netAmount)}</div>
-                </div>
-              </div>
+            <div className="totals-grid">
+              <StatCard
+                title="Total Remuneraciones"
+                value={formatCurrencyAR(remunerations)}
+                colorClass="success"
+                delay={0}
+              />
+              <StatCard
+                title="Total Descuentos"
+                value={formatCurrencyAR(deductions)}
+                colorClass="warning"
+                delay={0.1}
+              />
+              <StatCard
+                title="NETO A COBRAR"
+                value={formatCurrencyAR(netAmount)}
+                colorClass="primary"
+                delay={0.2}
+              />
             </div>
           </div>
           <div className="step-actions">
