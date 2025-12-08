@@ -152,7 +152,13 @@ export default function Liquidacion() {
       colorClass: 'primary'
     },
     {
-      label: 'Liquidaciones Realizadas',
+      label: 'Total Neto Mes',
+      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: DollarSign,
+      colorClass: 'success'
+    },
+    {
+      label: 'Liquidaciones Hechas',
       value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
       icon: TrendingUp,
       colorClass: 'success'
