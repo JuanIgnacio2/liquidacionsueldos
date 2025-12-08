@@ -7,7 +7,6 @@ import { EmployeeEditModal } from "../Components/EmployeeEditModal/EmployeeEditM
 import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
 import { StatsGrid, Card, CardContent, } from "../Components/ui/card";
 import {useNotification} from '../Hooks/useNotification';
-import { useConfirm } from '../Hooks/useConfirm';
 import { Tooltip } from "../Components/ToolTip/ToolTip";
 import { LoadingSpinner } from "../Components/ui/LoadingSpinner";
 import * as api from "../services/empleadosAPI";
@@ -15,7 +14,6 @@ import "../styles/components/_employees.scss";
 
 export default function Empleados() {
   const notify = useNotification();
-  const confirm = useConfirm();
   const [employees, setEmployees] = useState([]);
   const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -205,77 +203,50 @@ export default function Empleados() {
 
   const handleStateEmployee = async (employee) => {
     const usuario = localStorage.getItem("usuario") || "Sistema";
-    const nombreCompleto = `${employee.nombre} ${employee.apellido}`;
 
     if (employee.estado === "DADO_DE_BAJA") {
-      // Dar de alta
-      const result = await confirm({
-        title: 'Dar de alta empleado',
-        message: `¿Está seguro de que desea dar de alta a ${nombreCompleto}?`,
-        confirmText: 'Dar de alta',
-        cancelText: 'Cancelar',
-        type: 'success',
-        confirmButtonVariant: 'success',
-        cancelButtonVariant: 'secondary'
-      });
-
-      if (result) {
-        try {
-          await api.updateStateEmployee(employee.legajo);
-          await api.registrarActividad({
-            usuario,
-            accion: "REACTIVAR",
-            descripcion: `Se reactivó el empleado ${nombreCompleto}`,
-            referenciaTipo: "EDIT_EMPLEADO",
-            referenciaId: employee.legajo,
-          });
-          if (window?.showNotification) {
-            window.showNotification(
-              `Empleado ${nombreCompleto} dado de alta exitosamente`,
-              "success",
-              3000
-            );
-          }
-          await loadEmployees(); // Refrescar lista
-        } catch (error) {
-          notify.error("Error al dar de alta el empleado: " + error.message);
-        }
-      }
-    } else if (employee.estado === "ACTIVO") {
-      // Dar de baja
-      const result = await confirm({
-        title: 'Dar de baja empleado',
-        message: `¿Está seguro de que desea dar de baja a ${nombreCompleto}? Esta acción cambiará el estado del empleado.`,
-        confirmText: 'Dar de baja',
-        cancelText: 'Cancelar',
-        type: 'danger',
-        confirmButtonVariant: 'danger',
-        cancelButtonVariant: 'secondary'
-      });
-
-      if (result) {
-        try {
-          await api.updateStateEmployee(employee.legajo);
-          await api.registrarActividad({
-            usuario,
-            accion: "BAJA",
-            descripcion: `Se dio de baja el empleado ${nombreCompleto}`,
-            referenciaTipo: "BAJA_EMPLEADO",
-            referenciaId: employee.legajo,
-          });
-          if (window?.showNotification) {
-            window.showNotification(
-              `Empleado ${nombreCompleto} dado de baja exitosamente`,
-              "warning",
-              3000
-            );
-          }
-          await loadEmployees(); // Refrescar lista
-        } catch (error) {
-          notify.error("Error al dar de baja el empleado: " + error.message);
-        }
+      if (
+        window.confirm(
+          `¿Está seguro de que desea dar de alta a ${`${employee.nombre} ${employee.apellido}`}?`
+        )
+      ) {
+        await api.updateStateEmployee(employee.legajo);
+        await api.registrarActividad({
+          usuario,
+          accion: "REACTIVAR",
+          descripcion: `Se reactivó el empleado ${employee.nombre} ${employee.apellido}`,
+          referenciaTipo: "EDIT_EMPLEADO",
+          referenciaId: employee.legajo,
+        });
+        window.showNotification?.(
+          `Empleado ${employee.nombre} ${employee.apellido} dado de alta`,
+          "info"
+        );
+        await loadEmployees(); // Refrescar lista
       }
     }
+    if (employee.estado === "ACTIVO") {
+      if (
+        window.confirm(
+          `¿Está seguro de que desea dar de baja a ${`${employee.nombre} ${employee.apellido}`}?`
+        )
+      ) {
+        await api.updateStateEmployee(employee.legajo);
+        await api.registrarActividad({
+          usuario,
+          accion: "BAJA",
+          descripcion: `Se dio de baja el empleado ${employee.nombre} ${employee.apellido}`,
+          referenciaTipo: "BAJA_EMPLEADO",
+          referenciaId: employee.legajo,
+        });
+        window.showNotification?.(
+          `Empleado ${employee.nombre} ${employee.apellido} dado de baja`,
+          "info"
+        );
+        await loadEmployees(); // Refrescar lista
+      }
+    }
+    loadEmployees();
   };
 
   const closeModals = () => {
@@ -315,7 +286,13 @@ export default function Empleados() {
       value: employees.filter((emp) => emp.estado === "DADO_DE_BAJA").length,
       label: "Dados de baja",
       colorClass: "warning",
-    }
+    },
+    {
+      icon: Layers,
+      value: areas.length,
+      label: "Áreas",
+      colorClass: "text-yellow-500",
+    },
   ];
 
   if (loading) {
@@ -362,15 +339,7 @@ export default function Empleados() {
       </div>
 
       {/* Stats Summary */}
-      <StatsGrid
-        className="stats-overview"
-        stats={statsData.map(s => ({
-          icon: s.icon,
-          value: s.value,
-          label: s.label,
-          colorClass: s.colorClass
-        }))}
-      />
+      <StatsGrid stats={statsData} className="stats-overview" />
 
       {/* Filters */}
       <Card className="filters-card">
