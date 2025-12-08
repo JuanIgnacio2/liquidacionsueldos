@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye, CheckCircle } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import { StatsGrid } from '../Components/ui/card';
@@ -133,7 +133,13 @@ export default function Liquidacion() {
       colorClass: 'primary'
     },
     {
-      label: 'Liquidaciones Realizadas',
+      label: 'Total Neto Mes',
+      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: DollarSign,
+      colorClass: 'success'
+    },
+    {
+      label: 'Liquidaciones Hechas',
       value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
       icon: TrendingUp,
       colorClass: 'success'
