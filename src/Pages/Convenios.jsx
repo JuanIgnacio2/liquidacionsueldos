@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Users, Calculator, Upload } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
+import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
+import {useNotification} from '../Hooks/useNotification';
+import { StatsGrid } from '../Components/ui/card';
 import '../styles/components/_convenios.scss';
 import * as api from '../services/empleadosAPI';
 
 export default function Convenios() {
   const navigate = useNavigate();
+  const notify = useNotification();
   const [convenios, setConvenios] = useState([]);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedConvenio, setSelectedConvenio] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const normalizeConvenios = (rows) =>
     rows.map((c,i) => ({
@@ -31,10 +36,14 @@ export default function Convenios() {
   useEffect(() => {
   const loadConvenios = async () => {
     try {
+      setLoading(true);
       const response = await api.getConvenios();
       setConvenios(normalizeConvenios(response));
     } catch (err) {
-      console.error("Error cargando convenios:", err);
+      notify.error("Error cargando convenios:", err);
+    }
+    finally {
+      setLoading(false);
     }
   };
 
@@ -55,30 +64,6 @@ export default function Convenios() {
     setShowUploadModal(true);
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file && selectedConvenio) {
-      const newDocument = {
-        name: file.name,
-        uploadDate: new Date().toISOString().split('T')[0]
-      };
-
-      setConvenios(prev => 
-        prev.map(conv => 
-          conv.id === selectedConvenio.id 
-            ? { ...conv, documents: [...conv.documents, newDocument] }
-            : conv
-        )
-      );
-
-      if (window.showNotification) {
-        window.showNotification(`Documento "${file.name}" subido exitosamente`, 'success');
-      }
-
-      setShowUploadModal(false);
-    }
-  };
-
   const closeModals = () => {
     setShowViewModal(false);
     setShowEditModal(false);
@@ -88,6 +73,28 @@ export default function Convenios() {
 
   const totalEmpleados = convenios.reduce((total, conv) => total + conv.employeeCount || 0, 0);
   const totalCategorias = convenios.reduce((total, conv) => total + conv.categories || 0, 0);
+
+    const stats = [
+  { icon: FileText, value: convenios.length, label: 'Total Empleados', colorClass: 'success' },
+  { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
+  { icon: Calculator, value: totalCategorias, label: 'Dados de baja', colorClass: 'warning' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="placeholder-page convenios">
+        <div className="page-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Gestión de Convenios
+            </h1>
+            <p className="subtitle">Administra los convenios colectivos de trabajo y sus escalas salariales</p>
+          </div>
+        </div>
+        <LoadingSpinner message="Cargando convenios..." size="lg" className="list-loading" />
+      </div>
+    );
+  }
 
   return (
     <div className="placeholder-page convenios">
@@ -104,39 +111,15 @@ export default function Convenios() {
       </div>
 
       {/* Stats Summary */}
-      <div className="stats-grid">
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value success">{convenios.length}</div>
-              <p className="stat-label">Convenios Activos</p>
-            </div>
-            <FileText className="stat-icon success" />
-          </div>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value primary">
-                {totalEmpleados}
-              </div>
-              <p className="stat-label">Total Empleados</p>
-            </div>
-            <Users className="stat-icon primary" />
-          </div>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-content">
-            <div className="stat-info">
-              <div className="stat-value warning">
-                {totalCategorias}
-              </div>
-              <p className="stat-label">Total Categorías</p>
-            </div>
-            <Calculator className="stat-icon warning" />
-          </div>
-        </div>
-      </div>
+      <StatsGrid
+        className="stats-overview"
+        stats={stats.map(s => ({
+          icon: s.icon,
+          value: s.value,
+          label: s.label,
+          colorClass: s.colorClass
+        }))}
+      />
 
       {/* Convenios Cards */}
       <div className="conveniosContainer">
@@ -233,42 +216,6 @@ export default function Convenios() {
           </button>
           <button className="btn btn-primary">
             Guardar Cambios
-          </button>
-        </ModalFooter>
-      </Modal>
-
-      {/* Upload Document Modal */}
-      <Modal
-        isOpen={showUploadModal}
-        onClose={closeModals}
-        title={`Subir Documento - ${selectedConvenio?.name ?? ""}`}
-        size="medium"
-      >
-        <div className="upload-content">
-          <div className="upload-area">
-            <Upload className="upload-icon" />
-            <h3>Seleccionar archivo</h3>
-            <p>Arrastra un archivo aquí o haz clic para seleccionar</p>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={handleFileUpload}
-              className="file-input"
-            />
-          </div>
-          
-          <div className="file-types">
-            <p><strong>Tipos de archivo permitidos:</strong></p>
-            <ul>
-              <li>PDF (.pdf)</li>
-              <li>Word (.doc, .docx)</li>
-            </ul>
-          </div>
-        </div>
-        
-        <ModalFooter>
-          <button className="btn btn-secondary" onClick={closeModals}>
-            Cancelar
           </button>
         </ModalFooter>
       </Modal>

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './NotificationSystem.scss';
 
 let notificationId = 0;
+const MAX_STACK = 5;
 
 export const NotificationSystem = () => {
   const [notifications, setNotifications] = useState([]);
@@ -14,11 +15,19 @@ export const NotificationSystem = () => {
 
   useEffect(() => {
     // Función global para agregar notificaciones
-    window.showNotification = (message, type = 'info', duration = 5000) => {
+    window.showNotification = (message, type = 'info', duration = 4000) => {
       const id = ++notificationId;
-      const notification = { id, message, type, duration };
-      
-      setNotifications(prev => [...prev, notification]);
+
+    setNotifications(prev => {
+      // 👉 limitar stack: eliminar la más vieja si supero MAX_STACK
+      let updated = [ { id, message, type, duration }, ...prev ];
+
+      if (updated.length > MAX_STACK) {
+        updated = updated.slice(0, MAX_STACK);
+      }
+      return updated;
+    });
+
       
       if (duration > 0) {
         setTimeout(() => {
@@ -53,14 +62,15 @@ export const NotificationSystem = () => {
         {notifications.map((notification, index) => (
           <motion.div
             key={notification.id}
-            initial={{ opacity: 0, x: 300, scale: 0.8 }}
+            layout
+            initial={{ opacity: 0, x: 50, scale: 0.8 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 300, scale: 0.8 }}
+            exit={{ opacity: 0, x: 50, scale: 0.8 }}
             transition={{ 
               type: "spring", 
               stiffness: 300, 
-              damping: 30,
-              delay: index * 0.1 
+              damping: 25,
+              delay: index * 0.1
             }}
             className={`notification notification-${notification.type}`}
           >
@@ -83,25 +93,25 @@ export const NotificationSystem = () => {
 };
 
 // Helper functions for easy use
-export const showSuccess = (message, duration = 5000) => {
+export const showSuccess = (message, duration = 4000) => {
   if (window.showNotification) {
     window.showNotification(message, 'success', duration);
   }
 };
 
-export const showError = (message, duration = 5000) => {
+export const showError = (message, duration = 4000) => {
   if (window.showNotification) {
     window.showNotification(message, 'error', duration);
   }
 };
 
-export const showInfo = (message, duration = 5000) => {
+export const showInfo = (message, duration = 4000) => {
   if (window.showNotification) {
     window.showNotification(message, 'info', duration);
   }
 };
 
-export const showWarning = (message, duration = 5000) => {
+export const showWarning = (message, duration = 4000) => {
   if (window.showNotification) {
     window.showNotification(message, 'warning', duration);
   }

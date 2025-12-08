@@ -1,9 +1,10 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, Printer, Download, FileText, DollarSign, User, Eye, CheckCircle } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
-import {Modal, ModalFooter } from '../Components/Modal/Modal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
+import { StatsGrid } from '../Components/ui/card';
+import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
 import '../styles/components/_PlaceHolder.scss';
 import '../styles/components/_liquidacion.scss';
@@ -16,14 +17,11 @@ export default function Liquidacion() {
   const [employees, setEmployees] = useState([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showReportsModal, setShowReportsModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [payrollList, setPayrollList] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('Todos');
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   const loadPayrolls = async () => {
     try {
@@ -48,6 +46,7 @@ export default function Liquidacion() {
     loadEmployees();
     loadPayrolls();
     loadDashboardStats();
+    setLoading(false);
   }, []);
 
   const loadDashboardStats = async () => {
@@ -98,36 +97,52 @@ export default function Liquidacion() {
 
   const statsList = [
     {
-      title: 'Total Bruto Mes',
+      label: 'Total Bruto Mes',
       value: dashboardStats?.totalBrutoMes ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
-      icon: Calculator,
+      icon: DollarSign,
       colorClass: 'primary'
     },
     {
-      title: 'Total Neto Mes',
+      label: 'Total Neto Mes',
       value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
       icon: DollarSign,
       colorClass: 'success'
     },
     {
-      title: 'Cantidad Empleados',
-      value: dashboardStats?.cantidadEmpleados ?? '—',
-      icon: User,
-      colorClass: 'primary'
-    },
-    {
-      title: 'Liquidaciones Hechas',
+      label: 'Liquidaciones Hechas',
       value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
       icon: TrendingUp,
       colorClass: 'success'
     },
     {
-      title: 'Liquidaciones Pendientes',
+      label: 'Liquidaciones Pendientes',
       value: dashboardStats?.cantidadLiquidacionesPendientes ?? '—',
       icon: Clock,
       colorClass: 'warning'
     }
   ];
+
+  if (loading) {
+    return (
+      <div className="placeholder-page">
+        <div className="page-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Liquidación de Sueldos
+            </h1>
+            <p className="subtitle">
+              Procesa y gestiona las liquidaciones de sueldos de los empleados
+            </p>
+          </div>
+        </div>
+        <LoadingSpinner
+          message="Cargando lista de empleados..."
+          size="lg"
+          className="list-loading"
+        />
+      </div>
+    );
+   }
 
   return (
     <div className="placeholder-page">
@@ -148,19 +163,15 @@ export default function Liquidacion() {
       </div>
 
       {/* Stats Cards */}
-      <div className="stats-grid">
-        {statsList.map((s) => (
-          <div key={s.title} className="card stat-card">
-            <div className="stat-content">
-              <div className="stat-info">
-                <div className={`stat-value ${s.colorClass}`}>{s.value}</div>
-                <p className="stat-label">{s.title}</p>
-              </div>
-              <s.icon className={`stat-icon ${s.colorClass}`} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <StatsGrid
+        className="stats-overview"
+        stats={statsList.map(s => ({
+          icon: s.icon,
+          value: s.value,
+          label: s.label,
+          colorClass: s.colorClass
+        }))}
+      />
 
       {/* Placeholder Content */}
       <div className="main-content">

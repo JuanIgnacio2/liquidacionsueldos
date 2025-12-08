@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star } from 'lucide-react';
+import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import './ProcessPayrollModal.scss';
@@ -26,6 +26,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  // Estados para edición en línea y confirmación de borrado
+  const [editingAmountId, setEditingAmountId] = useState(null);
+  const [editingAmountValue, setEditingAmountValue] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
@@ -325,15 +329,21 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Filtrar empleados por búsqueda
-  const filteredEmployees = employees.filter(employees =>
-    employees.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employees.legajo.toString().includes(searchTerm) ||
-    employees.apellido.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees
+    .filter(emp => {
+      // Excluir empleados que no estén activos
+      const estado = (emp.estado || '').toString().toUpperCase();
+      return estado === 'ACTIVO';
+    })
+    .filter(emp =>
+      emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.legajo.toString().includes(searchTerm) ||
+      emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   // Actualizar concepto
   const updateConcept = (id, field, value) => {
-    setConcepts(prev => prev.map(concept => {
+    setConceptos(prev => prev.map(concept => {
       if (concept.id === id) {
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
@@ -348,8 +358,53 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Eliminar concepto
   const removeConcept = (id) => {
-    setConcepts(prev => prev.filter(concept => concept.id !== id));
+    setConceptos(prev => prev.filter(concept => concept.id !== id));
   };
+
+  // Iniciar edición del monto (soporta remuneraciones y descuentos)
+  const startEditAmount = (concept) => {
+    // Preferir montoUnitario, si no existe usar valor absoluto del total
+    const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
+    setEditingAmountId(concept.id);
+    setEditingAmountValue(String(initial));
+  };
+
+  const cancelEditAmount = () => {
+    setEditingAmountId(null);
+    setEditingAmountValue('');
+  };
+
+  const saveEditAmount = (concept) => {
+    const value = parseFloat(editingAmountValue) || 0;
+    const nuevos = conceptos.map(c => {
+      if (c.id === concept.id) {
+        if (c.tipo === 'DESCUENTO') {
+          const cantidad = c.cantidad || 1;
+          return { ...c, montoUnitario: value, total: -(value * cantidad) };
+        }
+        const cantidad = c.cantidad || 1;
+        return { ...c, montoUnitario: value, total: (value * cantidad) };
+      }
+      return c;
+    });
+    setConceptos(nuevos);
+    setTotal(calcTotal(nuevos));
+    cancelEditAmount();
+  };
+
+  // Confirmar eliminación
+  const confirmDelete = (id) => {
+    setDeletingId(id);
+  };
+
+  const acceptDelete = (id) => {
+    removeConcept(id);
+    if (deletingId === id) setDeletingId(null);
+    const nuevos = conceptos.filter(c => c.id !== id);
+    setTotal(calcTotal(nuevos));
+  };
+
+  const cancelDelete = () => setDeletingId(null);
 
   // Calcular totales
   const calculateTotals = () => {
@@ -663,45 +718,112 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
-                      <span className="amount positive">
-                        {formatCurrencyAR(concept.montoUnitario || 0)}
-                      </span>
+                      <div className="amount-editable-wrapper">
+                        {editingAmountId === concept.id ? (
+                          <div className="amount-edit-controls">
+                            <input
+                              type="number"
+                              value={editingAmountValue}
+                              onChange={(e) => setEditingAmountValue(e.target.value)}
+                              className="concept-input small"
+                              step="0.01"
+                              min="0"
+                            />
+                            <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
+                              <CheckCircle className="h-4 w-4" />
+                            </button>
+                            <button className="btn-cancel" onClick={cancelEditAmount} title="Cancelar">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
+                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
+                            <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
-                      <span className="amount negative">
-                        {formatCurrencyAR(Math.abs(concept.total || 0))}
-                      </span>
+                      <div className="amount-editable-wrapper">
+                        {editingAmountId === concept.id ? (
+                          <div className="amount-edit-controls">
+                            <input
+                              type="number"
+                              value={editingAmountValue}
+                              onChange={(e) => setEditingAmountValue(e.target.value)}
+                              className="concept-input small"
+                              step="0.01"
+                              min="0"
+                            />
+                            <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
+                              <CheckCircle className="h-4 w-4" />
+                            </button>
+                            <button className="btn-cancel" onClick={cancelEditAmount} title="Cancelar">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
+                            <span className="amount negative">{formatCurrencyAR(Math.abs(concept.total || 0))}</span>
+                            <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
                   <div className="concept-cell">
                     <div className="concept-actions">
                       {concept.isManual && (
+                        <select
+                          value={concept.tipo}
+                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
+                          className="type-select"
+                        >
+                          <option value="remuneration">Remuneración</option>
+                          <option value="deduction">Descuento</option>
+                        </select>
+                      )}
+
+                      {deletingId === concept.id ? (
                         <>
-                          <select
-                            value={concept.tipo}
-                            onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
-                            className="type-select"
-                          >
-                            <option value="remuneration">Remuneración</option>
-                            <option value="deduction">Descuento</option>
-                          </select>
-                          <button
-                            className="remove-btn"
-                            onClick={() => removeConcept(concept.id)}
-                            title="Eliminar concepto"
-                          >
-                            <X className="h-3 w-3" />
+                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
+                            <X className="h-4 w-4" />
                           </button>
                         </>
+                      ) : (
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       )}
                     </div>
                   </div>
                 </div>
               ))}
+
+              {/* Fila para añadir nuevo concepto */}
+              <div className="concept-row add-row">
+                <div className="concept-cell">—</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">
+                  <div className="concept-actions">
+                    <button className="btn btn-secondary btn-sm" onClick={handleAddConcepto} title="Agregar concepto">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="totals-summary">

@@ -1,22 +1,25 @@
-import React from 'react';
-import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, UserCheck, X } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
-import { EmployeeViewModal } from '../Components/EmployeeViewModal/EmployeeViewModal.jsx';
-import { NewEmployeeModal } from '../Components/NewEmployeeModal/NewEmployeeModal.jsx';
-import { EmployeeEditModal } from '../Components/EmployeeEditModal/EmployeeEditModal.jsx';
-import { ProcessPayrollModal } from '../Components/ProcessPayrollModal/ProcessPayrollModal';
-import { Tooltip } from '../Components/ToolTip/ToolTip';
-import * as api from '../services/empleadosAPI'
-import '../styles/components/_employees.scss';
+import React from "react";
+import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, Users, Layers, XCircle, UserCheck, CheckCircle, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal.jsx";
+import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal.jsx";
+import { EmployeeEditModal } from "../Components/EmployeeEditModal/EmployeeEditModal.jsx";
+import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
+import { StatsGrid, Card, CardContent, } from "../Components/ui/card";
+import {useNotification} from '../Hooks/useNotification';
+import { Tooltip } from "../Components/ToolTip/ToolTip";
+import { LoadingSpinner } from "../Components/ui/LoadingSpinner";
+import * as api from "../services/empleadosAPI";
+import "../styles/components/_employees.scss";
 
 export default function Empleados() {
+  const notify = useNotification();
   const [employees, setEmployees] = useState([]);
-  const [areas,setAreas]=useState([]);
+  const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filtered, setFiltered] = useState([]);
-  const [employeeList, setEmployeeList] = useState(employees);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showConceptsModal, setShowConceptsModal] = useState(false);
@@ -24,125 +27,136 @@ export default function Empleados() {
   const [showProcessPayrollModal, setShowProcessPayrollModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeForPayroll, setEmployeeForPayroll] = useState(null);
-  const [filterEstado, setFilterEstado] = useState('TODOS');
-  const [filterGremio, setFilterGremio] = useState('TODOS');
+  const [filterEstado, setFilterEstado] = useState("TODOS");
+  const [filterGremio, setFilterGremio] = useState("TODOS");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterDropdownRef = useRef(null);
-  
+
   const normalizeEmployees = (rows) =>
-  rows.map(e => ({
-    ...e,
-    gremioId: e.gremio?.idGremio ?? null,
-    gremioNombre: e.gremio?.nombre ?? (typeof e.gremio === 'string' ? e.gremio : ""),
-    categoriaId: e.categoria?.id ?? e.categoria?.idCategoria ?? null,
-    categoriaNombre: e.categoria?.nombre ?? (typeof e.categoria === 'string' ? e.categoria : ""),
-  }));
+    rows.map((e) => ({
+      ...e,
+      gremioId: e.gremio?.idGremio ?? null,
+      gremioNombre:
+        e.gremio?.nombre ?? (typeof e.gremio === "string" ? e.gremio : ""),
+      categoriaId: e.categoria?.id ?? e.categoria?.idCategoria ?? null,
+      categoriaNombre:
+        e.categoria?.nombre ??
+        (typeof e.categoria === "string" ? e.categoria : ""),
+    }));
 
   const loadEmployees = async () => {
     try {
-        setLoading(true);
-        const data = await api.getEmployees();
-        const norm = normalizeEmployees(data);
-        const ordenados = norm.sort((a, b) => a.legajo - b.legajo);
-        setEmployees(ordenados);
-        setError("");
+      setLoading(true);
+      const data = await api.getEmployees();
+      const norm = normalizeEmployees(data);
+      const ordenados = norm.sort((a, b) => a.legajo - b.legajo);
+      setEmployees(ordenados);
+      setError("");
     } catch (err) {
-        setError(err.message);
+      setError(err.message);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   const loadAreas = async () => {
     try {
-        const data = await api.getAreas();
-        setAreas(data);
+      const data = await api.getAreas();
+      setAreas(data);
     } catch (err) {
-        console.error("Error loading areas:", err);
+      notify.error("No se pudieron cargar las areas asignadas a los empleados", err);
     }
   };
-  
+
   useEffect(() => {
-      loadEmployees();
-      loadAreas();
+    loadEmployees();
+    loadAreas();
   }, []);
-  
+
   useEffect(() => {
-      const lower = search.toLowerCase();
-      let result = employees.filter((e) => {
-        // Filtro de búsqueda por texto
-        const matchesSearch = 
-          !search ||
-          e.legajo?.toString().includes(search) ||
-          `${e.nombre} ${e.apellido}`.toLowerCase().includes(lower) ||
-          e.gremioNombre?.toLowerCase().includes(lower) ||
-          e.categoriaNombre?.toLowerCase().includes(lower);
-        
-        // Filtro por estado
-        const matchesEstado = 
-          filterEstado === 'TODOS' || 
-          (filterEstado === 'ACTIVO' && e.estado === 'ACTIVO') ||
-          (filterEstado === 'DADO_DE_BAJA' && e.estado === 'DADO_DE_BAJA');
-        
-        // Filtro por gremio
-        const gremioName = e.gremioNombre || e.gremio?.nombre || '';
-        const matchesGremio = 
-          filterGremio === 'TODOS' ||
-          (filterGremio === 'LUZ_Y_FUERZA' && (gremioName === 'LUZ_Y_FUERZA' || gremioName?.toUpperCase() === 'LUZ_Y_FUERZA')) ||
-          (filterGremio === 'UOCRA' && gremioName === 'UOCRA') ||
-          (filterGremio === 'CONVENIO_GENERAL' && (gremioName === 'Convenio General' || gremioName === '' || !gremioName));
-        
-        return matchesSearch && matchesEstado && matchesGremio;
-      });
-      setFiltered(result);
+    const lower = search.toLowerCase();
+    let result = employees.filter((e) => {
+      // Filtro de búsqueda por texto
+      const matchesSearch =
+        !search ||
+        e.legajo?.toString().includes(search) ||
+        `${e.nombre} ${e.apellido}`.toLowerCase().includes(lower) ||
+        e.gremioNombre?.toLowerCase().includes(lower) ||
+        e.categoriaNombre?.toLowerCase().includes(lower);
+
+      // Filtro por estado
+      const matchesEstado =
+        filterEstado === "TODOS" ||
+        (filterEstado === "ACTIVO" && e.estado === "ACTIVO") ||
+        (filterEstado === "DADO_DE_BAJA" && e.estado === "DADO_DE_BAJA");
+
+      // Filtro por gremio
+      const gremioName = e.gremioNombre || e.gremio?.nombre || "";
+      const matchesGremio =
+        filterGremio === "TODOS" ||
+        (filterGremio === "LUZ_Y_FUERZA" &&
+          (gremioName === "LUZ_Y_FUERZA" ||
+            gremioName?.toUpperCase() === "LUZ_Y_FUERZA")) ||
+        (filterGremio === "UOCRA" && gremioName === "UOCRA") ||
+        (filterGremio === "CONVENIO_GENERAL" &&
+          (gremioName === "Convenio General" ||
+            gremioName === "" ||
+            !gremioName));
+
+      return matchesSearch && matchesEstado && matchesGremio;
+    });
+    setFiltered(result);
   }, [search, employees, filterEstado, filterGremio]);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+      if (
+        filterDropdownRef.current &&
+        !filterDropdownRef.current.contains(event.target)
+      ) {
         setShowFilterDropdown(false);
       }
     };
 
     if (showFilterDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showFilterDropdown]);
-  
+
   const handleSaveEmployee = async (dto, isEdit) => {
-      try {
-        const usuario = 'ADMIN';
-        
-        if (isEdit) {
-          await api.updateEmployee(dto.legajo, dto);
-          // Registrar actividad de edición
-          await api.registrarActividad({
-            usuario,
-            accion: 'EDITAR',
-            descripcion: `Se modificó el empleado ${dto.nombre} ${dto.apellido}`,
-            referenciaTipo: 'EDIT_EMPLEADO',
-            referenciaId: dto.legajo
-          });
-        } else {
-          const response = await api.createEmployee(dto);
-          // Registrar actividad de alta
-          await api.registrarActividad({
-            usuario,
-            accion: 'CREAR',
-            descripcion: `Se creó el empleado ${dto.nombre} ${dto.apellido}`,
-            referenciaTipo: 'ALTA_EMPLEADO',
-            referenciaId: response.legajo || dto.legajo
-          });
-        }
-        await loadEmployees(); // Refrescar lista
-      } catch (err) {
-        alert("Error al registrar empleado: " + err.message);
+    try {
+      const usuario = "ADMIN";
+
+      if (isEdit) {
+        await api.updateEmployee(dto.legajo, dto);
+        // Registrar actividad de edición
+        await api.registrarActividad({
+          usuario,
+          accion: "EDITAR",
+          descripcion: `Se modificó el empleado ${dto.nombre} ${dto.apellido}`,
+          referenciaTipo: "EDIT_EMPLEADO",
+          referenciaId: dto.legajo,
+        });
+      } else {
+        const response = await api.createEmployee(dto);
+        // Registrar actividad de alta
+        await api.registrarActividad({
+          usuario,
+          accion: "CREAR",
+          descripcion: `Se creó el empleado ${dto.nombre} ${dto.apellido}`,
+          referenciaTipo: "ALTA_EMPLEADO",
+          referenciaId: response.legajo || dto.legajo,
+        });
       }
+      await loadEmployees(); // Refrescar lista
+    } catch (err) {
+      notify.error("Error al registrar empleado: " + err.message);
+    }
   };
 
   const handleViewEmployee = (employee) => {
@@ -162,47 +176,62 @@ export default function Empleados() {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'ACTIVO':
-        return 'active';
-      case 'DADO_DE_BAJA':
-        return 'inactive';
+      case "ACTIVO":
+        return "active";
+      case "DADO_DE_BAJA":
+        return "inactive";
       default:
-        return 'active';
+        return "active";
     }
   };
 
   const handleStateEmployee = async (employee) => {
-    const usuario = localStorage.getItem('usuario') || 'Sistema';
-    
-    if (employee.estado === 'DADO_DE_BAJA') {
-      if (window.confirm(`¿Está seguro de que desea dar de alta a ${`${employee.nombre} ${employee.apellido}`}?`)) {
+    const usuario = localStorage.getItem("usuario") || "Sistema";
+
+    if (employee.estado === "DADO_DE_BAJA") {
+      if (
+        window.confirm(
+          `¿Está seguro de que desea dar de alta a ${`${employee.nombre} ${employee.apellido}`}?`
+        )
+      ) {
         await api.updateStateEmployee(employee.legajo);
         await api.registrarActividad({
           usuario,
-          accion: 'REACTIVAR',
+          accion: "REACTIVAR",
           descripcion: `Se reactivó el empleado ${employee.nombre} ${employee.apellido}`,
-          referenciaTipo: 'EDIT_EMPLEADO',
-          referenciaId: employee.legajo
+          referenciaTipo: "EDIT_EMPLEADO",
+          referenciaId: employee.legajo,
         });
-        window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de alta`, 'info');
+        window.showNotification?.(
+          `Empleado ${employee.nombre} ${employee.apellido} dado de alta`,
+          "info"
+        );
         await loadEmployees(); // Refrescar lista
-      }}
-    if (employee.estado === 'ACTIVO') {
-        if (window.confirm(`¿Está seguro de que desea dar de baja a ${`${employee.nombre} ${employee.apellido}`}?`)) {
-            await api.updateStateEmployee(employee.legajo);
-            await api.registrarActividad({
-              usuario,
-              accion: 'BAJA',
-              descripcion: `Se dio de baja el empleado ${employee.nombre} ${employee.apellido}`,
-              referenciaTipo: 'BAJA_EMPLEADO',
-              referenciaId: employee.legajo
-            });
-            window.showNotification?.(`Empleado ${employee.nombre} ${employee.apellido} dado de baja`, 'info');
-            await loadEmployees(); // Refrescar lista
-          }
+      }
+    }
+    if (employee.estado === "ACTIVO") {
+      if (
+        window.confirm(
+          `¿Está seguro de que desea dar de baja a ${`${employee.nombre} ${employee.apellido}`}?`
+        )
+      ) {
+        await api.updateStateEmployee(employee.legajo);
+        await api.registrarActividad({
+          usuario,
+          accion: "BAJA",
+          descripcion: `Se dio de baja el empleado ${employee.nombre} ${employee.apellido}`,
+          referenciaTipo: "BAJA_EMPLEADO",
+          referenciaId: employee.legajo,
+        });
+        window.showNotification?.(
+          `Empleado ${employee.nombre} ${employee.apellido} dado de baja`,
+          "info"
+        );
+        await loadEmployees(); // Refrescar lista
+      }
     }
     loadEmployees();
-  }
+  };
 
   const closeModals = () => {
     setShowViewModal(false);
@@ -219,16 +248,54 @@ export default function Empleados() {
     loadEmployees(); // Refrescar lista si es necesario
   };
 
-  const formatDate = (d) => {
-    try {
-      if (!d) return "-";
-      const parsed = new Date(d);
-      if (Number.isNaN(parsed.getTime())) return String(d);
-      return parsed.toLocaleDateString('es-AR');
-    } catch {
-      return String(d);
-    }
-  };
+  const statsData = [
+    {
+      icon: Users,
+      value: employees.length,
+      label: "Total Empleados",
+      colorClass: "success",
+    },
+    {
+      icon: CheckCircle,
+      value: employees.filter((emp) => emp.estado === "ACTIVO").length,
+      label: "Empleados Activos",
+      colorClass: "success",
+    },
+    {
+      icon: XCircle,
+      value: employees.filter((emp) => emp.estado === "DADO_DE_BAJA").length,
+      label: "Dados de baja",
+      colorClass: "warning",
+    },
+    {
+      icon: Layers,
+      value: areas.length,
+      label: "Áreas",
+      colorClass: "text-yellow-500",
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="empleados">
+        <div className="empleados-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Gestión de Empleados
+            </h1>
+            <p className="subtitle">
+              Administra la información y datos de todos los empleados
+            </p>
+          </div>
+        </div>
+        <LoadingSpinner
+          message="Cargando lista de empleados..."
+          size="lg"
+          className="list-loading"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="empleados">
@@ -242,39 +309,21 @@ export default function Empleados() {
             Administra la información y datos de todos los empleados
           </p>
         </div>
-        <button className="add-employee-btn" onClick={() => setShowNewEmployeeModal(true)}>
+        <button
+          className="add-employee-btn"
+          onClick={() => setShowNewEmployeeModal(true)}
+        >
           <Plus className="btn-icon" />
           Nuevo Empleado
         </button>
       </div>
 
       {/* Stats Summary */}
-      <div className="stats-overview">
-        <div className="card stat-card">
-          <div className="stat-value success">{employees.length}</div>
-          <p className="stat-label">Total Empleados</p>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-value primary">
-            {employees.filter(emp => emp.estado === 'ACTIVO').length}
-          </div>
-          <p className="stat-label">Empleados Activos</p>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-value warning">
-            {employees.filter(emp => emp.estado === 'DADO_DE_BAJA').length}
-          </div>
-          <p className="stat-label">Dados de baja</p>
-        </div>
-        <div className="card stat-card">
-          <div className="stat-value default">{areas.length} </div>
-          <p className="stat-label">Areas</p>
-        </div>
-      </div>
+      <StatsGrid stats={statsData} className="stats-overview" />
 
       {/* Filters */}
-      <div className="card filters-card">
-        <div className="filters-content">
+      <Card className="filters-card">
+        <CardContent className="filters-content">
           <div className="search-container">
             <Search className="search-icon" />
             <input
@@ -286,49 +335,64 @@ export default function Empleados() {
             />
           </div>
           <div className="filter-controls" ref={filterDropdownRef}>
-            <button 
-              className={`filter-btn ${(filterEstado !== 'TODOS' || filterGremio !== 'TODOS') ? 'active' : ''}`}
+            <button
+              className={`filter-btn ${
+                filterEstado !== "TODOS" || filterGremio !== "TODOS"
+                  ? "active"
+                  : ""
+              }`}
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
             >
               <Filter className="filter-icon" />
               Filtros
-              {(filterEstado !== 'TODOS' || filterGremio !== 'TODOS') && (
+              {(filterEstado !== "TODOS" || filterGremio !== "TODOS") && (
                 <span className="filter-badge">
-                  {[filterEstado !== 'TODOS' ? '1' : '', filterGremio !== 'TODOS' ? '1' : ''].filter(Boolean).length}
+                  {
+                    [
+                      filterEstado !== "TODOS" ? "1" : "",
+                      filterGremio !== "TODOS" ? "1" : "",
+                    ].filter(Boolean).length
+                  }
                 </span>
               )}
             </button>
-            
+
             {showFilterDropdown && (
               <div className="filter-dropdown">
                 <div className="filter-dropdown-header">
                   <h3>Filtros</h3>
-                  <button 
+                  <button
                     className="close-dropdown-btn"
                     onClick={() => setShowFilterDropdown(false)}
                   >
                     <X size={16} />
                   </button>
                 </div>
-                
+
                 <div className="filter-group">
                   <label className="filter-label">Estado</label>
                   <div className="filter-options">
                     <button
-                      className={`filter-option ${filterEstado === 'TODOS' ? 'active' : ''}`}
-                      onClick={() => setFilterEstado('TODOS')}
+                      className={`filter-option ${
+                        filterEstado === "TODOS" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterEstado("TODOS")}
                     >
                       Todos
                     </button>
                     <button
-                      className={`filter-option ${filterEstado === 'ACTIVO' ? 'active' : ''}`}
-                      onClick={() => setFilterEstado('ACTIVO')}
+                      className={`filter-option ${
+                        filterEstado === "ACTIVO" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterEstado("ACTIVO")}
                     >
                       Activos
                     </button>
                     <button
-                      className={`filter-option ${filterEstado === 'DADO_DE_BAJA' ? 'active' : ''}`}
-                      onClick={() => setFilterEstado('DADO_DE_BAJA')}
+                      className={`filter-option ${
+                        filterEstado === "DADO_DE_BAJA" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterEstado("DADO_DE_BAJA")}
                     >
                       Dados de baja
                     </button>
@@ -339,39 +403,47 @@ export default function Empleados() {
                   <label className="filter-label">Gremio</label>
                   <div className="filter-options">
                     <button
-                      className={`filter-option ${filterGremio === 'TODOS' ? 'active' : ''}`}
-                      onClick={() => setFilterGremio('TODOS')}
+                      className={`filter-option ${
+                        filterGremio === "TODOS" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterGremio("TODOS")}
                     >
                       Todos
                     </button>
                     <button
-                      className={`filter-option ${filterGremio === 'LUZ_Y_FUERZA' ? 'active' : ''}`}
-                      onClick={() => setFilterGremio('LUZ_Y_FUERZA')}
+                      className={`filter-option ${
+                        filterGremio === "LUZ_Y_FUERZA" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterGremio("LUZ_Y_FUERZA")}
                     >
                       Luz y Fuerza
                     </button>
                     <button
-                      className={`filter-option ${filterGremio === 'UOCRA' ? 'active' : ''}`}
-                      onClick={() => setFilterGremio('UOCRA')}
+                      className={`filter-option ${
+                        filterGremio === "UOCRA" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterGremio("UOCRA")}
                     >
                       UOCRA
                     </button>
                     <button
-                      className={`filter-option ${filterGremio === 'CONVENIO_GENERAL' ? 'active' : ''}`}
-                      onClick={() => setFilterGremio('CONVENIO_GENERAL')}
+                      className={`filter-option ${
+                        filterGremio === "CONVENIO_GENERAL" ? "active" : ""
+                      }`}
+                      onClick={() => setFilterGremio("CONVENIO_GENERAL")}
                     >
                       Convenio General
                     </button>
                   </div>
                 </div>
 
-                {(filterEstado !== 'TODOS' || filterGremio !== 'TODOS') && (
+                {(filterEstado !== "TODOS" || filterGremio !== "TODOS") && (
                   <div className="filter-actions">
                     <button
                       className="clear-filters-btn"
                       onClick={() => {
-                        setFilterEstado('TODOS');
-                        setFilterGremio('TODOS');
+                        setFilterEstado("TODOS");
+                        setFilterGremio("TODOS");
                       }}
                     >
                       Limpiar filtros
@@ -381,13 +453,15 @@ export default function Empleados() {
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Employee List */}
       <div className="card employees-list">
         <div className="card-header list-header">
-          <h2 className="list-title section-title-effect">Lista de Empleados</h2>
+          <h2 className="list-title section-title-effect">
+            Lista de Empleados
+          </h2>
           <p className="list-description">
             {filtered.length} empleados encontrados
           </p>
@@ -396,7 +470,9 @@ export default function Empleados() {
           <div className="employee-list">
             {filtered.map((employee) => (
               <div
-                key={employee.legajo ?? `${employee.nombre}-${employee.apellido}`}
+                key={
+                  employee.legajo ?? `${employee.nombre}-${employee.apellido}`
+                }
                 className="employee-item"
               >
                 <div className="employee-grid">
@@ -406,24 +482,32 @@ export default function Empleados() {
                   </div>
                   <div className="employee-position">
                     <p className="position-title">
-                      {employee.gremioNombre === "LUZ_Y_FUERZA" ? "Luz y Fuerza" : (employee.gremioNombre || "-")}
+                      {employee.gremioNombre === "LUZ_Y_FUERZA"
+                        ? "Luz y Fuerza"
+                        : employee.gremioNombre || "-"}
                     </p>
-                    <p className="department">{employee.categoriaNombre || "-"}</p>
+                    <p className="department">
+                      {employee.categoriaNombre || "-"}
+                    </p>
                   </div>
                   <div className="employee-salary">
                     <p className="salary-amount">
-                      {employee.gremio?.nombre === "UOCRA" ? (
-                        employee.nombreZona || "-"
-                      ) : Array.isArray(employee.nombreAreas) ? (
-                        employee.nombreAreas.join(", ")
-                      ) : (
-                        employee.nombreAreas || "-"
-                      )}
+                      {employee.gremio?.nombre === "UOCRA"
+                        ? employee.nombreZona || "-"
+                        : Array.isArray(employee.nombreAreas)
+                        ? employee.nombreAreas.join(", ")
+                        : employee.nombreAreas || "-"}
                     </p>
-                    <p className="hire-date">Ingreso: {employee.inicioActividad}</p>
+                    <p className="hire-date">
+                      Ingreso: {employee.inicioActividad}
+                    </p>
                   </div>
                   <div className="employee-status">
-                    <span className={`status-badge ${getStatusClass(employee.estado)}`}>
+                    <span
+                      className={`status-badge ${getStatusClass(
+                        employee.estado
+                      )}`}
+                    >
                       {employee.estado === "ACTIVO" ? "Activo" : "Dado de baja"}
                     </span>
                   </div>
@@ -442,7 +526,7 @@ export default function Empleados() {
                     <button
                       className="action-icon-button edit-action"
                       onClick={() => handleEditEmployee(employee)}
-                      disabled={employee.estado !== 'ACTIVO'}
+                      disabled={employee.estado !== "ACTIVO"}
                     >
                       <Edit className="action-icon" />
                     </button>
@@ -452,13 +536,13 @@ export default function Empleados() {
                     <button
                       className="action-icon-button liquidate-action"
                       onClick={() => handleLiquidarSueldo(employee)}
-                      disabled={employee.estado !== 'ACTIVO'}
+                      disabled={employee.estado !== "ACTIVO"}
                     >
                       <DollarSign className="action-icon" />
                     </button>
                   </Tooltip>
 
-                  {employee.estado === 'ACTIVO' ? (
+                  {employee.estado === "ACTIVO" ? (
                     <Tooltip content="Dar de baja empleado" position="top">
                       <button
                         className="action-icon-button deactivate-action"
