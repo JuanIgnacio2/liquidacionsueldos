@@ -4,26 +4,11 @@ import { getToken, removeToken } from '../utils/authStorage';
 const axiosClient = axios.create({
     //baseURL: import.meta.env.API_URL || 'http://localhost:8080/api',
     //baseURL: 'http://localhost:8080/api/',
-    baseURL: 'http://192.168.1.101:8080/api/',
-    //baseURL: 'https://backend-liquidaci-n-25-de-mayo.onrender.com/api/',
+    //baseURL: 'http://192.168.1.101:8080/api/',
+    baseURL: 'https://backend-liquidaci-n-25-de-mayo.onrender.com/api/',
     headers: {'Content-Type' : 'application/json'},
     timeout: 10_000,
 });
-
-// Request interceptor JWT
-axiosClient.interceptors.request.use(
-  (config) => {
-    const token = getToken();
-
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Interceptor global para errores de respuesta / timeout
 axiosClient.interceptors.response.use(
@@ -31,40 +16,15 @@ axiosClient.interceptors.response.use(
   (error) => {
     try {
       // Detectar timeout (axios usa code 'ECONNABORTED') o mensajes que contengan 'timeout'
-      const isTimeout = 
-        error?.code === 'ECONNABORTED' || 
-        (error?.message || '').toLowerCase().includes('timeout');
-      
-        if (isTimeout) {
-        if (window?.showNotification) {
-          window.showNotification(
-            'La petición tardó demasiado. Intenta nuevamente.',
-            'error',
-            8000
-          );
+      const isTimeout = error?.code === 'ECONNABORTED' || (error?.message || '').toLowerCase().includes('timeout');
+      if (isTimeout) {
+        if (window && typeof window.showNotification === 'function') {
+          window.showNotification('La petición tardó demasiado. Intenta nuevamente.', 'error', 8000);
         }
       } else if (!error.response) {
         // Sin respuesta (problema de red)
-        if (window?.showNotification) {
-          window.showNotification(
-            'Error de conexión: no se pudo contactar al servidor.',
-            'error',
-            6000
-          );
-        }
-      } else if (error.response.status === 401) {
-        // Unauthorized - token inválido o expirado
-        removeToken();
-
-        if (window?.showNotification) {
-          window.showNotification(
-            'Sesión expirada. Por favor, inicia sesión nuevamente.',
-            'warning',
-            6000
-          );
-        }
-        if(!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+        if (window && typeof window.showNotification === 'function') {
+          window.showNotification('Error de conexión: no se pudo contactar al servidor.', 'error', 6000);
         }
       }
     } catch (err) {
@@ -76,5 +36,12 @@ axiosClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+//Interceptor para tokens JWT
+/*axiosClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});*/
 
 export default axiosClient;
