@@ -34,34 +34,18 @@ export default function Convenios() {
       status: 'Activo',
     }));
   
-  // Normalizar empleados para obtener gremioNombre
-  const normalizeEmployees = (rows) =>
-    rows.map((e) => ({
-      ...e,
-      gremioNombre:
-        e.gremio?.nombre ?? (typeof e.gremio === "string" ? e.gremio : ""),
-    }));
-
-  // Contar empleados activos por gremio
-  const getEmployeeCountByGremio = (employeesList, controller) => {
-    if (!employeesList || employeesList.length === 0) return 0;
-    
-    const controllerUpper = controller?.toUpperCase() ?? '';
-    
-    return employeesList.filter(emp => {
-      if (emp.estado !== 'ACTIVO') return false;
-      
-      const gremioNombre = emp.gremioNombre || emp.gremio?.nombre || '';
-      const gremioUpper = gremioNombre.toUpperCase();
-      
-      if (controllerUpper === 'LYF' || controllerUpper === 'LUZ_Y_FUERZA') {
-        return gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
-      } else if (controllerUpper === 'UOCRA') {
-        return gremioUpper === 'UOCRA';
-      }
-      
-      return false;
-    }).length;
+  useEffect(() => {
+  const loadConvenios = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getConvenios();
+      setConvenios(normalizeConvenios(response));
+    } catch (err) {
+      notify.error("Error cargando convenios:", err);
+    }
+    finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -116,6 +100,11 @@ export default function Convenios() {
     setShowEditModal(true);
   };
 
+  const handleUploadDocument = (convenio) => {
+    setSelectedConvenio(convenio);
+    setShowUploadModal(true);
+  };
+
   const closeModals = () => {
     setShowViewModal(false);
     setShowEditModal(false);
@@ -132,6 +121,28 @@ export default function Convenios() {
   { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
   { icon: Users, value: getEmployeeCountByController('LYF'), label: 'Empleados de Luz y Fuerza', colorClass: 'success' },
   { icon: Users, value: getEmployeeCountByController('UOCRA'), label: 'Empleados de UOCRA', colorClass: 'success' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="placeholder-page convenios">
+        <div className="page-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Gestión de Convenios
+            </h1>
+            <p className="subtitle">Administra los convenios colectivos de trabajo y sus escalas salariales</p>
+          </div>
+        </div>
+        <LoadingSpinner message="Cargando convenios..." size="lg" className="list-loading" />
+      </div>
+    );
+  }
+
+    const stats = [
+  { icon: FileText, value: convenios.length, label: 'Total Empleados', colorClass: 'success' },
+  { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
+  { icon: Calculator, value: totalCategorias, label: 'Dados de baja', colorClass: 'warning' },
   ];
 
   if (loading) {

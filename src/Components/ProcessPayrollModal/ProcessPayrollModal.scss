@@ -1007,6 +1007,64 @@
               }
             }
 
+            /* Editable amount wrapper */
+            .amount-editable-wrapper {
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .amount-editable {
+              display: inline-flex;
+              align-items: center;
+              gap: $spacing-2;
+              position: relative;
+
+              .edit-icon {
+                opacity: 0;
+                transition: opacity 0.12s ease-in-out;
+                cursor: pointer;
+                color: $color-gray-500;
+              }
+            }
+
+            /* Mostrar icono al hacer hover sobre la fila */
+            &:hover .amount-editable .edit-icon {
+              opacity: 1;
+            }
+
+            .amount-edit-controls {
+              display: inline-flex;
+              align-items: center;
+              gap: $spacing-2;
+
+              .concept-input {
+                width: 100px;
+              }
+
+              .btn-accept,
+              .btn-cancel,
+              .remove-btn {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                padding: 6px;
+                border-radius: $border-radius;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+              }
+
+              .btn-accept:hover {
+                background: rgba(34,197,94,0.08);
+              }
+
+              .btn-cancel:hover {
+                background: rgba(220,38,38,0.06);
+              }
+            }
+
             .concept-input {
               width: 100%;
               padding: $spacing-1 $spacing-2;
