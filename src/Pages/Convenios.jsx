@@ -129,9 +129,9 @@ export default function Convenios() {
   };
 
     const stats = [
-  { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
+  { icon: FileText, value: convenios.length, label: 'Total Empleados', colorClass: 'success' },
   { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
-  { icon: Calculator, value: totalCategorias, label: 'Total de Categorías', colorClass: 'warning' },
+  { icon: Calculator, value: totalCategorias, label: 'Dados de baja', colorClass: 'warning' },
   ];
 
   if (loading) {
