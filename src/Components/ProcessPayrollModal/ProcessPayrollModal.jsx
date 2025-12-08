@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { Search, Users, Download, Printer, X, CheckCircle, User, Calendar, Badge, Clock, Edit, Trash2 } from 'lucide-react';
+import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
@@ -30,13 +30,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [isProcessing, setIsProcessing] = useState(false);
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
-  // Catalogs / dropdown state
-  const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
-  const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
-  const [basicoCat11State, setBasicoCat11State] = useState(0);
-  // Estados para edición en línea
+  const [modalOpen, setModalOpen] = useState(false);
+  // Estados para edición en línea y confirmación de borrado
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [horasExtrasLyFData, setHorasExtrasLyFData] = useState([]);
@@ -889,48 +887,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     return processedLegajos.has(Number(emp.legajo)) ? 'Procesada' : 'Pendiente';
   };
 
-  // Filtrar empleados por búsqueda, gremio y estado
-  const filteredEmployees = useMemo(() => {
-    let filtered = employees;
-
-    // Filtrar por estado de empleado (solo activos)
-    filtered = filtered.filter(emp => {
+  // Filtrar empleados por búsqueda
+  const filteredEmployees = employees
+    .filter(emp => {
+      // Excluir empleados que no estén activos
       const estado = (emp.estado || '').toString().toUpperCase();
       return estado === 'ACTIVO';
-    });
-
-    // Filtrar por búsqueda de texto
-    if (searchTerm) {
-      filtered = filtered.filter(emp =>
-        emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.legajo.toString().includes(searchTerm) ||
-        emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Filtrar por gremio
-    if (filterGremio) {
-      filtered = filtered.filter(emp => {
-        const empGremio = getGremioFromEmployee(emp);
-        return empGremio === filterGremio;
-      });
-    }
-
-    // Filtrar por estado de procesamiento
-    if (filterEstado) {
-      filtered = filtered.filter(emp => {
-        const estadoProcesamiento = getEstadoProcesamiento(emp);
-        return estadoProcesamiento === filterEstado;
-      });
-    }
-
-    return filtered;
-  }, [employees, searchTerm, filterGremio, filterEstado, processedLegajos]);
+    })
+    .filter(emp =>
+      emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.legajo.toString().includes(searchTerm) ||
+      emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   // Actualizar concepto
-  const updateConcept = (uid, field, value) => {
+  const updateConcept = (id, field, value) => {
     setConceptos(prev => prev.map(concept => {
-      if (concept.uid === uid) {
+      if (concept.id === id) {
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
         if (field === 'units' || field === 'unitValue') {
@@ -943,15 +916,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Eliminar concepto
-  const removeConcept = (uid) => {
-    setConceptos(prev => prev.filter(concept => concept.uid !== uid));
+  const removeConcept = (id) => {
+    setConceptos(prev => prev.filter(concept => concept.id !== id));
   };
 
   // Iniciar edición del monto (soporta remuneraciones y descuentos)
   const startEditAmount = (concept) => {
     // Preferir montoUnitario, si no existe usar valor absoluto del total
     const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
-    setEditingAmountId(concept.uid);
+    setEditingAmountId(concept.id);
     setEditingAmountValue(String(initial));
   };
 
@@ -962,8 +935,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const saveEditAmount = (concept) => {
     const value = parseFloat(editingAmountValue) || 0;
-    let nuevos = conceptos.map(c => {
-      if (c.uid === concept.uid) {
+    const nuevos = conceptos.map(c => {
+      if (c.id === concept.id) {
         if (c.tipo === 'DESCUENTO') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -973,55 +946,24 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return c;
     });
-
-    // Recalcular Horas Extras si corresponde
-    const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
-    if (isLuz) {
-      // Calcular total remunerativo (sin horas extras ni descuentos)
-      const totalRemunerativo = nuevos
-        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
-        .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0) + basicSalary;
-
-      // Calcular valor hora
-      const valorHora = totalRemunerativo / 156;
-
-      nuevos = nuevos.map(item => {
-        if (item.tipo === 'HORA_EXTRA_LYF') {
-          const unidades = Number(item.cantidad) || 1;
-          const factor = Number(item.factor) || (item.id === 1 ? 1.5 : 2);
-          const montoUnitario = valorHora * factor;
-          return { ...item, montoUnitario: Number(montoUnitario) || 0, total: (Number(montoUnitario) || 0) * unidades };
-        }
-        return item;
-      });
-    }
-
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
     cancelEditAmount();
   };
 
-  // Confirmar eliminación con diálogo
-  const confirmDelete = async (uid) => {
-    const concepto = conceptos.find(c => c.uid === uid);
-    const nombreConcepto = concepto?.nombre || 'este concepto';
-    
-    const result = await confirmAction({
-      title: 'Eliminar Concepto',
-      message: `¿Está seguro de eliminar "${nombreConcepto}"? Esta acción no se puede deshacer.`,
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar',
-      type: 'danger',
-      confirmButtonVariant: 'danger',
-      cancelButtonVariant: 'secondary'
-    });
-
-    if (result) {
-      removeConcept(uid);
-      const nuevos = conceptos.filter(c => c.uid !== uid);
-    setTotal(calcTotal(nuevos));
-    }
+  // Confirmar eliminación
+  const confirmDelete = (id) => {
+    setDeletingId(id);
   };
+
+  const acceptDelete = (id) => {
+    removeConcept(id);
+    if (deletingId === id) setDeletingId(null);
+    const nuevos = conceptos.filter(c => c.id !== id);
+    setTotal(calcTotal(nuevos));
+  };
+
+  const cancelDelete = () => setDeletingId(null);
 
   // Calcular totales
   const calculateTotals = () => {
@@ -2342,23 +2284,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     {(concept.tipo === 'CATEGORIA' ||
                       concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'CONCEPTO_LYF' ||
-                       concept.tipo === 'CONCEPTO_UOCRA' ||
-                       concept.tipo === 'HORA_EXTRA_LYF') && (
+                      concept.tipo === 'CONCEPTO_UOCRA') && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.uid ? (
+                        {editingAmountId === concept.id ? (
                           <div className="amount-edit-controls">
                             <input
-                              type="text"
+                              type="number"
                               value={editingAmountValue}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                // Permitir números con decimales (0.01, etc.)
-                                if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                  setEditingAmountValue(value);
-                                }
-                              }}
+                              onChange={(e) => setEditingAmountValue(e.target.value)}
                               className="concept-input small"
-                              placeholder="0.00"
+                              step="0.01"
+                              min="0"
                             />
                             <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
                               <CheckCircle className="h-4 w-4" />
@@ -2369,9 +2305,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                              <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
-                            </div>
+                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -2382,20 +2316,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.uid ? (
+                        {editingAmountId === concept.id ? (
                           <div className="amount-edit-controls">
                             <input
-                              type="text"
+                              type="number"
                               value={editingAmountValue}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                // Permitir números con decimales (0.01, etc.)
-                                if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                  setEditingAmountValue(value);
-                                }
-                              }}
+                              onChange={(e) => setEditingAmountValue(e.target.value)}
                               className="concept-input small"
-                              placeholder="0.00"
+                              step="0.01"
+                              min="0"
                             />
                             <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
                               <CheckCircle className="h-4 w-4" />
@@ -2419,12 +2348,27 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       {concept.isManual && (
                         <select
                           value={concept.tipo}
-                          onChange={(e) => updateConcept(concept.uid, 'type', e.target.value)}
+                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
                           className="type-select"
                         >
                           <option value="remuneration">Remuneración</option>
                           <option value="deduction">Descuento</option>
                         </select>
+                      )}
+
+                      {deletingId === concept.id ? (
+                        <>
+                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                          <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       )}
 
                         <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
@@ -2434,6 +2378,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </div>
                 </div>
               ))}
+
+              {/* Fila para añadir nuevo concepto */}
+              <div className="concept-row add-row">
+                <div className="concept-cell">—</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">&nbsp;</div>
+                <div className="concept-cell">
+                  <div className="concept-actions">
+                    <button className="btn btn-secondary btn-sm" onClick={handleAddConcepto} title="Agregar concepto">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="totals-summary">
