@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, FileText, Calculator, TrendingUp, DollarSign, Clock, Eye } from 'lucide-react';
-import '../styles/components/_dashboard.scss';
-import * as api from '../services/empleadosAPI'
-import { ProcessPayrollModal } from '../Components/ProcessPayrollModal/ProcessPayrollModal';
-import { NewEmployeeModal } from '../Components/NewEmployeeModal/NewEmployeeModal';
-import { Modal, ModalFooter } from '../Components/Modal/Modal';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp } from "lucide-react";
+import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
+import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal";
+import { Modal, ModalFooter } from "../Components/Modal/Modal";
+import {useNotification} from '../Hooks/useNotification';
+import { LoadingSpinner } from "../Components/ui/LoadingSpinner";
+import { StatsGrid } from "../Components/ui/card";
+import "../styles/components/_dashboard.scss";
+import * as api from "../services/empleadosAPI";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const notify = useNotification();
   const [activeEmployees, setActiveEmployees] = useState();
   const [gremiosCount, setGremiosCount] = useState();
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -18,13 +22,14 @@ export default function Dashboard() {
   const [actividades, setActividades] = useState([]);
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const countActiveEmployees = async () => {
     try {
       const count = await api.getCountActiveEmployees();
       setActiveEmployees(count);
     } catch (error) {
-      console.error('Error al obtener el conteo de empleados activos:', error);
+      notify.error("Error al obtener el conteo de empleados activos", error);
     }
   };
 
@@ -33,7 +38,7 @@ export default function Dashboard() {
       const count = await api.countConvenios();
       setGremiosCount(count);
     } catch (error) {
-      console.error('Error al obtener el conteo de gremios:', error);
+      notify.error("Error al obtener el conteo de gremios", error);
     }
   };
 
@@ -43,24 +48,16 @@ export default function Dashboard() {
       const ordenados = data.sort((a, b) => a.legajo - b.legajo);
       setEmployees(ordenados);
     } catch (error) {
-      console.error('Error al cargar los empleados:', error);
+      notify.error("Error al cargar los empleados", error);
     }
   };
-
-  useEffect(() => {
-    countActiveEmployees();
-    countGremios();
-    loadEmployees();
-    loadDashboardStats();
-    loadActividades();
-  }, []);
 
   const loadDashboardStats = async () => {
     try {
       const data = await api.getDashboardStats();
       setDashboardStats(data || null);
     } catch (error) {
-      console.error('Error al cargar estadísticas del dashboard:', error);
+      notify.error("Error al cargar estadísticas del dashboard");
     }
   };
 
@@ -70,28 +67,49 @@ export default function Dashboard() {
       const data = await api.getActividadesRecientes();
       setActividades(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error al cargar actividades recientes:', error);
+      notify.error("Error al cargar actividades recientes");
       setActividades([]);
     } finally {
       setLoadingActivities(false);
     }
   };
 
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+      setLoading(true);
+      await Promise.all([
+      countActiveEmployees(),
+      countGremios(),
+      loadEmployees(),
+      loadDashboardStats(),
+      loadActividades(),
+      ]);
+      } catch (error) {
+        notify.error("Error al cargar datos del dashboard");
+      }
+      finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   // Helper para formatear tipo de referencia
   const getReferenciaLabel = (referenciaTipo) => {
     const labels = {
-      'ALTA_EMPLEADO': 'Empleado agregado',
-      'BAJA_EMPLEADO': 'Empleado dado de baja',
-      'EDIT_EMPLEADO': 'Empleado editado',
-      'PAGO': 'Liquidación procesada',
-      'EDIT_CONVENIO': 'Convenio actualizado'
+      ALTA_EMPLEADO: "Empleado agregado",
+      BAJA_EMPLEADO: "Empleado dado de baja",
+      EDIT_EMPLEADO: "Empleado editado",
+      PAGO: "Liquidación procesada",
+      EDIT_CONVENIO: "Convenio actualizado",
     };
-    return labels[referenciaTipo] || referenciaTipo || 'Acción';
+    return labels[referenciaTipo] || referenciaTipo || "Acción";
   };
 
   // Helper para formatear fecha
   const formatFecha = (fecha) => {
-    if (!fecha) return '-';
+    if (!fecha) return "-";
     const date = new Date(fecha);
     const ahora = new Date();
     const diff = ahora - date;
@@ -99,15 +117,16 @@ export default function Dashboard() {
     const horas = Math.floor(diff / 3600000);
     const dias = Math.floor(diff / 86400000);
 
-    if (minutos < 60) return `hace ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
-    if (horas < 24) return `hace ${horas} hora${horas !== 1 ? 's' : ''}`;
-    if (dias < 7) return `hace ${dias} día${dias !== 1 ? 's' : ''}`;
-    
-    return date.toLocaleDateString('es-AR');
+    if (minutos < 60)
+      return `hace ${minutos} minuto${minutos !== 1 ? "s" : ""}`;
+    if (horas < 24) return `hace ${horas} hora${horas !== 1 ? "s" : ""}`;
+    if (dias < 7) return `hace ${dias} día${dias !== 1 ? "s" : ""}`;
+
+    return date.toLocaleDateString("es-AR");
   };
 
   const handleProcessPayroll = (result) => {
-    console.log('Procesamiento completado:', result);
+    notify.log("Procesamiento completado");
     // Puedes agregar lógica adicional aquí si es necesario
     countActiveEmployees(); // Refrescar conteo
   };
@@ -123,45 +142,78 @@ export default function Dashboard() {
       await countActiveEmployees(); // Refrescar conteo
       setShowNewEmployeeModal(false);
     } catch (err) {
-      alert("Error al registrar empleado: " + err.message);
+      notify("Error al registrar empleado");
     }
   };
 
   const stats = [
     {
-      title: 'Total Empleados Activos',
-      value: dashboardStats?.cantidadEmpleados ?? activeEmployees ?? 'Cargando...',
+      title: "Total Empleados Activos",
+      value:
+        dashboardStats?.cantidadEmpleados ?? activeEmployees ?? "Cargando...",
       icon: Users,
-      colorClass: 'success',
+      colorClass: "success",
     },
     {
-      title: 'Liquidaciones Pendientes',
-      value: dashboardStats?.cantidadLiquidacionesPendientes ?? 'Cargando...',
+      title: "Liquidaciones Pendientes",
+      value: dashboardStats?.cantidadLiquidacionesPendientes ?? "Cargando...",
       icon: Clock,
-      colorClass: 'warning',
+      colorClass: "warning",
     },
     {
-      title: 'Liquidaciones Procesadas',
-      value: dashboardStats?.cantidadLiquidacionesHechas ?? 'Cargando...',
+      title: "Liquidaciones Procesadas",
+      value: dashboardStats?.cantidadLiquidacionesHechas ?? "Cargando...",
       icon: TrendingUp,
-      colorClass: 'primary',
+      colorClass: "primary",
     },
     {
-      title: 'Total Neto',
-      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Cargando...',
+      title: "Total Neto",
+      value: dashboardStats?.totalNetoMes
+        ? `$${Number(dashboardStats.totalNetoMes).toLocaleString("es-AR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : "Cargando...",
       icon: DollarSign,
-      colorClass: 'primary',
+      colorClass: "primary",
     },
     {
-      title: 'Total Bruto',
-      value: dashboardStats?.totalBrutoMes ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Cargando...',
+      title: "Total Bruto",
+      value: dashboardStats?.totalBrutoMes
+        ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString("es-AR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : "Cargando...",
       icon: DollarSign,
-      colorClass: 'primary',
-    }
+      colorClass: "primary",
+    },
   ];
 
   // Obtener las últimas 4 actividades
   const recentActivities = actividades.slice(0, 4);
+
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Dashboard de Gestión de Sueldos
+            </h1>
+            <p className="subtitle">
+              Resumen de la actividad y métricas principales del sistema
+            </p>
+          </div>
+        </div>
+        <LoadingSpinner
+          message="Cargando..."
+          size="lg"
+          className="list-loading"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
@@ -176,49 +228,61 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="stats-overview">
-        {stats.map((stat) => {
-          return (
-            <div key={stat.title} className="card stat-card">
-              <div className={`stat-value ${stat.colorClass}`}>
-                {stat.value}
-              </div>
-              <p className="stat-label">{stat.title}</p>
-            </div>
-          );
-        })}
-      </div>
+      <StatsGrid
+        className="stats-overview"
+        stats={stats.map((s) => ({
+          icon: s.icon,
+          value: s.value,
+          label: s.title,
+          colorClass: s.colorClass,
+        }))}
+      />
 
       <div className="main-grid">
         {/* Recent Activity */}
         <div className="card activity-section">
           <div className="card-header">
-            <h2 className="card-title section-title-effect">Actividad Reciente</h2>
+            <h2 className="card-title section-title-effect">
+              Actividad Reciente
+            </h2>
             <p className="card-description">
               Últimas acciones realizadas en el sistema
             </p>
           </div>
           <div className="card-content">
             {loadingActivities ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: "#6b7280",
+                }}
+              >
                 <p>Cargando actividades...</p>
               </div>
             ) : recentActivities.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: "#6b7280",
+                }}
+              >
                 <p>No hay actividades recientes</p>
               </div>
             ) : (
               <>
                 <div className="activity-list">
                   {recentActivities.map((activity, index) => (
-                    <div 
-                      key={activity.id || index}
-                      className="activity-item"
-                    >
+                    <div key={activity.id || index} className="activity-item">
                       <div className="activity-info">
-                        <p className="activity-action">{getReferenciaLabel(activity.referenciaTipo)}</p>
+                        <p className="activity-action">
+                          {getReferenciaLabel(activity.referenciaTipo)}
+                        </p>
                         <p className="activity-employee">
-                          {activity.descripcion || activity.usuario || 'Sin descripción'}
+                          {activity.descripcion ||
+                            activity.usuario ||
+                            "Sin descripción"}
                         </p>
                       </div>
                       <div className="activity-details">
@@ -230,21 +294,27 @@ export default function Dashboard() {
                   ))}
                 </div>
                 {actividades.length > 4 && (
-                  <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+                  <div
+                    style={{
+                      marginTop: "1rem",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
                     <button
                       onClick={() => setShowActivitiesModal(true)}
                       style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#22c55e',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.375rem',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
+                        padding: "0.5rem 1rem",
+                        backgroundColor: "#22c55e",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "0.375rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
                       }}
                     >
                       <Eye size={16} />
@@ -260,35 +330,37 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="card quick-actions">
           <div className="card-header">
-            <h2 className="card-title section-title-effect">Acciones Rápidas</h2>
-            <p className="card-description">
-              Operaciones más utilizadas
-            </p>
+            <h2 className="card-title section-title-effect">
+              Acciones Rápidas
+            </h2>
+            <p className="card-description">Operaciones más utilizadas</p>
           </div>
           <div className="card-content">
             <div className="actions-list">
-              <button 
+              <button
                 className="action-btn primary"
                 onClick={() => setShowProcessModal(true)}
               >
                 <span>Nueva Liquidación</span>
                 <Calculator className="action-icon" />
               </button>
-              <button 
+              <button
                 className="action-btn success"
                 onClick={() => setShowNewEmployeeModal(true)}
               >
                 <span>Agregar Empleado</span>
                 <Users className="action-icon" />
               </button>
-              <button className="action-btn warning"
-                onClick={() => navigate('/reportes')}>
+              <button
+                className="action-btn warning"
+                onClick={() => navigate("/reportes")}
+              >
                 <span>Resumenes</span>
                 <TrendingUp className="action-icon" />
               </button>
-              <button 
+              <button
                 className="action-btn secondary"
-                onClick={() => navigate('/convenios')}
+                onClick={() => navigate("/convenios")}
               >
                 <span>Gestionar Convenios</span>
                 <FileText className="action-icon" />
@@ -318,37 +390,58 @@ export default function Dashboard() {
         title="Historial de Actividades Completo"
         size="large"
       >
-        <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
           {loadingActivities ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>
+            <div style={{ padding: "20px", textAlign: "center" }}>
               <p>Cargando actividades...</p>
             </div>
           ) : actividades.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+            <div
+              style={{ padding: "20px", textAlign: "center", color: "#999" }}
+            >
               <p>No hay actividades registradas</p>
             </div>
           ) : (
-            <div style={{ paddingBottom: '16px' }}>
+            <div style={{ paddingBottom: "16px" }}>
               {actividades.map((activity, idx) => (
                 <div
                   key={activity.id || idx}
                   style={{
-                    padding: '16px',
-                    borderBottom: '1px solid #e5e7eb',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'start',
+                    padding: "16px",
+                    borderBottom: "1px solid #e5e7eb",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "start",
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <p style={{ margin: '0 0 4px 0', fontWeight: '600', color: '#1f2937' }}>
+                    <p
+                      style={{
+                        margin: "0 0 4px 0",
+                        fontWeight: "600",
+                        color: "#1f2937",
+                      }}
+                    >
                       {getReferenciaLabel(activity.referenciaTipo)}
                     </p>
-                    <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6b7280' }}>
+                    <p
+                      style={{
+                        margin: "0 0 8px 0",
+                        fontSize: "14px",
+                        color: "#6b7280",
+                      }}
+                    >
                       {activity.descripcion}
                     </p>
-                    <p style={{ margin: '0', fontSize: '12px', color: '#9ca3af' }}>
-                      <strong>{activity.usuario}</strong> • {formatFecha(activity.fecha)}
+                    <p
+                      style={{
+                        margin: "0",
+                        fontSize: "12px",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      <strong>{activity.usuario}</strong> •{" "}
+                      {formatFecha(activity.fecha)}
                     </p>
                   </div>
                 </div>

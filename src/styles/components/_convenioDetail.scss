@@ -264,14 +264,18 @@
           .salary-cell {
             background: rgba(16, 185, 129, 0.03);
             font-weight: 600;
-            min-width: 120px;
+            width: 140px;
+            min-width: 140px;
+            max-width: 140px;
             text-align: center;
             padding: 0.75rem 0.5rem;
           }
   
           .bonus-cell {
             background: rgba(245, 158, 11, 0.03);
-            min-width: 100px;
+            width: 120px;
+            min-width: 120px;
+            max-width: 120px;
             text-align: center;
             padding: 0.75rem 0.5rem;
 
@@ -282,18 +286,21 @@
 
           .salary-input, .bonus-input {
             width: 100%;
-            padding: 0.4rem;
-            border: 1px solid var(--primary-color);
-            border-radius: 4px;
+            padding: 0.5rem;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: 6px;
             text-align: center;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             font-size: 0.85rem;
+            font-weight: 600;
            
             &:focus {
               outline: none;
-              border-color: var(--accent-color);
-              box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+              border-color: var(--primary-color);
+              box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
             }
+
+            transition: all 0.2s ease;
   
             /* Remove spinners in webkit browsers */
             &::-webkit-outer-spin-button,

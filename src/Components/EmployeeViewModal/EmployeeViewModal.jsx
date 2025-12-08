@@ -425,9 +425,11 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
 
         {/* Botones de Acción */}
         <div className={'action-buttons'}>
-          <button 
+          <button
             className={`${'action-btn'} ${'primary'}`}
             onClick={() => onLiquidarSueldo && onLiquidarSueldo(employee)}
+            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >
             <DollarSign className="btn-icon" />
             Liquidar Sueldo

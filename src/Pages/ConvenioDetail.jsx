@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
+import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
+import { useNotification } from '../Hooks/useNotification';
 import '../styles/components/_convenioDetail.scss';
 import * as api from '../services/empleadosAPI'
 
 export default function ConvenioDetail() {
+  const notify = useNotification();
   const { controller } = useParams();
   const navigate = useNavigate();
   const [convenio, setConvenio] = useState(null);
@@ -90,7 +93,7 @@ export default function ConvenioDetail() {
     const rows = editableData.salaryTable?.categories || [];
     return rows.map(r => ({
       idCategoria: r.idCategoria,
-      basico: Number(r.basicSalary) || 0,
+      basico: parseNumberFromDisplay(r.basicSalary),
     }));
   };
 
@@ -103,18 +106,27 @@ export default function ConvenioDetail() {
 
       const next = { ...prev };
       const rows = [...next.salaryTable.uocra.rows];
-      rows[rowIdx] = { ...rows[rowIdx], [key]: parseNumber(value) };
+      rows[rowIdx] = { ...rows[rowIdx], [key]: String(value) };
 
       next.salaryTable = { ...next.salaryTable, uocra: { ...next.salaryTable.uocra, rows } };
       return next;
     });
   };
 
-  const parseNumber = (value) => {
-    const str = String(value ?? "");
-    const clean = str.replace(/[^0-9.,-]/g, "").replace(",", ".");
-    const num = parseFloat(clean);
+  // Convierte formato moneda (100.000,00) a número (100000.00) para backend
+  const parseNumberFromDisplay = (value) => {
+    const str = String(value ?? "").trim();
+    if (!str) return 0;
+    // Remueve puntos de miles y reemplaza coma decimal con punto
+    const cleaned = str.replace(/\./g, "").replace(",", ".");
+    const num = parseFloat(cleaned);
     return Number.isNaN(num) ? 0 : num;
+  };
+
+  // Formatea número a moneda argentina para display (100000.00 => 100.000,00)
+  const formatNumberToDisplay = (value) => {
+    const num = Number(value) || 0;
+    return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const buildUocraPayload = (editableData, convenio) => {
@@ -126,8 +138,8 @@ export default function ConvenioDetail() {
     const rowEdited = rows[rowIdx] || {};
     (z.categorias || []).forEach(cat => {
       const key = toUocraKey(cat.nombreCategoria);
-      const basico = Number(rowEdited[key]);
-      if (!Number.isNaN(basico)) {
+      const basico = parseNumberFromDisplay(rowEdited[key]);
+      if (!Number.isNaN(basico) && basico > 0) {
         payload.push({
           idCategoria: cat.idCategoria,
           idZona: z.idZona,
@@ -182,17 +194,28 @@ export default function ConvenioDetail() {
         const norm = normalizeConvenioDetail(raw, controller);
         setConvenio(norm);
         // Usar una copia profunda para que `editableData` no comparta referencias con `convenio`
-        // y convertir los básicos a string para permitir edición con separador decimal
+        // Convertir a formato moneda para display durante edición
         const cloned = JSON.parse(JSON.stringify(norm));
         if (Array.isArray(cloned.salaryTable?.categories)) {
           cloned.salaryTable.categories = cloned.salaryTable.categories.map(c => ({
             ...c,
-            basicSalary: c.basicSalary != null ? String(c.basicSalary) : ''
+            basicSalary: formatNumberToDisplay(c.basicSalary)
           }));
+        }
+        if (cloned.salaryTable?.uocra?.rows) {
+          cloned.salaryTable.uocra.rows = cloned.salaryTable.uocra.rows.map(r => {
+            const formatted = { ...r };
+            cloned.salaryTable.uocra.headers?.forEach(h => {
+              if (r[h.key] != null) {
+                formatted[h.key] = formatNumberToDisplay(r[h.key]);
+              }
+            });
+            return formatted;
+          });
         }
         setEditableData(cloned);
     } catch (error) {
-        console.error('Error cargando convenio:', error);
+        notify.error('Error cargando convenio:', error);
   }
     };
 
@@ -201,7 +224,7 @@ export default function ConvenioDetail() {
         const data = await api.getEmployees();
         setEmployees(data || []);
       } catch (error) {
-        console.error('Error cargando empleados:', error);
+        notify.error('Error cargando empleados:', error);
       }
     };
 
@@ -239,31 +262,71 @@ export default function ConvenioDetail() {
     if (Array.isArray(saved.salaryTable?.categories)) {
       saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
         ...c,
-        basicSalary: c.basicSalary != null && c.basicSalary !== '' ? Number(String(c.basicSalary).replace(/,/g, '.')) : 0
+        basicSalary: parseNumberFromDisplay(c.basicSalary)
       }));
+    }
+    if (saved.salaryTable?.uocra?.rows) {
+      saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
+        const parsed = { ...r };
+        saved.salaryTable.uocra.headers?.forEach(h => {
+          if (r[h.key] != null) {
+            parsed[h.key] = parseNumberFromDisplay(r[h.key]);
+          }
+        });
+        return parsed;
+      });
     }
 
     setConvenio(saved);
     setIsEditing(false);
 
-    // Mantener editableData como cadenas para permitir seguir editando con separador decimal
+    // Mantener editableData con formato moneda para seguir editando
     const editClone = JSON.parse(JSON.stringify(saved));
     if (Array.isArray(editClone.salaryTable?.categories)) {
       editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
         ...c,
-        basicSalary: c.basicSalary != null ? String(c.basicSalary) : ''
+        basicSalary: formatNumberToDisplay(c.basicSalary)
       }));
     }
+    if (editClone.salaryTable?.uocra?.rows) {
+      editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
+        const formatted = { ...r };
+        editClone.salaryTable.uocra.headers?.forEach(h => {
+          if (r[h.key] != null) {
+            formatted[h.key] = formatNumberToDisplay(r[h.key]);
+          }
+        });
+        return formatted;
+      });
+    }
     setEditableData(editClone);
-    window.showNotification('Convenio actualizado exitosamente', 'success');
+    notify.showNotification('Convenio actualizado exitosamente', 'success');
     } catch (error) {
-      console.error('Error guardando convenio:', error);
-      window.showNotification('Error al guardar el convenio', 'error');
+      notify.error('Error guardando convenio:', error);
     }
   };;
 
   const handleCancel = () => {
-    setEditableData(JSON.parse(JSON.stringify(convenio)));
+    // Restaurar desde `convenio` y convertir a formato moneda
+    const clone = JSON.parse(JSON.stringify(convenio));
+    if (Array.isArray(clone.salaryTable?.categories)) {
+      clone.salaryTable.categories = clone.salaryTable.categories.map(c => ({
+        ...c,
+        basicSalary: formatNumberToDisplay(c.basicSalary)
+      }));
+    }
+    if (clone.salaryTable?.uocra?.rows) {
+      clone.salaryTable.uocra.rows = clone.salaryTable.uocra.rows.map(r => {
+        const formatted = { ...r };
+        clone.salaryTable.uocra.headers?.forEach(h => {
+          if (r[h.key] != null) {
+            formatted[h.key] = formatNumberToDisplay(r[h.key]);
+          }
+        });
+        return formatted;
+      });
+    }
+    setEditableData(clone);
     setIsEditing(false);
   };
 
@@ -314,16 +377,23 @@ export default function ConvenioDetail() {
   // buscar básico cat 11 (por id o por nombre)
   const getBase11 = (categories) => {
     if (!Array.isArray(categories)) return 0;
+    const extract = (val) => {
+      if (val == null) return 0;
+      if (typeof val === 'number') return val;
+      // intentar parsear formato de display (ej. "100.000,00") o cadena simple
+      return parseNumberFromDisplay(String(val));
+    };
+
     const byId = categories.find(c => c.idCategoria === 11);
-    if (byId) return Number(byId.basicSalary) || 0;
+    if (byId) return extract(byId.basicSalary) || 0;
     const byName = categories.find(c => String(c.cat).includes('11'));
-    return byName ? (Number(byName.basicSalary) || 0) : 0;
+    return byName ? (extract(byName.basicSalary) || 0) : 0;
   };
 
   if (!convenio) {
     return (
       <div className="convenio-detail">
-        <div className="loading">Cargando convenio...</div>
+        <LoadingSpinner message="Cargando convenio..." size="lg" className="list-loading"/>
       </div>
     );
   }
@@ -409,11 +479,9 @@ export default function ConvenioDetail() {
           const base11 = getBase11(cats);
 
           const onEditBasic = (catIndex, value) => {
-            // Mantener el valor como cadena mientras el usuario escribe para permitir
-            // separador decimal (punto o coma). La conversión a número se hace al guardar.
+            // Mantener el formato de entrada flexible durante edición
+            // Se convierte al guardar
             const raw = String(value ?? "");
-            // Permitimos dígitos, punto y coma; normalizamos la coma a punto para consistencia
-            const cleaned = raw.replace(/[^0-9.,]/g, "").replace(/,/g, ".");
 
             // Actualizar estado: buscar por idCategoria si es posible, sino usar índice
             setEditableData(prev => {
@@ -424,14 +492,14 @@ export default function ConvenioDetail() {
               // Si el catIndex corresponde a un idCategoria (número), buscar por id
               const byIdIndex = newData.salaryTable.categories.findIndex(c => c.idCategoria === catIndex);
               if (byIdIndex !== -1) {
-                newData.salaryTable.categories[byIdIndex].basicSalary = cleaned;
+                newData.salaryTable.categories[byIdIndex].basicSalary = raw;
                 return newData;
               }
 
               // Si no encontramos por id, intentar usarlo como índice (caída)
               const idx = Number(catIndex);
               if (!Number.isNaN(idx) && newData.salaryTable.categories[idx]) {
-                newData.salaryTable.categories[idx].basicSalary = cleaned;
+                newData.salaryTable.categories[idx].basicSalary = raw;
               }
 
               return newData;
@@ -442,7 +510,7 @@ export default function ConvenioDetail() {
             const pct = bonifMap[`${idCat}|${area}`];
             if (!pct) return ''; // celda vacía si no aplica
             const monto = base11 * (pct / 100);
-            return formatCurrencyAR(monto);
+            return formatNumberToDisplay(monto);
           };
 
           return (
@@ -471,11 +539,12 @@ export default function ConvenioDetail() {
                         <input
                           type="text"
                           className="salary-input"
-                          value={row.basicSalary ?? 0}
+                          value={row.basicSalary ?? ''}
                           onChange={(e) => onEditBasic(row.idCategoria ?? idx, e.target.value)}
+                          placeholder="0,00"
                         />
                       ) : (
-                        formatCurrencyAR(row.basicSalary ?? 0)
+                        formatNumberToDisplay(row.basicSalary ?? 0)
                       )}
                     </td>
 
@@ -615,9 +684,10 @@ export default function ConvenioDetail() {
                             className="salary-input"
                             value={r[h.key] ?? ''}
                             onChange={(e) => updateUOCRAValue(rowIdx, h.key, e.target.value)}
+                            placeholder="0,00"
                           />
                         ) : (
-                          fmt(r[h.key])
+                          formatNumberToDisplay(r[h.key])
                         )}
                       </td>
                     ))}
