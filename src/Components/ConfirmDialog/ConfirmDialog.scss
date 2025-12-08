@@ -1,0 +1,304 @@
+@import '../../styles/main.scss';
+
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: $spacing-4;
+  animation: overlayFadeIn 0.3s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-dialog {
+  background: $color-white;
+  border-radius: $border-radius-xl;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4), 0 0 40px rgba(34, 197, 94, 0.1);
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid $color-gray-200;
+  position: relative;
+
+  // Efecto de borde superior con gradiente
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, $color-green-primary 0%, $color-green-dark 50%, $color-yellow-primary 100%);
+    z-index: 1;
+  }
+
+  @media (max-width: 480px) {
+    max-width: 100%;
+    margin: $spacing-4;
+    border-radius: $border-radius-lg;
+  }
+}
+
+.confirm-header {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-4;
+  padding: $spacing-6;
+  border-bottom: 1px solid $color-gray-200;
+  background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
+  position: relative;
+
+  .confirm-icon-wrapper {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: $border-radius-lg;
+    background: $color-gray-100;
+    border: 2px solid $color-gray-200;
+    box-shadow: $shadow-sm;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+
+    // Efecto de brillo en el icono
+    &::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    &:hover::before {
+      opacity: 1;
+    }
+
+    // Estilos según el tipo
+    &.confirm-icon-wrapper-warning {
+      background: rgba(234, 179, 8, 0.1);
+      border-color: rgba(234, 179, 8, 0.3);
+    }
+
+    &.confirm-icon-wrapper-danger {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    &.confirm-icon-wrapper-success {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    &.confirm-icon-wrapper-info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+  }
+
+  .confirm-icon {
+    flex-shrink: 0;
+    z-index: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+
+    &.confirm-icon-warning {
+      color: $color-yellow-primary;
+    }
+
+    &.confirm-icon-danger {
+      color: $color-red-primary;
+    }
+
+    &.confirm-icon-success {
+      color: $color-green-primary;
+    }
+
+    &.confirm-icon-info {
+      color: $color-info;
+    }
+  }
+
+  .confirm-title {
+    font-size: $font-size-xl;
+    font-weight: 600;
+    color: $color-gray-900;
+    margin: 0;
+    flex: 1;
+    line-height: 1.4;
+    @extend .section-title-effect;
+    padding-left: $spacing-2;
+  }
+
+  .confirm-close-btn {
+    position: absolute;
+    top: $spacing-4;
+    right: $spacing-4;
+    background: $color-gray-100;
+    border: 1px solid $color-gray-200;
+    padding: $spacing-2;
+    border-radius: $border-radius;
+    cursor: pointer;
+    color: $color-gray-600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    box-shadow: $shadow-sm;
+
+    &:hover {
+      background-color: $color-gray-200;
+      color: $color-gray-900;
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: $shadow;
+      border-color: $color-gray-300;
+    }
+
+    &:active {
+      transform: scale(0.95) rotate(90deg);
+    }
+  }
+}
+
+.confirm-body {
+  padding: $spacing-6;
+  flex: 1;
+  overflow-y: auto;
+  background: $color-white;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $color-gray-100;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $color-gray-300;
+    border-radius: 3px;
+
+    &:hover {
+      background: $color-gray-400;
+    }
+  }
+
+  .confirm-message {
+    font-size: $font-size-base;
+    color: $color-gray-700;
+    line-height: 1.7;
+    margin: 0;
+    padding: $spacing-2 0;
+  }
+}
+
+.confirm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: $spacing-3;
+  padding: $spacing-5 $spacing-6;
+  border-top: 1px solid $color-gray-200;
+  background: linear-gradient(180deg, $color-gray-50 0%, $color-white 100%);
+
+  @media (max-width: 480px) {
+    flex-direction: column-reverse;
+    padding: $spacing-4;
+    
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  .btn {
+    min-width: 100px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    &:hover::before {
+      left: 100%;
+    }
+
+    &.btn-primary {
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+        transform: translateY(-1px);
+      }
+    }
+
+    &.btn-cancel {
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+        transform: translateY(-1px);
+      }
+    }
+
+    &.btn-secondary {
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: $shadow-md;
+      }
+    }
+  }
+}
+
+// Animación de entrada del diálogo
+@keyframes dialogSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Aplicar animación cuando el diálogo aparece
+.confirm-dialog {
+  animation: dialogSlideIn 0.3s ease-out;
+}

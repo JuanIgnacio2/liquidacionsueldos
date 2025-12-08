@@ -1,0 +1,284 @@
+@import '../main.scss';
+
+.reportes-page {
+  padding: $spacing-4 $spacing-6;
+  padding-top: $spacing-4;
+  background-color: rgba(217, 247, 226, 0.3);
+  min-height: 100vh;
+
+  .reportes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: $spacing-6;
+
+    .page-title {
+      font-size: $font-size-3xl;
+      font-weight: 700;
+      margin: 0;
+      @extend .title-gradient;
+    }
+
+    .back-button-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      background-color: $color-white;
+      border: 1px solid $color-gray-300;
+      border-radius: $border-radius-lg;
+      color: $color-gray-700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      .icon {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      &:hover {
+        background-color: $color-gray-50;
+        border-color: $color-gray-400;
+        transform: translateX(-2px);
+      }
+    }
+  }
+
+  .reportes-filters {
+    margin-bottom: $spacing-6;
+    background-color: $color-white;
+    padding: $spacing-4;
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-sm;
+    display: flex;
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      padding-left: $spacing-6;
+      gap: $spacing-3;
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+        font-weight: 500;
+        color: $color-gray-700;
+
+        .icon {
+          width: 1.25rem;
+          height: 1.25rem;
+          color: $color-gray-500;
+        }
+      }
+
+      .month-select,
+      .year-select {
+        padding: $spacing-2 $spacing-3;
+        border: 1px solid $color-gray-300;
+        border-radius: $border-radius;
+        font-size: $font-size-sm;
+        background-color: $color-white;
+        color: $color-gray-900;
+        cursor: pointer;
+
+        &:focus {
+          outline: none;
+          border-color: $color-white;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+      }
+    }
+
+    .search-button {
+      margin-left: auto;
+      padding: $spacing-2 $spacing-4;
+      background-color: $color-green-primary;
+      color: $color-white;
+      border: none;
+      border-radius: $border-radius-lg;
+      font-size: $font-size-sm;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+
+      &:hover {
+        background-color: darken($color-green-primary, 10%);
+      }
+    }
+  }
+
+  .loading-state {
+    text-align: center;
+    padding: $spacing-8;
+    color: $color-gray-500;
+  }
+
+  .reportes-summary {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: $spacing-4;
+    margin-bottom: $spacing-6;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .summary-card {
+      background-color: $color-white;
+      padding: $spacing-5;
+      border-radius: $border-radius-lg;
+      box-shadow: $shadow-sm;
+      display: flex;
+      align-items: center;
+      gap: $spacing-4;
+      transition: box-shadow 0.3s ease;
+
+      &:hover {
+        box-shadow: $shadow-md;
+      }
+
+      .summary-icon {
+        width: 3rem;
+        height: 3rem;
+        border-radius: $border-radius-lg;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+
+        svg {
+          width: 1.5rem;
+          height: 1.5rem;
+        }
+      }
+
+      &.bonificaciones {
+        .summary-icon {
+          background-color: rgba(34, 197, 94, 0.1);
+          color: $color-success;
+        }
+      }
+
+      &.descuentos {
+        .summary-icon {
+          background-color: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+        }
+      }
+
+      &.neto {
+        .summary-icon {
+          background-color: rgba(59, 130, 246, 0.1);
+          color: #3b82f6;
+        }
+      }
+
+      .summary-content {
+        flex: 1;
+
+        .summary-label {
+          font-size: $font-size-sm;
+          color: $color-gray-600;
+          margin-bottom: $spacing-1;
+        }
+
+        .summary-value {
+          font-size: $font-size-xl;
+          font-weight: 700;
+          color: $color-gray-900;
+        }
+      }
+    }
+  }
+
+  .reportes-table-container {
+    background-color: $color-white;
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-sm;
+    overflow: hidden;
+
+    .reportes-table {
+      width: 100%;
+      border-collapse: collapse;
+
+      thead {
+        background-color: $color-green-light;
+        border-bottom: 2px solid $color-gray-200;
+
+        th {
+          padding: $spacing-4;
+          text-align: left;
+          font-weight: 600;
+          color: $color-white;
+          font-size: $font-size-sm;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid $color-gray-200;
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: rgba(243, 244, 246, 0.5);
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          &.bonificacion {
+            .tipo-badge {
+              background-color: rgba(34, 197, 94, 0.1);
+              color: $color-success;
+            }
+          }
+
+          &.descuento {
+            .tipo-badge {
+              background-color: rgba(239, 68, 68, 0.1);
+              color: #ef4444;
+            }
+          }
+
+          td {
+            padding: $spacing-4;
+            font-size: $font-size-base;
+            color: $color-gray-700;
+
+            &.concepto-nombre {
+              font-weight: 500;
+              color: $color-gray-900;
+            }
+
+            &.concepto-total {
+              font-weight: 600;
+              color: $color-gray-900;
+            }
+
+            .tipo-badge {
+              display: inline-block;
+              padding: $spacing-1 $spacing-2;
+              border-radius: $border-radius;
+              font-size: $font-size-xs;
+              font-weight: 600;
+              text-transform: uppercase;
+            }
+          }
+
+          .no-data {
+            text-align: center;
+            color: $color-gray-500;
+            padding: $spacing-8;
+            font-style: italic;
+          }
+        }
+      }
+    }
+  }
+}

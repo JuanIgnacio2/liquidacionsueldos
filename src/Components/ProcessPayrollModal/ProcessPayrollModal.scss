@@ -1,4 +1,19 @@
-@import '../../main.scss';
+@import '../../styles/main.scss';
+
+:root {
+  --primary-color: #22c55e;
+  --primary-dark: #16a34a;
+  --accent-color: #f3c849;
+  --accent-dark: #ca8a04;
+  --success-color: #22c55e;
+  --success-dark: #16a34a;
+  --error-color: #ef4444;
+  --error-dark: #dc2626;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --bg-light: #f9fafb;
+}
 
 .process-payroll-modal {
   // Enhanced section headers with step indicators
@@ -68,8 +83,6 @@
   .employee-search {
     .search-section {
       .search-container {
-        margin: $spacing-6 0;
-
         .search-input-container {
           position: relative;
           max-width: 400px;
@@ -127,11 +140,13 @@
       .employees-list {
         max-height: 400px;
         overflow-y: auto;
+        padding: $spacing-4;
         margin-top: $spacing-4;
+        border-radius: $border-radius-lg;
 
         .employee-card {
           position: relative;
-          padding: $spacing-4;
+          padding: $spacing-6;
           border: 1px solid $color-gray-200;
           border-radius: $border-radius-lg;
           margin-bottom: $spacing-3;
@@ -486,6 +501,8 @@
       }
 
       .concepts-table {
+        display: flex;
+        flex-direction: column;
         border: 1px solid $color-gray-200;
         border-radius: $border-radius-lg;
         overflow: hidden;
@@ -524,8 +541,67 @@
 
           .concept-cell {
             display: flex;
+            text-align: center;
             align-items: center;
             justify-content: center;
+
+            /* Editable amount wrapper */
+            .amount-editable-wrapper {
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .amount-editable {
+              display: inline-flex;
+              align-items: center;
+              gap: $spacing-2;
+              position: relative;
+
+              .edit-icon {
+                opacity: 0;
+                transition: opacity 0.12s ease-in-out;
+                cursor: pointer;
+                color: $color-gray-500;
+              }
+            }
+
+            /* Mostrar icono al hacer hover sobre la fila */
+            &:hover .amount-editable .edit-icon {
+              opacity: 1;
+            }
+
+            .amount-edit-controls {
+              display: inline-flex;
+              align-items: center;
+              gap: $spacing-2;
+
+              .concept-input {
+                width: 100px;
+              }
+
+              .btn-accept,
+              .btn-cancel,
+              .remove-btn {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                padding: 6px;
+                border-radius: $border-radius;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+              }
+
+              .btn-accept:hover {
+                background: rgba(34,197,94,0.08);
+              }
+
+              .btn-cancel:hover {
+                background: rgba(220,38,38,0.06);
+              }
+            }
 
             .concept-input {
               width: 100%;
@@ -585,6 +661,23 @@
                   background: darken($color-danger, 10%);
                 }
               }
+            }
+          }
+        }
+
+        /* Estilo para la fila de añadir concepto */
+        .concept-row.add-row {
+          background: rgba(34, 197, 94, 0.015);
+
+          .concept-cell {
+            justify-content: center;
+          }
+
+          .concept-actions {
+            .btn {
+              display: inline-flex;
+              align-items: center;
+              gap: $spacing-2;
             }
           }
         }
@@ -880,8 +973,6 @@
     }
   }
 
-  
-
   // Responsive Design
   @media (max-width: 768px) {
     .payroll-form {
@@ -921,72 +1012,20 @@
       }
     }
   }
-}
-/* ==== PRINT: solo imprimir #recibo ==== */
-@media print {
-  /* Ocultar todo por defecto */
-  body * {
-    visibility: hidden !important;
-  }
 
-  /* Mostrar solo el recibo */
-  #recibo,
-  #recibo * {
-    visibility: visible !important;
-    page-break-inside: avoid;
-  }
-
-  /* Llevar el recibo al inicio y ocupar el ancho */
-  #recibo {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    width: auto !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 20px !important;
-    background: #fff !important;
-    border: none !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-  }
-  .receipt-container,
-  .receipt-preview,
-  .modal,
-  body {
-    transform: none !important;
-    animation: none !important;
-  }
-
-  /* Evitar límites de alto/scroll de modales */
-  .modal, .modal-dialog, .modal-content {
-    position: static !important;
-    max-height: none !important;
-    overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
-    background: transparent !important;
-  }
-
-  /* Opcional: oculta UI */
-  .no-print,
-  .section-header-enhanced,
-  .ModalFooter,
-  .receipt-stamp,
-  .btn { display: none !important; }
-
-  /* Página y colores */
-  @page {
-    size: A4;
-    margin: 12mm;
-  }
-
-  body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  // Print Styles
+  @media print {
+    .receipt-preview {
+      .receipt-container {
+        border: none;
+        box-shadow: none;
+        max-width: none;
+        margin: 0;
+        padding: 20px;
+      }
+    }
   }
 }
-
 
 // Animations
 @keyframes pulse {
@@ -1048,26 +1087,387 @@
 
 .receipt-container {
   animation: slideInRight 0.4s ease-out;
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-family: 'Courier New', monospace;
+  max-width: 800px;
+  margin: 0 auto;
+
+  /* Encabezado del recibo */
+  .receipt-header-wrapper {
+    display: grid;
+    grid-template-columns: 120px 1fr 120px;
+    gap: 1.5rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 3px solid var(--primary-color);
+
+    .company-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .logo-box {
+        width: 100px;
+        height: 100px;
+        border: 2px solid var(--text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        text-align: center;
+        padding: 0.5rem;
+
+        .logo-text {
+          font-weight: bold;
+          font-size: 0.75rem;
+          line-height: 1.2;
+          color: var(--text-primary);
+        }
+      }
+    }
+
+    .company-info {
+      flex: 1;
+
+      .company-name {
+        font-weight: bold;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .company-detail {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+
+        &.highlight {
+          font-weight: 600;
+        }
+      }
+    }
+
+    .receipt-title {
+      text-align: right;
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: var(--primary-color);
+
+      .title-main {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .title-number {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        font-weight: normal;
+      }
+    }
+  }
+
+  /* Información del empleado */
+  .employee-info-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 1rem;
+      align-items: center;
+
+      .label {
+        font-weight: bold;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+      }
+
+      .value {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+
+      .info-row {
+        grid-template-columns: 120px 1fr;
+      }
+    }
+  }
+
+  /* Tabla de conceptos */
+  .concepts-table {
+    margin-bottom: 1.5rem;
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85rem;
+
+    thead {
+      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      color: white;
+
+      tr {
+        th {
+          padding: 0.75rem;
+          text-align: left;
+          font-weight: 600;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+
+          &:last-child {
+            text-align: right;
+          }
+        }
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid var(--border-color);
+
+        &:nth-child(even) {
+          background: var(--bg-light);
+        }
+
+        &:hover {
+          background: rgba(34, 197, 94, 0.05);
+        }
+
+        td {
+          padding: 0.6rem 0.75rem;
+          border: 1px solid var(--border-color);
+          color: var(--text-primary);
+
+          &.concept-code {
+            font-weight: 600;
+            text-align: center;
+            width: 60px;
+          }
+
+          &.concept-name {
+            flex: 1;
+          }
+
+          &.concept-units {
+            text-align: center;
+            width: 70px;
+          }
+
+          &.concept-remuneration {
+            text-align: right;
+            width: 120px;
+            color: var(--success-color);
+            font-weight: 600;
+          }
+
+          &.concept-deduction {
+            text-align: right;
+            width: 120px;
+            color: var(--error-color);
+            font-weight: 600;
+          }
+        }
+      }
+    }
+  }
+
+  /* Sección de totales */
+  .totals-section {
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+
+    .totals-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+
+      .total-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+
+        .label {
+          font-weight: 600;
+          color: var(--text-primary);
+          font-size: 0.9rem;
+        }
+
+        .value {
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-align: right;
+
+          &.positive {
+            color: var(--success-color);
+          }
+
+          &.negative {
+            color: var(--error-color);
+          }
+
+          &.final {
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            padding: 0.5rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 4px;
+          }
+        }
+      }
+    }
+
+    .totals-highlight {
+      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+
+      .amount-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .amount-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Detalles de pago */
+  .payment-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+
+      .label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+
+      .value {
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Pie del recibo */
+  .receipt-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+
+    .footer-text {
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 1.5rem;
+
+      .signature-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+
+        .line {
+          width: 120px;
+          height: 1px;
+          background: var(--text-primary);
+        }
+
+        .label {
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+      }
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    background: white;
+    box-shadow: none;
+    padding: 0;
+
+    .receipt-header-wrapper {
+      border-bottom: 2px solid var(--text-primary);
+    }
+
+    .payment-details,
+    .employee-info-section {
+      background: white;
+      border: 1px solid var(--text-primary);
+    }
+
+    .concepts-table {
+      thead {
+        background: var(--bg-light);
+        color: var(--text-primary);
+
+        th {
+          border: 1px solid var(--text-primary);
+          background: var(--bg-light);
+        }
+      }
+    }
+  }
 }
-
-/* Modo PDF: ocultá lo de UI y liberá el recibo */
-body.pdf-mode .no-print,
-body.pdf-mode .section-header-enhanced,
-body.pdf-mode .ModalFooter,
-body.pdf-mode .receipt-stamp { display: none !important; }
-
-body.pdf-mode #recibo {
-  border: none !important;
-  box-shadow: none !important;
-  margin: 0 !important;
-  padding: 20px !important;
-  width: auto !important;
-  max-width: none !important;
-  background: #fff !important;
-}
-
-/* Evitar cortes en filas/boxes importantes */
-#recibo, #recibo * { break-inside: avoid; page-break-inside: avoid; }
-
-/* Por si animaciones/transform rompen el render del PDF */
-body.pdf-mode * { animation: none !important; transform: none !important; }

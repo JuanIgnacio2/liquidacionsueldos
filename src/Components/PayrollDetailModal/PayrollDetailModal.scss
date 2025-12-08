@@ -1,0 +1,357 @@
+@import '../../styles/main.scss';
+
+.payroll-detail-modal {
+  .modal-content {
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
+.payroll-receipt {
+  font-family: $font-family-base;
+  background: $color-white;
+  padding: $spacing-8;
+  color: $color-gray-900;
+  line-height: 1.5;
+
+  /* Header Section */
+  .receipt-header-section {
+    display: grid;
+    grid-template-columns: 120px 1fr 100px;
+    gap: $spacing-8;
+    margin-bottom: $spacing-8;
+    align-items: start;
+    border-bottom: 3px solid $color-gray-900;
+    padding-bottom: $spacing-6;
+
+    .header-left {
+      display: flex;
+      justify-content: center;
+    }
+
+    .company-logo-box {
+      width: 100px;
+      height: 100px;
+      border: 2px solid $color-gray-900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: $color-gray-100;
+
+      .logo-placeholder {
+        font-weight: bold;
+        font-size: $font-size-xs;
+        text-align: center;
+        color: $color-gray-600;
+      }
+    }
+
+    .header-center {
+      text-align: center;
+
+
+
+      .company-name {
+        margin: $spacing-1 0;
+        font-size: $font-size-sm;
+        font-weight: 700;
+        color: $color-gray-900;
+      }
+
+      .company-address {
+        margin: $spacing-1 0;
+        font-size: $font-size-sm;
+        color: $color-gray-700;
+      }
+
+      .company-cuit {
+        margin: $spacing-1 0;
+        font-size: $font-size-sm;
+        color: $color-gray-700;
+      }
+    }
+
+    .header-right {
+      text-align: right;
+      border-left: 2px solid $color-gray-900;
+      padding-left: $spacing-4;
+
+       .receipt-title {
+        margin: 0 0 $spacing-2 0;
+        font-size: $font-size-sm;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: $color-gray-900;
+      }
+
+      .receipt-number {
+        margin: 0;
+        font-size: $font-size-sm;
+        font-weight: 700;
+        color: $color-red-primary;
+      }
+
+      .receipt-code {
+        margin: $spacing-2 0 0 0;
+        font-size: $font-size-lg;
+        font-weight: 700;
+        color: $color-gray-900;
+      }
+    }
+  }
+
+  /* Info Tables */
+  .info-table,
+  .dates-table,
+  .concepts-table,
+  .totals-table,
+  .bank-info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: $spacing-2;
+    font-size: $font-size-xs;
+
+    tr {
+      border: 1px solid $color-gray-400;
+    }
+
+    td,
+    th {
+      padding: $spacing-2;
+      border: 1px solid $color-gray-400;
+      text-align: left;
+    }
+
+    .label {
+      background: $color-gray-300;
+      font-weight: 700;
+      width: 15%;
+      vertical-align: top;
+      color: $color-gray-900;
+    }
+
+    .value {
+      font-weight: normal;
+      color: $color-gray-800;
+    }
+  }
+
+  .info-table {
+    tr {
+      &:nth-child(odd) {
+        background: $color-gray-50;
+      }
+    }
+  }
+
+  .dates-table {
+    td {
+      padding: $spacing-3;
+    }
+  }
+
+  /* Concepts Table */
+  .concepts-table {
+    margin-bottom: $spacing-6;
+    margin-top: $spacing-6;
+
+    thead {
+      background: $color-green-primary;
+      font-weight: 700;
+      text-align: center;
+      font-size: $font-size-xs;
+      color: $color-white;
+
+      th {
+        padding: $spacing-3;
+        border: 1px solid $color-green-dark;
+      }
+    }
+
+    tbody {
+      tr {
+        &:nth-child(odd) {
+          background: $color-gray-50;
+        }
+
+        &:nth-child(even) {
+          background: $color-white;
+        }
+
+        td {
+          padding: $spacing-2;
+          border: 1px solid $color-gray-400;
+          text-align: center;
+          color: $color-gray-800;
+
+          &.code {
+            width: 8%;
+            text-align: center;
+            font-weight: 600;
+          }
+
+          &.detail {
+            text-align: left;
+            flex: 1;
+          }
+
+          &.quantity {
+            width: 12%;
+            text-align: center;
+          }
+
+          &.amount-haberes,
+          &.amount-deductions {
+            width: 15%;
+            text-align: right;
+            padding-right: $spacing-3;
+            font-weight: 600;
+          }
+        }
+      }
+    }
+  }
+
+  /* Totals Table */
+  .totals-table {
+    margin: $spacing-6 0;
+
+    td {
+      padding: $spacing-3;
+      border: 1px solid $color-gray-400;
+
+      &.label {
+        background: $color-green-light;
+        font-weight: 700;
+        width: 25%;
+        color: $color-gray-900;
+      }
+
+      &.value {
+        text-align: right;
+        padding-right: $spacing-3;
+        font-weight: 600;
+        color: $color-gray-800;
+      }
+    }
+
+    tr {
+      &:nth-child(1) {
+        background: $color-gray-50;
+      }
+
+      &:nth-child(2),
+      &:nth-child(3) {
+        background: $color-white;
+      }
+    }
+  }
+
+  /* Bank Info Table */
+  .bank-info-table {
+    margin-bottom: $spacing-6;
+
+    td {
+      padding: $spacing-3;
+      border: 1px solid $color-gray-400;
+
+      &.label {
+        background: $color-green-light;
+        font-weight: 700;
+        width: 18%;
+        color: $color-gray-900;
+      }
+
+      &.value {
+        text-align: right;
+        padding-right: $spacing-3;
+        color: $color-gray-800;
+
+        &.total-neto {
+          background: $color-yellow-light;
+          font-weight: 700;
+          font-size: $font-size-sm;
+          color: $color-gray-900;
+        }
+      }
+    }
+  }
+
+  /* Amount in Words */
+  .amount-words {
+    display: flex;
+    gap: $spacing-4;
+    margin: $spacing-6 0;
+    padding: $spacing-3;
+    border: 1px solid $color-gray-400;
+    background: $color-gray-50;
+    font-size: $font-size-xs;
+
+    .label {
+      font-weight: 700;
+      min-width: 80px;
+      color: $color-gray-900;
+    }
+
+    .words {
+      flex: 1;
+      border-bottom: 1px dashed $color-gray-400;
+      padding-bottom: $spacing-1;
+      color: $color-gray-800;
+    }
+  }
+
+  /* Footer */
+  .receipt-footer {
+    margin-top: $spacing-8;
+    text-align: center;
+    font-size: $font-size-xs;
+
+    .disclaimer {
+      margin-bottom: $spacing-6;
+      line-height: 1.6;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      color: $color-gray-700;
+    }
+
+    .signature-area {
+      margin-top: $spacing-8;
+
+      p {
+        margin: $spacing-1 0;
+        font-size: $font-size-xs;
+        color: $color-gray-900;
+
+        &:first-child {
+          border-top: 1px solid $color-gray-900;
+          padding-top: $spacing-2;
+          width: 150px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+      }
+    }
+  }
+
+  /* Print Styles */
+  @media print {
+    padding: 0;
+    background: $color-white;
+
+    .modal-header,
+    .modal-footer {
+      display: none;
+    }
+
+    .receipt-header-section {
+      page-break-after: avoid;
+    }
+
+    .concepts-table {
+      page-break-inside: avoid;
+    }
+  }
+}

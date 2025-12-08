@@ -1,0 +1,182 @@
+@import '../main.scss';
+
+.sidebar {
+  height: 100vh;
+  background: linear-gradient(135deg, $color-green-primary 0%, $color-green-dark 50%, darken($color-green-primary, 15%) 100%);
+  border-right: 1px solid darken($color-green-primary, 10%);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  color: $color-white;
+  position: relative;
+
+  // Add subtle overlay pattern
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  &.collapsed {
+    width: 4rem;
+  }
+
+  &.expanded {
+    width: 16rem;
+  }
+
+  .sidebar-header {
+    padding: $spacing-4;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    z-index: 1;
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+
+        .brand-icon {
+          width: 2rem;
+          height: 2rem;
+          color: $color-yellow-primary;
+        }
+
+        .brand-text {
+          font-size: $font-size-xl;
+          font-weight: 700;
+          color: $color-white;
+        }
+      }
+
+      .toggle-btn {
+        padding: $spacing-1;
+        border-radius: $border-radius;
+        background: transparent;
+        border: none;
+        color: $color-white;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .toggle-icon {
+          width: 1rem;
+          height: 1rem;
+        }
+      }
+    }
+
+    &.collapsed {
+      .brand-icon {
+        margin: 0 auto;
+      }
+    }
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: $spacing-4;
+
+    .nav-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: $spacing-2;
+
+      .nav-item {
+        .nav-link {
+          display: flex;
+          align-items: center;
+          gap: $spacing-3;
+          padding: $spacing-2 $spacing-3;
+          border-radius: $border-radius;
+          color: $color-white;
+          text-decoration: none;
+          transition: all 0.3s ease;
+          font-weight: 500;
+          position: relative;
+
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+            transform: translateX(3px);
+          }
+
+          &.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+
+            &::before {
+              content: '';
+              position: absolute;
+              left: -$spacing-3;
+              top: 50%;
+              transform: translateY(-50%);
+              width: 3px;
+              height: 60%;
+              background: $color-yellow-primary;
+              border-radius: 0 2px 2px 0;
+              box-shadow: 0 0 10px $color-yellow-primary;
+            }
+          }
+
+          .nav-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            flex-shrink: 0;
+          }
+
+          .nav-text {
+            font-weight: 500;
+          }
+        }
+      }
+    }
+  }
+
+  .sidebar-footer {
+    padding: $spacing-4;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    z-index: 1;
+
+    .footer-content {
+      font-size: $font-size-sm;
+      color: rgba(255, 255, 255, 0.7);
+
+      .version {
+        font-size: $font-size-xs;
+      }
+    }
+
+    &.collapsed {
+      .footer-content {
+        text-align: center;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .version {
+          font-size: $font-size-xs;
+        }
+      }
+    }
+  }
+}

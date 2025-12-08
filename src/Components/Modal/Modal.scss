@@ -1,4 +1,4 @@
-@import '../../main.scss';
+@import '../../styles/main.scss';
 
 .modal-overlay {
   position: fixed;
@@ -26,7 +26,7 @@
 
     &.small {
       width: 100%;
-      max-width: 450px;
+      max-width: 600px;
     }
 
     &.medium {
@@ -36,7 +36,7 @@
 
     &.large {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1000px;
     }
 
     &.xlarge {
@@ -84,7 +84,7 @@
 
     .modal-body {
       padding: $spacing-6;
-      max-height: calc(90vh - 150px);
+      max-height: calc(90vh - 120px);
       overflow-y: auto;
 
       &::-webkit-scrollbar {
@@ -319,3 +319,546 @@
   }
 }
 
+/* ====== Áreas (chips + adder) ====== */
+.employee-form {
+  .form-section {
+    .form-grid {
+      .form-group {
+        /* Contenedor de chips */
+        .area-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: $spacing-2;
+          margin-bottom: $spacing-2;
+        }
+
+        /* Chip individual */
+        .area-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: $spacing-2;
+          padding: $spacing-1 $spacing-2;
+          border: 1px solid $color-gray-300;
+          border-radius: 999px;
+          background: $color-gray-50;
+          font-size: $font-size-sm;
+          color: $color-gray-900;
+          transition: box-shadow .15s ease, transform .15s ease;
+
+          &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+          }
+
+          /* Botón "-" del chip */
+          .chip-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: $border-radius-sm;
+            border: 1px solid $color-gray-300;
+            background: $color-white;
+            cursor: pointer;
+            line-height: 1;
+            font-weight: 700;
+            color: $color-gray-700;
+            transition: all .15s ease;
+
+            &:hover {
+              background: $color-gray-100;
+              color: $color-gray-900;
+              transform: scale(1.05);
+            }
+
+            &:focus {
+              outline: none;
+              box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15); // green glow
+              border-color: $color-green-primary;
+            }
+          }
+        }
+
+        /* Fila del selector + botón "+" */
+        .area-actions {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+
+          .form-select {
+            flex: 1 1 auto;
+            min-width: 220px;
+          }
+
+          /* Botón "+" compacto, heredando tu sistema */
+          .btn-plus {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: $border-radius;
+            border: 1px solid $color-gray-300;
+            background: $color-white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .15s ease;
+            color: $color-gray-900;
+
+            &:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+              border-color: $color-green-primary;
+            }
+
+            &:disabled {
+              opacity: .6;
+              cursor: not-allowed;
+            }
+
+            &:focus {
+              outline: none;
+              box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+              border-color: $color-green-primary;
+            }
+          }
+        }
+
+        /* Mensajito auxiliar */
+        .hint {
+          display: inline-block;
+          margin-top: $spacing-2;
+          color: $color-gray-600;
+          font-size: $font-size-xs;
+        }
+
+        /* Error ya heredado, pero reforzamos para este grupo */
+        .error-message {
+          display: block;
+          margin-top: $spacing-2;
+          color: #dc2626; // rojo consistente con tus estados
+          font-size: $font-size-xs;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+}
+
+/* ====== Conceptos adicionales ====== */
+.employee-form {
+  .conceptos-section {
+    .conceptos-empty-message {
+      text-align: center;
+      padding: $spacing-6;
+      color: $color-gray-500;
+      font-size: $font-size-sm;
+    }
+
+    .conceptos-table {
+      margin-top: $spacing-4;
+      overflow-x: auto;
+
+      .conceptos-table-content {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid $color-gray-200;
+        border-radius: $border-radius;
+        overflow: hidden;
+
+        thead {
+          background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
+          
+          th {
+            padding: $spacing-3 $spacing-4;
+            text-align: left;
+            font-size: $font-size-sm;
+            font-weight: 600;
+            color: $color-gray-700;
+            border-bottom: 2px solid $color-gray-200;
+            white-space: nowrap;
+
+            // Primera columna: checkbox (60px) o Tipo (150px)
+            &:first-child {
+              width: 60px;
+              text-align: center;
+            }
+
+            // Segunda columna: Concepto
+            &:nth-child(2) {
+              min-width: 200px;
+              text-align: left;
+            }
+
+            // Tercera y cuarta columna: Porcentaje y Unidades
+            &:nth-child(3),
+            &:nth-child(4) {
+              width: 120px;
+              text-align: center;
+            }
+
+            // Última columna: Total
+            &:last-child {
+              width: 150px;
+              text-align: right;
+            }
+          }
+        }
+
+        tbody {
+          tr {
+            border-bottom: 1px solid $color-gray-100;
+            transition: background-color 0.15s ease;
+
+            &:hover {
+              background-color: $color-gray-50;
+            }
+
+            &.selected {
+              background-color: rgba(34, 197, 94, 0.08);
+            }
+
+            &:last-child {
+              border-bottom: none;
+            }
+
+            td {
+              padding: $spacing-3 $spacing-4;
+              font-size: $font-size-sm;
+              color: $color-gray-700;
+              vertical-align: middle;
+
+              // Primera columna: checkbox o Tipo
+              &:first-child {
+                text-align: center;
+                
+                input[type='checkbox'] {
+                  width: 18px;
+                  height: 18px;
+                  cursor: pointer;
+                  accent-color: $color-green-primary;
+                }
+              }
+
+              .concepto-label {
+                font-weight: 500;
+                color: $color-gray-900;
+                cursor: pointer;
+                user-select: none;
+                display: inline-block;
+              }
+
+              .porcentaje-cell {
+                text-align: center;
+                color: $color-gray-600;
+                font-weight: 500;
+              }
+
+              .units-input-field {
+                width: 100%;
+                max-width: 100px;
+                padding: $spacing-2;
+                border: 1px solid $color-gray-300;
+                border-radius: $border-radius;
+                font-size: $font-size-sm;
+                text-align: center;
+                transition: border-color 0.15s ease;
+
+                &:focus {
+                  outline: none;
+                  border-color: $color-green-primary;
+                  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+                }
+
+                &:disabled {
+                  background-color: $color-gray-100;
+                  color: $color-gray-500;
+                  cursor: not-allowed;
+                }
+              }
+
+              .total-cell {
+                text-align: right;
+                font-weight: 600;
+                color: $color-green-dark;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Estilos legacy para compatibilidad
+    .conceptos-list {
+      display: flex;
+      flex-direction: column;
+      gap: $spacing-2;
+      margin-top: $spacing-2;
+    }
+
+    .concepto-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: $spacing-3;
+      padding: $spacing-2 $spacing-3;
+      border: 1px solid $color-gray-200;
+      border-radius: $border-radius;
+      background: $color-white;
+
+      .checkbox-container {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+      }
+
+      .units-input {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+
+        label {
+          font-size: $font-size-sm;
+          color: $color-gray-700;
+        }
+
+        input[type='number'] {
+          width: 120px;
+          padding: $spacing-2;
+          border: 1px solid $color-gray-300;
+          border-radius: $border-radius;
+          font-size: $font-size-sm;
+        }
+      }
+    }
+  }
+}
+
+// Estilos específicos para la tabla de conceptos en el modal de vista
+.employee-details {
+  .form-section.conceptos-section,
+  .conceptos-section {
+    margin-bottom: $spacing-6;
+
+    .section-title {
+      font-size: $font-size-lg;
+      font-weight: 600;
+      color: $color-gray-900;
+      margin-bottom: $spacing-4;
+      @extend .section-title-effect;
+      display: flex;
+      align-items: center;
+      gap: $spacing-2;
+
+      .title-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+    }
+
+    .conceptos-empty-message {
+      text-align: center;
+      padding: $spacing-6;
+      color: $color-gray-500;
+      font-size: $font-size-sm;
+    }
+
+    .conceptos-table {
+      margin-top: $spacing-4;
+      overflow-x: auto;
+
+      .conceptos-table-content {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid $color-gray-200;
+        border-radius: $border-radius;
+        overflow: hidden;
+
+        thead {
+          background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
+          
+          th {
+            padding: $spacing-3 $spacing-4;
+            text-align: left;
+            font-size: $font-size-sm;
+            font-weight: 600;
+            color: $color-gray-700;
+            border-bottom: 2px solid $color-gray-200;
+            white-space: nowrap;
+
+            // Primera columna: Tipo (más ancho que checkbox)
+            &:first-child {
+              width: 150px;
+              text-align: left;
+            }
+
+            // Segunda columna: Concepto
+            &:nth-child(2) {
+              min-width: 200px;
+              text-align: left;
+            }
+
+            // Tercera y cuarta columna: Porcentaje y Unidades
+            &:nth-child(3),
+            &:nth-child(4) {
+              width: 120px;
+              text-align: center;
+            }
+
+            // Última columna: Total
+            &:last-child {
+              width: 150px;
+              text-align: right;
+            }
+          }
+        }
+
+        tbody {
+          tr {
+            border-bottom: 1px solid $color-gray-100;
+            transition: background-color 0.15s ease;
+
+            &:hover {
+              background-color: $color-gray-50;
+            }
+
+            &.selected {
+              background-color: rgba(34, 197, 94, 0.08);
+            }
+
+            &.descuento-row {
+              background-color: rgba(239, 68, 68, 0.06);
+              
+              &:hover {
+                background-color: rgba(239, 68, 68, 0.1);
+              }
+
+              &.selected {
+                background-color: rgba(239, 68, 68, 0.12);
+              }
+            }
+
+            &:last-child {
+              border-bottom: none;
+            }
+
+            td {
+              padding: $spacing-3 $spacing-4;
+              font-size: $font-size-sm;
+              color: $color-gray-700;
+              vertical-align: middle;
+
+              // Primera columna: Tipo
+              &:first-child {
+                text-align: left;
+                font-weight: 500;
+                color: $color-gray-900;
+              }
+
+              .concepto-label {
+                font-weight: 500;
+                color: $color-gray-900;
+                cursor: default;
+                user-select: none;
+                display: inline-block;
+              }
+
+              .porcentaje-cell {
+                text-align: center;
+                color: $color-gray-600;
+                font-weight: 500;
+              }
+
+              .total-cell {
+                text-align: right;
+                font-weight: 600;
+                color: $color-green-dark;
+
+                &.descuento-total {
+                  color: #dc2626;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+.form-select:disabled,
+.form-input:disabled {
+  background: #f2f2f2;
+  color: #888;
+  cursor: not-allowed;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ====== Resumen del Salario Total ====== */
+.employee-form {
+  .salary-summary-section {
+    margin-top: $spacing-6;
+    margin-bottom: $spacing-4;
+    padding: $spacing-4 $spacing-5;
+    background: linear-gradient(135deg, $color-green-primary 0%, rgba(34, 197, 94, 0.05) 100%);
+    border: 2px solid $color-green-dark;
+    border-radius: $border-radius-lg;
+    
+    .salary-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: $spacing-4;
+
+      .salary-summary-label {
+        font-size: $font-size-base;
+        font-weight: 600;
+        color: $color-gray-700;
+        margin: 0;
+      }
+
+      .salary-summary-total {
+        font-size: $font-size-2xl;
+        font-weight: 700;
+        color: $color-green-dark;
+        text-align: right;
+        letter-spacing: -0.5px;
+      }
+    }
+  }
+}
+
+/* Responsive pequeño */
+@media (max-width: 480px) {
+  .employee-form .form-section .form-grid .form-group {
+    .area-actions {
+      flex-direction: column;
+      align-items: stretch;
+
+      .btn-plus {
+        width: 100%;
+        height: 40px;
+      }
+    }
+  }
+
+  .employee-form {
+    .salary-summary-section {
+      .salary-summary {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: $spacing-2;
+
+        .salary-summary-total {
+          font-size: $font-size-xl;
+          text-align: left;
+          width: 100%;
+        }
+      }
+    }
+  }
+}

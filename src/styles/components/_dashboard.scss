@@ -1,0 +1,247 @@
+@import '../main.scss';
+
+.dashboard {
+  padding: $spacing-4 $spacing-6;
+  padding-top: $spacing-4;
+  background-color: rgba(217, 247, 226, 0.3);
+  min-height: 100vh;
+
+  .dashboard-header {
+    margin-bottom: $spacing-8;
+
+    .title {
+      font-size: $font-size-3xl;
+      font-weight: 700;
+      margin-bottom: $spacing-2;
+      @extend .title-gradient;
+      @extend .animated-title;
+    }
+
+    .subtitle {
+      color: $color-gray-500;
+    }
+  }
+
+  .stats-overview {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: $spacing-4;
+    margin-bottom: $spacing-6;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .stat-card {
+      padding: $spacing-3 $spacing-4;
+      transition: box-shadow 0.3s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+      .stat-label {
+        font-size: $font-size-sm;
+        color: $color-gray-500;
+        margin-bottom: $spacing-1;
+      }
+
+      .stat-value {
+        font-size: $font-size-2xl;
+        font-weight: 700;
+        margin-bottom: $spacing-1;
+
+        &.success {
+          color: $color-success;
+        }
+
+        &.primary {
+          color: $color-green-primary;
+        }
+
+        &.warning {
+          color: $color-warning;
+        }
+
+        &.default {
+          color: $color-gray-900;
+        }
+      }
+    }
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: $spacing-3;
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .activity-section {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+      @media (min-width: 1024px) {
+        grid-column: span 2 / span 2;
+      }
+
+      .activity-header {
+        padding: $spacing-4;
+
+        .card-title {
+          font-size: $font-size-base;
+          margin-bottom: $spacing-1;
+        }
+
+        .card-description {
+          font-size: $font-size-xs;
+        }
+      }
+
+      .activity-content {
+        padding: $spacing-4;
+      }
+
+      .activity-table {
+        width: 100%;
+
+        .activity-table-header {
+          display: grid;
+          grid-template-columns: 2fr 2fr 1.5fr 1.5fr;
+          gap: $spacing-4;
+          padding: $spacing-2 $spacing-3;
+          background-color: rgba(243, 244, 246, 0.5);
+          border-radius: $border-radius;
+          margin-bottom: $spacing-2;
+
+          .activity-col-header {
+            font-size: $font-size-sm;
+            font-weight: 600;
+            color: $color-gray-700;
+            text-align: center;
+
+            &:nth-child(1),
+            &:nth-child(2) {
+            text-align: left;}
+          }
+        }
+      }
+
+      .activity-list {
+        display: flex;
+        flex-direction: column;
+        gap: $spacing-2;
+
+        .activity-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: $spacing-4;
+          border: 1px solid $color-gray-200;
+          border-radius: $border-radius-lg;
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background-color: rgba(243, 244, 246, 0.5);
+          }
+
+          .activity-info {
+            flex: 1;
+
+            .activity-action {
+              font-weight: 500;
+              margin-bottom: $spacing-1;
+            }
+
+            .activity-employee {
+              font-size: $font-size-sm;
+              color: $color-gray-500;
+            }
+          }
+
+          .activity-details {
+            text-align: right;
+
+            .activity-amount {
+              font-weight: 600;
+              color: $color-success;
+              margin-bottom: $spacing-1;
+            }
+
+            .activity-time {
+              font-size: $font-size-xs;
+              color: $color-gray-500;
+            }
+          }
+        }
+      }
+    }
+
+    .quick-actions {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+      .actions-list {
+        display: flex;
+        flex-direction: column;
+        gap: $spacing-3;
+
+        .action-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: $spacing-3;
+          border: 1px solid;
+          border-radius: $border-radius-lg;
+          background: transparent;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-decoration: none;
+          font-weight: 500;
+
+          &.primary {
+            border-color: $color-green-primary;
+            color: $color-green-primary;
+
+            &:hover {
+              background-color: $color-green-primary;
+              color: $color-white;
+            }
+          }
+
+          &.success {
+            border-color: $color-success;
+            color: $color-success;
+
+            &:hover {
+              background-color: $color-success;
+              color: $color-white;
+            }
+          }
+
+          &.warning {
+            border-color: $color-warning;
+            color: $color-warning;
+
+            &:hover {
+              background-color: $color-warning;
+              color: $color-gray-900;
+            }
+          }
+
+          &.secondary {
+            border-color: $color-gray-300;
+            color: $color-gray-700;
+
+            &:hover {
+              background-color: $color-gray-100;
+            }
+          }
+
+          .action-icon {
+            width: 1rem;
+            height: 1rem;
+          }
+        }
+      }
+    }
+  }
+}

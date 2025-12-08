@@ -34,7 +34,7 @@ export function Modal({
   return (
     <div className={'modal-overlay'} onClick={onClose}>
       <div 
-        className={`${'modal-content'} ${size === 'large' ? 'large' : ''} ${className}`}
+        className={`${'modal-content'} ${size === 'small' ? 'small' : ''} ${size === 'medium' ? 'medium' : ''} ${size === 'large' ? 'large' : ''} ${size === 'xlarge' ? 'xlarge' : ''} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || showCloseButton) && (
