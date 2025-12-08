@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, FileText, DollarSign, Eye, CheckCircle, Users } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
-import { CompletarPagosMasivoModal } from '../Components/CompletarPagosMasivoModal/CompletarPagosMasivoModal';
 import { StatsGrid } from '../Components/ui/card';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -18,7 +17,6 @@ export default function Liquidacion() {
   const [employees, setEmployees] = useState([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showCompletarPagosModal, setShowCompletarPagosModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
@@ -154,7 +152,13 @@ export default function Liquidacion() {
       colorClass: 'primary'
     },
     {
-      label: 'Liquidaciones Realizadas',
+      label: 'Total Neto Mes',
+      value: dashboardStats?.totalNetoMes ? `$${Number(dashboardStats.totalNetoMes).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—',
+      icon: DollarSign,
+      colorClass: 'success'
+    },
+    {
+      label: 'Liquidaciones Hechas',
       value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
       icon: TrendingUp,
       colorClass: 'success'

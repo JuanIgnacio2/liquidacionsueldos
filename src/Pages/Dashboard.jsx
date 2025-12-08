@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp } from "lucide-react";
 import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
 import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal";
-import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal";
-import PayrollDetailModal from "../Components/PayrollDetailModal/PayrollDetailModal";
 import { Modal, ModalFooter } from "../Components/Modal/Modal";
 import {useNotification} from '../Hooks/useNotification';
 import { LoadingSpinner } from "../Components/ui/LoadingSpinner";
@@ -25,32 +23,13 @@ export default function Dashboard() {
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Estados para paginación de actividades
-  const [actividadesPaginadas, setActividadesPaginadas] = useState([]);
-  const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
-  // Estados para filtros de actividades
-  const [filterUsuario, setFilterUsuario] = useState('');
-  const [filterFechaDesde, setFilterFechaDesde] = useState('');
-  const [filterFechaHasta, setFilterFechaHasta] = useState('');
-  const [filterTipo, setFilterTipo] = useState('');
-  // Estados para modales de detalles
-  const [showEmployeeViewModal, setShowEmployeeViewModal] = useState(false);
-  const [showPayrollDetailModal, setShowPayrollDetailModal] = useState(false);
-  const [selectedEmployeeForView, setSelectedEmployeeForView] = useState(null);
-  const [selectedPayroll, setSelectedPayroll] = useState(null);
-  const [selectedEmployeeForPayroll, setSelectedEmployeeForPayroll] = useState(null);
-  const [payrollDetails, setPayrollDetails] = useState(null);
-  const [loadingPayrollDetails, setLoadingPayrollDetails] = useState(false);
 
   const countActiveEmployees = async () => {
     try {
       const count = await api.getCountActiveEmployees();
       setActiveEmployees(count);
     } catch (error) {
-      notify.error(error);
+      notify.error("Error al obtener el conteo de empleados activos", error);
     }
   };
 
@@ -59,7 +38,7 @@ export default function Dashboard() {
       const count = await api.countConvenios();
       setGremiosCount(count);
     } catch (error) {
-      notify.error(error);
+      notify.error("Error al obtener el conteo de gremios", error);
     }
   };
 
@@ -69,7 +48,7 @@ export default function Dashboard() {
       const ordenados = data.sort((a, b) => a.legajo - b.legajo);
       setEmployees(ordenados);
     } catch (error) {
-      notify.error(error);
+      notify.error("Error al cargar los empleados", error);
     }
   };
 
@@ -90,56 +69,6 @@ export default function Dashboard() {
     } catch (error) {
       notify.error("Error al cargar actividades recientes");
       setActividades([]);
-    } finally {
-      setLoadingActivities(false);
-    }
-  };
-
-  const loadActividadesPaginadas = async () => {
-    setLoadingActivities(true);
-    try {
-      // Convertir fechas a formato ISO si están presentes
-      // datetime-local devuelve formato YYYY-MM-DDTHH:mm, necesitamos convertirlo a ISO
-      let fechaDesdeISO = null;
-      let fechaHastaISO = null;
-      
-      if (filterFechaDesde) {
-        // Si el string no tiene segundos, agregarlos
-        const fechaStr = filterFechaDesde.includes(':') && !filterFechaDesde.includes(':', filterFechaDesde.indexOf(':') + 1)
-          ? filterFechaDesde + ':00'
-          : filterFechaDesde;
-        const fechaDesde = new Date(fechaStr);
-        fechaDesdeISO = fechaDesde.toISOString();
-      }
-      
-      if (filterFechaHasta) {
-        // Si el string no tiene segundos, agregarlos
-        let fechaStr = filterFechaHasta.includes(':') && !filterFechaHasta.includes(':', filterFechaHasta.indexOf(':') + 1)
-          ? filterFechaHasta + ':00'
-          : filterFechaHasta;
-        const fechaHasta = new Date(fechaStr);
-        // Agregar 23:59:59 al final del día
-        fechaHasta.setHours(23, 59, 59, 999);
-        fechaHastaISO = fechaHasta.toISOString();
-      }
-
-      const data = await api.getActividadesPaginadas(
-        page,
-        size,
-        filterUsuario || null,
-        fechaDesdeISO,
-        fechaHastaISO,
-        filterTipo || null
-      );
-      
-      setActividadesPaginadas(Array.isArray(data.content) ? data.content : []);
-      setTotalPages(data.totalPages || 0);
-      setTotalElements(data.totalElements || 0);
-    } catch (error) {
-      notify.error("Error al cargar actividades");
-      setActividadesPaginadas([]);
-      setTotalPages(0);
-      setTotalElements(0);
     } finally {
       setLoadingActivities(false);
     }
@@ -166,22 +95,13 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // Cargar actividades paginadas cuando se abre el modal o cambian los parámetros
-  useEffect(() => {
-    if (showActivitiesModal) {
-      loadActividadesPaginadas();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showActivitiesModal, page, size, filterUsuario, filterFechaDesde, filterFechaHasta, filterTipo]);
-
   // Helper para formatear tipo de referencia
   const getReferenciaLabel = (referenciaTipo) => {
     const labels = {
       ALTA_EMPLEADO: "Empleado agregado",
       BAJA_EMPLEADO: "Empleado dado de baja",
       EDIT_EMPLEADO: "Empleado editado",
-      LIQUIDAR: "Liquidación procesada",
-      PAGO: "Pago completado",
+      PAGO: "Liquidación procesada",
       EDIT_CONVENIO: "Convenio actualizado",
     };
     return labels[referenciaTipo] || referenciaTipo || "Acción";
@@ -203,105 +123,6 @@ export default function Dashboard() {
     if (dias < 7) return `hace ${dias} día${dias !== 1 ? "s" : ""}`;
 
     return date.toLocaleDateString("es-AR");
-  };
-
-  // Manejar clic en detalles de actividad
-  const handleViewActivityDetails = async (activity) => {
-    const { referenciaTipo, referenciaId } = activity;
-
-    // Cerrar el modal de actividades si está abierto
-    setShowActivitiesModal(false);
-
-    try {
-      switch (referenciaTipo) {
-        case 'ALTA_EMPLEADO':
-        case 'BAJA_EMPLEADO':
-        case 'EDIT_EMPLEADO': {
-          // referenciaId es el legajo del empleado
-          const legajo = referenciaId;
-          const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
-          
-          if (employee) {
-            setSelectedEmployeeForView(employee);
-            setShowEmployeeViewModal(true);
-          } else {
-            // Si no está en la lista, obtenerlo de la API
-            try {
-              const employeeData = await api.getEmpleadoByLegajo(legajo);
-              setSelectedEmployeeForView(employeeData);
-              setShowEmployeeViewModal(true);
-            } catch (error) {
-              notify.error('No se pudo cargar la información del empleado');
-            }
-          }
-          break;
-        }
-        case 'PAGO':
-        case 'LIQUIDAR':
-        {
-          // referenciaId es el ID del pago
-          setShowPayrollDetailModal(true);
-          setLoadingPayrollDetails(true);
-          setPayrollDetails(null);
-          setSelectedPayroll(null);
-          setSelectedEmployeeForPayroll(null);
-
-          try {
-            // Obtener detalles del pago
-            const detalle = await api.getDetallePago(referenciaId);
-            setPayrollDetails(detalle);
-            
-            // Buscar el empleado correspondiente por legajo
-            const legajo = detalle.legajo || detalle.legajoEmpleado;
-            if (legajo) {
-              const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
-              if (employee) {
-                setSelectedEmployeeForPayroll(employee);
-              } else {
-                // Si no está en la lista, obtenerlo de la API
-                try {
-                  const employeeData = await api.getEmpleadoByLegajo(legajo);
-                  setSelectedEmployeeForPayroll(employeeData);
-                } catch (error) {
-                  console.error('Error al obtener empleado:', error);
-                }
-              }
-            }
-            
-            // Crear objeto selectedPayroll con la información disponible
-            setSelectedPayroll({
-              id: referenciaId,
-              legajoEmpleado: detalle.legajo || detalle.legajoEmpleado,
-              nombreEmpleado: detalle.nombre,
-              apellidoEmpleado: detalle.apellido,
-              periodoPago: detalle.periodoPago,
-              total_neto: detalle.total_neto || detalle.totalNeto
-            });
-          } catch (error) {
-            notify.error('No se pudo cargar la información de la liquidación');
-          } finally {
-            setLoadingPayrollDetails(false);
-          }
-          break;
-        }
-        case 'EDIT_CONVENIO': {
-          // referenciaId puede ser un número (1 = lyf, 2 = uocra) o el controller string
-          // Mapear número a controller si es necesario
-          let controller = referenciaId;
-          if (typeof referenciaId === 'number' || (typeof referenciaId === 'string' && /^\d+$/.test(referenciaId))) {
-            const numId = Number(referenciaId);
-            controller = numId === 1 ? 'lyf' : (numId === 2 ? 'uocra' : referenciaId);
-          }
-          // Navegar a la página de detalle del convenio
-          navigate(`/convenios/${controller}`);
-          break;
-        }
-        default:
-          notify.log('Tipo de actividad no soportado para ver detalles');
-      }
-    } catch (error) {
-      notify.error('Error al cargar los detalles de la actividad');
-    }
   };
 
   const handleProcessPayroll = (result) => {
@@ -327,7 +148,7 @@ export default function Dashboard() {
 
   const stats = [
     {
-      title: "Empleados Activos",
+      title: "Total Empleados Activos",
       value:
         dashboardStats?.cantidadEmpleados ?? activeEmployees ?? "Cargando...",
       icon: Users,
@@ -340,16 +161,33 @@ export default function Dashboard() {
       colorClass: "warning",
     },
     {
+      title: "Liquidaciones Procesadas",
+      value: dashboardStats?.cantidadLiquidacionesHechas ?? "Cargando...",
+      icon: TrendingUp,
+      colorClass: "primary",
+    },
+    {
+      title: "Total Neto",
+      value: dashboardStats?.totalNetoMes
+        ? `$${Number(dashboardStats.totalNetoMes).toLocaleString("es-AR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : "Cargando...",
+      icon: DollarSign,
+      colorClass: "primary",
+    },
+    {
       title: "Total Bruto",
       value: dashboardStats?.totalBrutoMes
         ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString("es-AR", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`
-        : "-",
+        : "Cargando...",
       icon: DollarSign,
       colorClass: "primary",
-    }
+    },
   ];
 
   // Obtener las últimas 4 actividades
@@ -392,11 +230,11 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <StatsGrid
         className="stats-overview"
-        stats={stats.map(s => ({
+        stats={stats.map((s) => ({
           icon: s.icon,
           value: s.value,
           label: s.title,
-          colorClass: s.colorClass
+          colorClass: s.colorClass,
         }))}
       />
 
@@ -413,11 +251,23 @@ export default function Dashboard() {
           </div>
           <div className="card-content">
             {loadingActivities ? (
-              <div className="activity-loading-state">
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: "#6b7280",
+                }}
+              >
                 <p>Cargando actividades...</p>
               </div>
             ) : recentActivities.length === 0 ? (
-              <div className="activity-empty-state">
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: "#6b7280",
+                }}
+              >
                 <p>No hay actividades recientes</p>
               </div>
             ) : (
@@ -428,6 +278,11 @@ export default function Dashboard() {
                       <div className="activity-info">
                         <p className="activity-action">
                           {getReferenciaLabel(activity.referenciaTipo)}
+                        </p>
+                        <p className="activity-employee">
+                          {activity.descripcion ||
+                            activity.usuario ||
+                            "Sin descripción"}
                         </p>
                         <p className="activity-employee">
                           {activity.descripcion || "Sin descripción"}
@@ -461,10 +316,29 @@ export default function Dashboard() {
                   ))}
                 </div>
                 {actividades.length > 4 && (
-                  <div className="view-all-activities-container">
+                  <div
+                    style={{
+                      marginTop: "1rem",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
                     <button
                       className="view-all-activities-btn"
                       onClick={() => setShowActivitiesModal(true)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        backgroundColor: "#22c55e",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "0.375rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
                     >
                       <Eye size={16} />
                       Ver todas las actividades
@@ -593,98 +467,56 @@ export default function Dashboard() {
         title="Historial de Actividades Completo"
         size="large"
       >
-        {/* Filtros */}
-        <div className="activities-filters">
-          <div className="filter-field">
-            <label>Usuario</label>
-            <input
-              type="text"
-              value={filterUsuario}
-              onChange={(e) => {
-                setFilterUsuario(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Filtrar por usuario"
-            />
-          </div>
-          <div className="filter-field">
-            <label>Fecha Desde</label>
-            <input
-              type="datetime-local"
-              value={filterFechaDesde}
-              onChange={(e) => {
-                setFilterFechaDesde(e.target.value);
-                setPage(0);
-              }}
-            />
-          </div>
-          <div className="filter-field">
-            <label>Fecha Hasta</label>
-            <input
-              type="datetime-local"
-              value={filterFechaHasta}
-              onChange={(e) => {
-                setFilterFechaHasta(e.target.value);
-                setPage(0);
-              }}
-            />
-          </div>
-          <div className="filter-field">
-            <label>Tipo</label>
-            <select
-              value={filterTipo}
-              onChange={(e) => {
-                setFilterTipo(e.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="">Todos los tipos</option>
-              <option value="ALTA_EMPLEADO">Alta Empleado</option>
-              <option value="BAJA_EMPLEADO">Baja Empleado</option>
-              <option value="EDIT_EMPLEADO">Editar Empleado</option>
-              <option value="LIQUIDAR">Liquidación</option>
-              <option value="PAGO">Pago</option>
-              <option value="EDIT_CONVENIO">Editar Convenio</option>
-            </select>
-          </div>
-          <button
-            className="filter-clear-btn"
-            onClick={() => {
-              setFilterUsuario('');
-              setFilterFechaDesde('');
-              setFilterFechaHasta('');
-              setFilterTipo('');
-              setPage(0);
-            }}
-          >
-            Limpiar
-          </button>
-        </div>
-
-        <div className="activities-modal-content">
+        <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
           {loadingActivities ? (
-            <div className="activities-loading">
+            <div style={{ padding: "20px", textAlign: "center" }}>
               <p>Cargando actividades...</p>
             </div>
-          ) : actividadesPaginadas.length === 0 ? (
-            <div className="activities-empty">
+          ) : actividades.length === 0 ? (
+            <div
+              style={{ padding: "20px", textAlign: "center", color: "#999" }}
+            >
               <p>No hay actividades registradas</p>
             </div>
           ) : (
-            <div className="activities-list">
-              {actividadesPaginadas.map((activity, idx) => (
+            <div style={{ paddingBottom: "16px" }}>
+              {actividades.map((activity, idx) => (
                 <div
                   key={activity.id || idx}
-                  className="activity-item-modal"
+                  style={{
+                    padding: "16px",
+                    borderBottom: "1px solid #e5e7eb",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "start",
+                  }}
                 >
-                  <div className="activity-content-wrapper">
-                    <p className="activity-title">
+                  <div style={{ flex: 1 }}>
+                    <p
+                      style={{
+                        margin: "0 0 4px 0",
+                        fontWeight: "600",
+                        color: "#1f2937",
+                      }}
+                    >
                       {getReferenciaLabel(activity.referenciaTipo)}
                     </p>
-                    <p className="activity-description">
+                    <p
+                      style={{
+                        margin: "0 0 8px 0",
+                        fontSize: "14px",
+                        color: "#6b7280",
+                      }}
+                    >
                       {activity.descripcion}
                     </p>
-                    <p className="activity-meta">
+                    <p
+                      style={{
+                        margin: "0",
+                        fontSize: "12px",
+                        color: "#9ca3af",
+                      }}
+                    >
                       <strong>{activity.usuario}</strong> •{" "}
                       {formatFecha(activity.fecha)}
                     </p>
