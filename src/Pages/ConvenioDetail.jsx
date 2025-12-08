@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus } from 'lucide-react';
-import { Modal, ModalFooter } from '../Components/Modal/Modal';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
-import { ConfirmDialog } from '../Components/ConfirmDialog/ConfirmDialog';
 import '../styles/components/_convenioDetail.scss';
 import * as api from '../services/empleadosAPI'
 
@@ -148,13 +146,6 @@ export default function ConvenioDetail() {
     return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  // Formatea número para edición sin puntos (100000.00 => 100000,00)
-  const formatNumberForEdit = (value) => {
-    const num = Number(value) || 0;
-    // Formatear sin separadores de miles, solo con coma decimal
-    return num.toFixed(2).replace('.', ',');
-  };
-
   const buildUocraPayload = (editableData, convenio) => {
     const rows = editableData?.salaryTable?.uocra?.rows ?? [];
     const zonas = convenio?.zonas ?? [];
@@ -220,12 +211,12 @@ export default function ConvenioDetail() {
         const norm = normalizeConvenioDetail(raw, controller);
         setConvenio(norm);
         // Usar una copia profunda para que `editableData` no comparta referencias con `convenio`
-        // Convertir a formato sin puntos para edición (000000,00)
+        // Convertir a formato moneda para display durante edición
         const cloned = JSON.parse(JSON.stringify(norm));
         if (Array.isArray(cloned.salaryTable?.categories)) {
           cloned.salaryTable.categories = cloned.salaryTable.categories.map(c => ({
             ...c,
-            basicSalary: formatNumberForEdit(c.basicSalary)
+            basicSalary: formatNumberToDisplay(c.basicSalary)
           }));
         }
         if (cloned.salaryTable?.uocra?.rows) {
@@ -233,7 +224,7 @@ export default function ConvenioDetail() {
             const formatted = { ...r };
             cloned.salaryTable.uocra.headers?.forEach(h => {
               if (r[h.key] != null) {
-                formatted[h.key] = formatNumberForEdit(r[h.key]);
+                formatted[h.key] = formatNumberToDisplay(r[h.key]);
               }
             });
             return formatted;
@@ -241,7 +232,7 @@ export default function ConvenioDetail() {
         }
         setEditableData(cloned);
     } catch (error) {
-        notify.error(error);
+        notify.error('Error cargando convenio:', error);
   }
     };
 
@@ -250,7 +241,7 @@ export default function ConvenioDetail() {
         const data = await api.getEmployees();
         setEmployees(data || []);
       } catch (error) {
-        notify.error(error);
+        notify.error('Error cargando empleados:', error);
       }
     };
 
@@ -330,53 +321,52 @@ export default function ConvenioDetail() {
         console.warn('Error al registrar actividad:', actividadError);
       }
       
-      // Convertir los básicos a número antes de actualizar el estado `convenio`
-      const saved = JSON.parse(JSON.stringify(editableData || {}));
-      if (Array.isArray(saved.salaryTable?.categories)) {
-        saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
-          ...c,
-          basicSalary: parseNumberFromDisplay(c.basicSalary)
-        }));
-      }
-      if (saved.salaryTable?.uocra?.rows) {
-        saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
-          const parsed = { ...r };
-          saved.salaryTable.uocra.headers?.forEach(h => {
-            if (r[h.key] != null) {
-              parsed[h.key] = parseNumberFromDisplay(r[h.key]);
-            }
-          });
-          return parsed;
+    // Convertir los básicos a número antes de actualizar el estado `convenio`
+    const saved = JSON.parse(JSON.stringify(editableData || {}));
+    if (Array.isArray(saved.salaryTable?.categories)) {
+      saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
+        ...c,
+        basicSalary: parseNumberFromDisplay(c.basicSalary)
+      }));
+    }
+    if (saved.salaryTable?.uocra?.rows) {
+      saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
+        const parsed = { ...r };
+        saved.salaryTable.uocra.headers?.forEach(h => {
+          if (r[h.key] != null) {
+            parsed[h.key] = parseNumberFromDisplay(r[h.key]);
+          }
         });
-      }
+        return parsed;
+      });
+    }
 
       setConvenio(saved);
       setIsEditing(false);
 
-      // Mantener editableData con formato sin puntos para seguir editando
-      const editClone = JSON.parse(JSON.stringify(saved));
-      if (Array.isArray(editClone.salaryTable?.categories)) {
-        editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
-          ...c,
-          basicSalary: formatNumberForEdit(c.basicSalary)
-        }));
-      }
-      if (editClone.salaryTable?.uocra?.rows) {
-        editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
-          const formatted = { ...r };
-          editClone.salaryTable.uocra.headers?.forEach(h => {
-            if (r[h.key] != null) {
-              formatted[h.key] = formatNumberForEdit(r[h.key]);
-            }
-          });
-          return formatted;
+    // Mantener editableData con formato moneda para seguir editando
+    const editClone = JSON.parse(JSON.stringify(saved));
+    if (Array.isArray(editClone.salaryTable?.categories)) {
+      editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
+        ...c,
+        basicSalary: formatNumberToDisplay(c.basicSalary)
+      }));
+    }
+    if (editClone.salaryTable?.uocra?.rows) {
+      editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
+        const formatted = { ...r };
+        editClone.salaryTable.uocra.headers?.forEach(h => {
+          if (r[h.key] != null) {
+            formatted[h.key] = formatNumberToDisplay(r[h.key]);
+          }
         });
-      }
-      setEditableData(editClone);
-      notify.success('Convenio actualizado exitosamente');
+        return formatted;
+      });
+    }
+    setEditableData(editClone);
+    notify.showNotification('Convenio actualizado exitosamente', 'success');
     } catch (error) {
-      console.error('Error guardando convenio:', error);
-      notify.error(error);
+      notify.error('Error guardando convenio:', error);
     }
   };
 
@@ -403,12 +393,12 @@ export default function ConvenioDetail() {
   };
 
   const handleCancel = () => {
-    // Restaurar desde `convenio` y convertir a formato sin puntos para edición
+    // Restaurar desde `convenio` y convertir a formato moneda
     const clone = JSON.parse(JSON.stringify(convenio));
     if (Array.isArray(clone.salaryTable?.categories)) {
       clone.salaryTable.categories = clone.salaryTable.categories.map(c => ({
         ...c,
-        basicSalary: formatNumberForEdit(c.basicSalary)
+        basicSalary: formatNumberToDisplay(c.basicSalary)
       }));
     }
     if (clone.salaryTable?.uocra?.rows) {
@@ -416,7 +406,7 @@ export default function ConvenioDetail() {
         const formatted = { ...r };
         clone.salaryTable.uocra.headers?.forEach(h => {
           if (r[h.key] != null) {
-            formatted[h.key] = formatNumberForEdit(r[h.key]);
+            formatted[h.key] = formatNumberToDisplay(r[h.key]);
           }
         });
         return formatted;
@@ -912,7 +902,7 @@ export default function ConvenioDetail() {
                           placeholder="0,00"
                         />
                       ) : (
-                        formatCurrencyAR(Number(row.basicSalary) || 0)
+                        formatNumberToDisplay(row.basicSalary ?? 0)
                       )}
                     </td>
 
@@ -1107,7 +1097,7 @@ export default function ConvenioDetail() {
                             placeholder="0,00"
                           />
                         ) : (
-                          formatCurrencyAR(Number(r[h.key]) || 0)
+                          formatNumberToDisplay(r[h.key])
                         )}
                       </td>
                     ))}
