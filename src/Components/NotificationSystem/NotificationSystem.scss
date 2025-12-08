@@ -12,7 +12,6 @@
   max-width: 420px;
   width: calc(100% - #{$spacing-8});
   align-items: flex-end;
-  margin-bottom: $spacing-4;
 
   @media (max-width: 480px) {
     bottom: $spacing-2 !important;
