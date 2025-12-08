@@ -752,26 +752,9 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         <div className={'action-buttons'}>
           <button
             className={`${'action-btn'} ${'primary'}`}
-            onClick={() => {
-              if (onEditEmployee) {
-                onEditEmployee(employee);
-              }
-            }}
-            disabled={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
-            title={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
-          >
-            <Edit className="btn-icon" />
-            Editar Empleado
-          </button>
-          <button
-            className={`${'action-btn'} ${'primary'}`}
-            onClick={() => {
-              if (onLiquidarSueldo) {
-                onLiquidarSueldo(employee);
-              }
-            }}
-            disabled={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
-            title={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
+            onClick={() => onLiquidarSueldo && onLiquidarSueldo(employee)}
+            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >
             <DollarSign className="btn-icon" />
             Liquidar Sueldo
