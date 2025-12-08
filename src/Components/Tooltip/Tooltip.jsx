@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './Tooltip.scss';
+import '../ToolTip/ToolTip.scss';
 
 export function Tooltip({ children, content, position = 'top', delay = 300 }) {
   const [isVisible, setIsVisible] = useState(false);

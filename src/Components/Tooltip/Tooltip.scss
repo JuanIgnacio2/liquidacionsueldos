@@ -1,4 +1,4 @@
-@import '../../main.scss';
+@import '../../styles/main.scss';
 
 .tooltip-container {
   position: relative;
@@ -144,6 +144,21 @@
       background-color: rgba(239, 68, 68, 0.1);
       color: $color-danger;
     }
+  }
+
+  &.activate-action {
+    &:hover {
+      background-color: rgba(34, 197, 94, 0.1);
+      color: $color-success;
+    }
+  }
+
+  &:disabled{
+    background-color: $color-gray-100;
+    color: $color-gray-400;
+    cursor: not-allowed;
+    transform: none;
+    pointer-events: none;
   }
 
   .action-icon {
