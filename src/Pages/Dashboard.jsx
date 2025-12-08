@@ -148,7 +148,7 @@ export default function Dashboard() {
 
   const stats = [
     {
-      title: "Empleados Activos",
+      title: "Total Empleados Activos",
       value:
         dashboardStats?.cantidadEmpleados ?? activeEmployees ?? "Cargando...",
       icon: Users,
@@ -161,6 +161,23 @@ export default function Dashboard() {
       colorClass: "warning",
     },
     {
+      title: "Liquidaciones Procesadas",
+      value: dashboardStats?.cantidadLiquidacionesHechas ?? "Cargando...",
+      icon: TrendingUp,
+      colorClass: "primary",
+    },
+    {
+      title: "Total Neto",
+      value: dashboardStats?.totalNetoMes
+        ? `$${Number(dashboardStats.totalNetoMes).toLocaleString("es-AR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : "Cargando...",
+      icon: DollarSign,
+      colorClass: "primary",
+    },
+    {
       title: "Total Bruto",
       value: dashboardStats?.totalBrutoMes
         ? `$${Number(dashboardStats.totalBrutoMes).toLocaleString("es-AR", {
@@ -170,7 +187,7 @@ export default function Dashboard() {
         : "Cargando...",
       icon: DollarSign,
       colorClass: "primary",
-    }
+    },
   ];
 
   // Obtener las últimas 4 actividades
@@ -213,11 +230,11 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <StatsGrid
         className="stats-overview"
-        stats={stats.map(s => ({
+        stats={stats.map((s) => ({
           icon: s.icon,
           value: s.value,
           label: s.title,
-          colorClass: s.colorClass
+          colorClass: s.colorClass,
         }))}
       />
 
