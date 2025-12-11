@@ -288,6 +288,17 @@ export default function ConvenioDetail() {
       ? n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 })
       : '';
 
+  // Formatea un número para mostrarlo en el input (exactamente igual al formato del texto)
+  const formatNumberForInput = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '.')) : value;
+    if (isNaN(num)) return String(value);
+    // Formatear exactamente igual que formatCurrencyAR pero sin el símbolo $
+    // formatCurrencyAR muestra: "$ 598.567,91"
+    // Mostramos: "598.567,91" (mismo formato numérico)
+    return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   // bonifMap: clave `${idCategoria}|${Area}` => porcentaje (number)
   const buildBonifMap = (list) => {
     const map = {};
@@ -325,52 +336,59 @@ export default function ConvenioDetail() {
       {/* Header */}
       <div className="detail-header">
         <div className="header-content">
-          <div className="header-info">
-            <h1 className="detail-title">{currentData.name}</h1>
-            <div className="header-meta">
-              <div className="meta-item">
-                <Users className="meta-icon" />
-                <span>{getEmployeeCountByController()} empleados</span>
+          <div className="header-left">
+            <div className="header-info">
+              <div className="header-title-row">
+                <button 
+                  className="back-button" 
+                  onClick={handleGoBack}
+                >
+                  <ArrowLeft size={18} />
+                  Volver
+                </button>
+                <h1 className="detail-title">{currentData.name}</h1>
               </div>
               {currentData.validTo && (
-                <div className="meta-item">
-                  <Calendar className="meta-icon" />
-                  <span>Vigente hasta</span>
+                <div className="header-meta">
+                  <div className="meta-item">
+                    <Calendar className="meta-icon" />
+                    <span>Vigente hasta</span>
+                  </div>
                 </div>
               )}
-              <div className={`status-badge ${currentData.status.toLowerCase()}`}>
-                {currentData.status}
-              </div>
             </div>
           </div>
 
           <div className="header-actions">
-            <div className="header-actions-top">
-              <Button variant="back" icon={ArrowLeft} iconPosition="left" onClick={handleGoBack} />
+            <div className="header-actions-buttons">
+              {isEditing ? (
+                <>
+                  <Button variant="save" icon={Save} iconPosition="left" onClick={handleSave}>
+                    Guardar
+                  </Button>
+                  <Button variant="cancel" icon={X} iconPosition="left" onClick={handleCancel}>
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="edit" icon={Edit} iconPosition="left" onClick={handleEdit}>
+                    Editar
+                  </Button>
+                  <Button variant="download" icon={Download} iconPosition="left" onClick={handleDownload}>
+                    Descargar
+                  </Button>
+                  <Button variant="print" icon={Printer} iconPosition="left" onClick={handleDownload}>
+                    Imprimir
+                  </Button>
+                </>
+              )}
             </div>
-            <div className="header-actions-bottom">
-            {isEditing ? (
-              <>
-                <Button variant="save" icon={Save} iconPosition="left" onClick={handleSave}>
-                  Guardar
-                </Button>
-                <Button variant="cancel" icon={X} iconPosition="left" onClick={handleCancel}>
-                  Cancelar
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="edit" icon={Edit} iconPosition="left" onClick={handleEdit}>
-                  Editar
-                </Button>
-                <Button variant="download" icon={Download} iconPosition="left" onClick={handleDownload}>
-                  Descargar
-                </Button>
-                <Button variant="print" icon={Printer} iconPosition="left" onClick={handleDownload}>
-                  Imprimir
-                </Button>
-              </>
-            )}
+            <div className="header-actions-meta">
+              <div className="meta-item">
+                <Users className="meta-icon" />
+                <span>{getEmployeeCountByController()} empleados</span>
+              </div>
             </div>
           </div>
         </div>
@@ -450,7 +468,7 @@ export default function ConvenioDetail() {
                         <input
                           type="text"
                           className="salary-input"
-                          value={row.basicSalary ?? 0}
+                          value={formatNumberForInput(row.basicSalary)}
                           onChange={(e) => onEditBasic(row.idCategoria ?? idx, e.target.value)}
                         />
                       ) : (
@@ -588,7 +606,7 @@ export default function ConvenioDetail() {
                           <input
                             type="text"
                             className="salary-input"
-                            value={r[h.key] ?? ''}
+                            value={formatNumberForInput(r[h.key])}
                             onChange={(e) => updateUOCRAValue(rowIdx, h.key, e.target.value)}
                           />
                         ) : (

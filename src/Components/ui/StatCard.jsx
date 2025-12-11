@@ -21,12 +21,6 @@ export const StatCard = ({
   return (
     <motion.div
       className={`card stat-card ${className}`}
-      whileHover={{
-        scale: 1.05,
-        y: -5,
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-        transition: { duration: 0.2 }
-      }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}

@@ -94,29 +94,6 @@
     }
   }
 
-  // Indicador visual cuando está fijado
-  &.pinned {
-    .sidebar-header {
-      .header-content {
-        .toggle-btn {
-          position: relative;
-
-          &::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 4px;
-            height: 4px;
-            background: $color-yellow-primary;
-            border-radius: 50%;
-            box-shadow: 0 0 6px $color-yellow-primary;
-          }
-        }
-      }
-    }
-  }
 
   .sidebar-nav {
     flex: 1;

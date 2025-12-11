@@ -702,7 +702,7 @@
       }
 
       .totals-summary {
-        margin-bottom: $spacing-6;
+        margin: $spacing-6 0;
         width: 100%;
 
         .totals-grid {
@@ -714,6 +714,7 @@
           align-items: stretch;
 
           @media (max-width: 768px) {
+            flex-direction: column !important;
             gap: $spacing-2;
           }
 
@@ -732,49 +733,54 @@
             min-width: 0 !important;
             max-width: none !important;
             width: auto !important;
-            padding: $spacing-3 $spacing-3;
-            background-color: $color-white;
-            border: 1px solid $color-gray-200;
-            border-radius: $border-radius;
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.2), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            padding: $spacing-4 $spacing-3 !important;
+            background-color: $color-white !important;
+            border: 1px solid $color-gray-200 !important;
+            border-radius: $border-radius !important;
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.2), 0 1px 2px -1px rgba(0, 0, 0, 0.1) !important;
             transition: all 0.3s ease;
+            font-family: inherit !important;
             cursor: default;
+            margin: 0 !important;
 
             &:hover {
-              box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+              box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
               transform: translateY(-2px);
             }
 
             .stat-label {
-              font-size: $font-size-xs;
-              color: $color-gray-600;
-              font-weight: 500;
-              margin: 0 0 $spacing-1 0;
-              text-transform: uppercase;
-              letter-spacing: 0.3px;
-              line-height: 1.2;
+              font-size: $font-size-xs !important;
+              color: $color-gray-600 !important;
+              font-weight: 500 !important;
+              margin: 0 0 $spacing-1 0 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
             }
 
             .stat-value {
-              font-size: $font-size-lg;
-              font-weight: 700;
-              line-height: 1.2;
-              margin: 0;
+              font-size: $font-size-xl !important;
+              font-weight: 700 !important;
+              margin: 0 !important;
+              line-height: 1.2 !important;
 
               &.primary {
-                color: $color-green-primary;
+                color: $color-green-primary !important;
               }
 
               &.success {
-                color: $color-success;
+                color: $color-green-primary !important;
               }
 
               &.warning {
-                color: $color-warning;
+                color: $color-warning !important;
+              }
+
+              &.error {
+                color: $color-danger !important;
               }
 
               &.default {
-                color: $color-gray-700;
+                color: $color-gray-700 !important;
               }
             }
           }
@@ -785,6 +791,90 @@
 
   // Receipt Preview Section
   .receipt-preview {
+    .totals-summary {
+      margin: $spacing-6 0;
+      width: 100%;
+
+      .totals-grid {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: $spacing-4;
+        width: 100%;
+        align-items: stretch;
+
+        @media (max-width: 768px) {
+          flex-direction: column !important;
+          gap: $spacing-2;
+        }
+
+        > * {
+          flex: 1 1 0 !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          width: auto !important;
+        }
+
+        .stat-card,
+        .card.stat-card {
+          display: flex !important;
+          flex-direction: column !important;
+          flex: 1 1 0 !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          width: auto !important;
+          padding: $spacing-4 $spacing-3;
+          background-color: $color-white;
+          border: 1px solid $color-gray-200;
+          border-radius: $border-radius;
+          box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.2), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
+          font-family: inherit !important;
+
+          &:hover {
+            box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+          }
+
+          .stat-label {
+            font-size: $font-size-xs;
+            color: $color-gray-600;
+            font-weight: 500;
+            margin: 0 0 $spacing-1 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .stat-value {
+            font-size: $font-size-xl;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1.2;
+
+            &.primary {
+              color: $color-green-primary;
+            }
+
+            &.success {
+              color: $color-green-primary;
+            }
+
+            &.warning {
+              color: $color-warning;
+            }
+
+            &.error {
+              color: $color-danger;
+            }
+
+            &.default {
+              color: $color-gray-700;
+            }
+          }
+        }
+      }
+    }
+
     .receipt-container {
       position: relative;
       background: $color-white;

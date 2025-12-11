@@ -36,55 +36,18 @@ const navItems = [
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(true); // Inicia colapsado
-  const [pinned, setPinned] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const location = useLocation();
 
-  // Determinar si el sidebar debe estar expandido
-  // Si está fijado: usa el estado collapsed directamente
-  // Si no está fijado: se expande con hover si está colapsado, o se mantiene expandido si no está colapsado
-  const isExpanded = pinned ? !collapsed : (collapsed ? hovered : !collapsed);
+  // El sidebar está expandido cuando no está colapsado
+  const isExpanded = !collapsed;
 
-  const handleToggle = (e) => {
-    e.stopPropagation(); // Evitar que el hover interfiera
-    // Si no está fijado, fijar en el estado actual (expandido o colapsado según isExpanded)
-    // Si ya está fijado, desfijar para volver al comportamiento de hover
-    if (!pinned) {
-      // Fijar en el estado actual visible
-      // Si está expandido por hover, fijar expandido; si está colapsado, fijar colapsado
-      setCollapsed(!isExpanded);
-      setPinned(true);
-      setHovered(false); // Limpiar hover al fijar
-    } else {
-      // Si ya está fijado, desfijar para volver al comportamiento de hover
-      // Volver al estado colapsado por defecto cuando se desfija
-      setPinned(false);
-      setCollapsed(true);
-      setHovered(false);
-    }
-  };
-
-  const handleMouseEnter = () => {
-    if (!pinned) {
-      // Si no está fijado, expandir con hover
-      setHovered(true);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (!pinned) {
-      // Si no está fijado, volver al estado colapsado al salir
-      setHovered(false);
-      // Asegurar que vuelva al estado colapsado cuando no está fijado
-      setCollapsed(true);
-    }
+  const handleToggle = () => {
+    setCollapsed(!collapsed);
   };
 
   return (
     <div 
-      className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'} ${pinned ? 'pinned' : ''}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'}`}
     >
       {/* Header */}
       <div className={`sidebar-header ${!isExpanded ? 'collapsed' : ''}`}>
@@ -101,7 +64,7 @@ export default function Sidebar() {
           <button
             onClick={handleToggle}
             className="toggle-btn"
-            title={pinned ? 'Desfijar (volver a hover)' : (isExpanded ? 'Fijar expandido' : 'Fijar colapsado')}
+            title={isExpanded ? 'Colapsar sidebar' : 'Expandir sidebar'}
           >
             {isExpanded ? (
               <ChevronLeft className="toggle-icon" />

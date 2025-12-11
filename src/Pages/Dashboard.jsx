@@ -220,7 +220,7 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="card quick-actions">
           <div className="card-header quick-actions-header">
-            <h2 className="card-title">Acciones Rápidas</h2>
+            <h2 className="card-title section-title-effect">Acciones Rápidas</h2>
           </div>
           <div className="card-content">
             <div className="actions-list">
@@ -243,7 +243,7 @@ export default function Dashboard() {
                 Agregar Empleado
               </Button>
               <Button 
-                variant="gray"
+                variant="primary"
                 icon={TrendingUp}
                 iconPosition="left"
                 fullWidth
@@ -252,7 +252,7 @@ export default function Dashboard() {
                 Estadísticas
               </Button>
               <Button 
-                variant="gray"
+                variant="primary"
                 icon={FileText}
                 iconPosition="left"
                 fullWidth

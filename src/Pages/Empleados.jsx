@@ -199,6 +199,22 @@ export default function Empleados() {
     }
   };
 
+  // Si está cargando, mostrar solo el header y el spinner bloqueando toda la vista
+  if (loading) {
+    return (
+      <div className="empleados">
+        <div className="empleados-header">
+          <div className="header-content">
+            <h1 className="title title-gradient animated-title">
+              Gestión de Empleados
+            </h1>
+          </div>
+        </div>
+        <LoadingSpinner message="Cargando empleados..." size="lg" className="list-loading" />
+      </div>
+    );
+  }
+
   return (
     <div className="empleados">
       {/* Header */}
@@ -359,9 +375,7 @@ export default function Empleados() {
         </div>
         <div className="card-content employees-content">
           <div className="employees-table">
-            {loading ? (
-              <LoadingSpinner message="Cargando empleados..." size="md" className="list-loading" />
-            ) : error ? (
+            {error ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
                 <p>Error: {error}</p>
               </div>

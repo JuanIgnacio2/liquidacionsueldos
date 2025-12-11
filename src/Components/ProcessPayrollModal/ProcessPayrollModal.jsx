@@ -829,29 +829,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </tbody>
             </table>
 
-            {/* SECCIÓN DE TOTALES */}
-            <div className="totals-section">
-              <div className="totals-info">
-                <div className="total-row">
-                  <span className="label">LUGAR Y FECHA DE PAGO</span>
-                  <span className="value">{new Date().toLocaleDateString('es-ES')}</span>
-                </div>
-                <div className="total-row">
-                  <span className="label">Total Remuneraciones</span>
-                  <span className="value positive">{formatCurrencyAR(remunerations)}</span>
-                </div>
-                <div className="total-row">
-                  <span className="label">Total Descuentos</span>
-                  <span className="value negative">{formatCurrencyAR(deductions)}</span>
-                </div>
-              </div>
-
-              <div className="totals-highlight">
-                <span className="amount-label">Total Neto</span>
-                <span className="amount-value">{formatCurrencyAR(netAmount)}</span>
-              </div>
-            </div>
-
             {/* DETALLES DE PAGO */}
             <div className="payment-details">
               <div className="detail-item">

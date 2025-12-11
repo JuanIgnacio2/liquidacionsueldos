@@ -1,40 +1,112 @@
 @import '../main.scss';
 
 .quick-actions {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+
+  .quick-actions-header {
+    padding: $spacing-2 $spacing-4;
+    padding-bottom: $spacing-1;
+    display: flex;
+    justify-content: flex-start;
+    
+    .card-title {
+      font-size: calc(#{$font-size-base} - 5px);
+      margin-bottom: 0;
+      text-align: left;
+    }
+  }
+
+  .card-content {
+    padding: $spacing-1 $spacing-3;
+  }
+
   .actions-list {
     display: flex;
     flex-direction: column;
     gap: $spacing-3;
 
+    // Estilos para los botones dentro de actions-list
+    .btn {
+      padding: $spacing-3 $spacing-4;
+      min-height: 48px;
+    }
+
     .action-btn {
       width: 100%;
       display: flex;
       align-items: center;
-      gap: $spacing-3;
-      padding: $spacing-3 $spacing-4;
-      border: 1px solid $color-green-primary;
-      border-radius: $border-radius-lg;
+      justify-content: center;
+      gap: 0.25rem;
+      padding: $spacing-3;
+      border: 1px solid;
+      border-radius: $border-radius-sm;
       background: transparent;
       cursor: pointer;
       transition: all 0.15s ease;
       text-decoration: none;
       font-weight: 500;
-      color: $color-green-primary;
-      text-align: left;
+      text-align: center;
 
-      &:hover {
-        background-color: $color-green-primary;
-        color: $color-white;
+      span {
+        display: inline-block;
       }
 
       .action-icon {
-        width: 1.25rem;
-        height: 1.25rem;
         flex-shrink: 0;
       }
 
-      span {
-        flex: 1;
+      &.primary {
+        border-color: $color-green-primary;
+        color: $color-green-primary;
+
+        &:hover {
+          background-color: $color-green-primary;
+          color: $color-white;
+        }
+      }
+
+      &.success {
+        border-color: $color-success;
+        color: $color-success;
+
+        &:hover {
+          background-color: $color-success;
+          color: $color-white;
+        }
+      }
+
+      &.warning {
+        border-color: $color-warning;
+        color: $color-warning;
+
+        &:hover {
+          background-color: $color-warning;
+          color: $color-gray-900;
+        }
+      }
+
+      &.secondary {
+        border-color: $color-gray-300;
+        color: $color-gray-700;
+
+        &:hover {
+          background-color: $color-gray-100;
+        }
+      }
+
+      &.gray {
+        border-color: $color-gray-400;
+        color: $color-green-primary;
+
+        &:hover {
+          background-color: $color-gray-100;
+          color: $color-green-primary;
+        }
+      }
+
+      .action-icon {
+        width: 1rem;
+        height: 1rem;
       }
     }
   }

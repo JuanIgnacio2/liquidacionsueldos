@@ -216,7 +216,13 @@
       .actions-list {
         display: flex;
         flex-direction: column;
-        gap: $spacing-1;
+        gap: $spacing-3;
+
+        // Estilos para los botones dentro de actions-list
+        .btn {
+          padding: $spacing-3 $spacing-4;
+          min-height: 48px;
+        }
 
         .action-btn {
           width: 100%;
