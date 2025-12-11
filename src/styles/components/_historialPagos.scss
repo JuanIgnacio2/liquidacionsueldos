@@ -3,21 +3,21 @@
 .placeholder-page {
 	padding: 1.5rem;
 
-    .back-button {
-        width: fit-content;
-        display: flex;
-        align-items: center; 
-        gap: 0.5rem;
-        padding: 0.5rem 1rem; 
-        margin-bottom: 1rem;
-        border: none;
-        background: var(--primary-color, #22c55e);
-        color: white;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        font-size: 0.875rem;
-        font-weight: 500
-    }
+	.back-button {
+		width: fit-content;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 1rem;
+		margin-bottom: 1rem;
+		border: none;
+		background: var(--primary-color, #22c55e);
+		color: white;
+		border-radius: 0.5rem;
+		cursor: pointer;
+		font-size: 0.875rem;
+		font-weight: 500
+	}
 
 	.page-header {
 		display: flex;
@@ -52,6 +52,7 @@
 
 		.stat-card {
 			flex: 1 1 0;
+
 			.stat-content {
 				display: flex;
 				align-items: center;
@@ -121,12 +122,12 @@
 
 					&:hover {
 						transform: translateY(-2px);
-						box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+						box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
 					}
 
 					.employee-grid {
 						display: grid;
-						grid-template-columns: 2.5fr 2fr 1.5fr 1fr;
+						grid-template-columns: 2.5fr 2fr 1.5fr 1fr auto;
 						gap: $spacing-4;
 						align-items: center;
 						width: 100%;
@@ -135,19 +136,45 @@
 							grid-template-columns: 1fr;
 						}
 
+						.employee-actions {
+							justify-self: end;
+							display: flex;
+							justify-content: flex-end;
+						}
+
 						.employee-info {
-							.employee-name { font-weight: 700; color: $color-gray-900; }
-							.employee-email { font-size: $font-size-sm; color: $color-gray-500; }
+							.employee-name {
+								font-weight: 700;
+								color: $color-gray-900;
+							}
+
+							.employee-email {
+								font-size: $font-size-sm;
+								color: $color-gray-500;
+							}
 						}
 
 						.employee-position {
-							.position-title { font-weight: 600; }
-							.department { font-size: $font-size-sm; color: $color-gray-500; }
+							.position-title {
+								font-weight: 600;
+							}
+
+							.department {
+								font-size: $font-size-sm;
+								color: $color-gray-500;
+							}
 						}
 
 						.employee-salary {
-							.salary-amount { font-weight: 700; color: $color-success; }
-							.hire-date { font-size: $font-size-sm; color: $color-gray-500; }
+							.salary-amount {
+								font-weight: 700;
+								color: $color-success;
+							}
+
+							.hire-date {
+								font-size: $font-size-sm;
+								color: $color-gray-500;
+							}
 						}
 
 						.employee-status {
@@ -178,7 +205,10 @@
 							color: $color-gray-500;
 							cursor: pointer;
 
-							&:hover { transform: scale(1.05); color: $color-green-primary; }
+							&:hover {
+								transform: scale(1.05);
+								color: $color-green-primary;
+							}
 						}
 					}
 				}
@@ -194,4 +224,7 @@
 }
 
 /* pequeñas utilidades para asegurar buena legibilidad */
-.results-count { display: block; margin-top: 0.25rem; }
+.results-count {
+	display: block;
+	margin-top: 0.25rem;
+}
