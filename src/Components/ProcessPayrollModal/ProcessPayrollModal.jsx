@@ -5,7 +5,7 @@ import './ProcessPayrollModal.scss';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { Button } from '../ui/button';
-import { StatCard } from '../ui/StatCard';
+import { PayrollSummaryCards } from './PayrollSummaryCards';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -29,7 +29,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [periodo, setPeriodo] = useState(
-    new Date().toISOString().slice(0,7)
+    new Date().toISOString().slice(0, 7)
   );
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
@@ -67,7 +67,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (parts.length >= 2) {
       const year = parts[0];
       const month = Number(parts[1]);
-      const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const mName = months[Math.max(0, Math.min(11, month - 1))] || parts[1];
       return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${year}`;
     }
@@ -76,9 +76,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const calcTotal = (lista) =>
     lista.reduce(
-    (s, c) => s + (c.tipo === 'DESCUENTO' ? -c.total : c.total),
-    0
-  );
+      (s, c) => s + (c.tipo === 'DESCUENTO' ? -c.total : c.total),
+      0
+    );
 
   // Seleccionar empleado
   const handleSelectEmployee = async (employee) => {
@@ -151,19 +151,19 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       /* Conceptos precargados en base de datos */
       const conceptosAsignados = await api.getConceptosAsignados(employee.legajo);
-      
+
       // Cargar bonificaciones fijas según el gremio del empleado
       let bonificacionesFijas = [];
       const gremioUpper = gremio;
       const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
       const isUocra = gremioUpper === 'UOCRA';
-      
+
       if (isLuzYFuerza) {
         bonificacionesFijas = await api.getConceptosLyF();
       } else if (isUocra) {
         bonificacionesFijas = await api.getConceptosUocra();
       }
-      
+
       const descuentos = await api.getDescuentos();
       setDescuentosData(descuentos); // Guardar descuentos para uso posterior
 
@@ -182,7 +182,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const bonificacionesMapped = conceptosAsignados
         .filter(asignado => asignado.tipoConcepto === 'CONCEPTO_LYF' || asignado.tipoConcepto === 'CONCEPTO_UOCRA')
         .map((asignado) => {
-          const concepto = bonificacionesFijas.find(b => 
+          const concepto = bonificacionesFijas.find(b =>
             (b.idBonificacion ?? b.id) === asignado.idReferencia
           );
 
@@ -209,7 +209,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         .filter(Boolean);
 
       // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
-      const totalRemuneraciones = basicoValue + 
+      const totalRemuneraciones = basicoValue +
         bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0) +
         bonificacionesMapped.reduce((sum, b) => sum + (b.total || 0), 0);
 
@@ -217,7 +217,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const descuentosMapped = conceptosAsignados
         .filter(asignado => asignado.tipoConcepto === 'DESCUENTO')
         .map((asignado) => {
-          const concepto = descuentos.find(d => 
+          const concepto = descuentos.find(d =>
             (d.idDescuento ?? d.id) === asignado.idReferencia
           );
 
@@ -240,7 +240,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       /* Lista final de conceptos */
       // Para UOCRA, no incluir el concepto básico en la lista
-      const lista = isUocra 
+      const lista = isUocra
         ? [...bonificacionesMapped, ...descuentosMapped]
         : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
 
@@ -275,7 +275,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   // Actualizar cantidad de un concepto
   const handleQtyChange = (conceptId, nuevaCantidad) => {
     const cantidad = Number(nuevaCantidad) || 0;
-    
+
     // Primero actualizar el concepto modificado
     const nuevos = conceptos.map(concept => {
       if (concept.id === conceptId) {
@@ -287,7 +287,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return concept;
     });
-    
+
     // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     const totalRemuneraciones = basicoEmpleado + nuevos
@@ -298,7 +298,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         }
         return sum + (c.total || 0);
       }, 0);
-    
+
     // Recalcular descuentos basados en el nuevo total de remuneraciones
     const nuevosConDescuentos = nuevos.map(concept => {
       if (concept.tipo === 'DESCUENTO') {
@@ -312,7 +312,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return concept;
     });
-    
+
     setConceptos(nuevosConDescuentos);
     setTotal(calcTotal(nuevosConDescuentos));
   };
@@ -358,7 +358,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const calculateTotals = () => {
     // Incluir el básico del empleado si es UOCRA (no está en conceptos)
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
-    
+
     const remunerations = basicoEmpleado + conceptos
       .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA')
       .reduce((sum, c) => sum + (c.total || 0), 0);
@@ -396,11 +396,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       // Notificación de éxito
       notify.success(`Liquidación realizada exitosamente para el período ${periodo}`);
-      
+
       setCurrentStep('preview');
     } catch (error) {
       notify.error('Error al liquidar sueldo:', error);
-      
+
       // Manejar error 409 (período ya liquidado)
       if (error.response?.status === 409) {
         notify.error(
@@ -458,8 +458,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       onClose={resetModal}
       title={
         currentStep === 'search' ? 'Seleccionar Empleado' :
-        currentStep === 'payroll' ? 'Configurar Liquidación' :
-        'Vista Previa del Recibo'
+          currentStep === 'payroll' ? 'Configurar Liquidación' :
+            'Vista Previa del Recibo'
       }
       size={currentStep === 'search' ? 'xlarge' : 'large'}
       className={`process-payroll-modal ${currentStep === 'search' ? 'search-step' : ''} ${currentStep === 'payroll' ? 'payroll-step' : ''}`}
@@ -492,8 +492,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </thead>
                   <tbody>
                     {filteredEmployees.map(employee => (
-                      <tr 
-                        key={employee.legajo} 
+                      <tr
+                        key={employee.legajo}
                         className="employee-row"
                       >
                         <td className="employee-cell">
@@ -509,7 +509,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         </td>
                         <td className="action-cell">
-                          <Button 
+                          <Button
                             variant="liquidar"
                             onClick={() => handleSelectEmployee(employee)}
                           >
@@ -649,10 +649,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
-                      <span className="amount positive">
-                        {formatCurrencyAR(concept.montoUnitario || 0)}
-                      </span>
-                    )}
+                        <span className="amount positive">
+                          {formatCurrencyAR(concept.montoUnitario || 0)}
+                        </span>
+                      )}
                   </div>
 
                   <div className="concept-cell">
@@ -696,26 +696,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           </div>
 
           <div className="totals-summary">
-            <div className="totals-grid">
-              <StatCard
-                title="Total Remuneraciones"
-                value={formatCurrencyAR(remunerations)}
-                colorClass="success"
-                delay={0}
-              />
-              <StatCard
-                title="Total Descuentos"
-                value={formatCurrencyAR(deductions)}
-                colorClass="warning"
-                delay={0.1}
-              />
-              <StatCard
-                title="NETO A COBRAR"
-                value={formatCurrencyAR(netAmount)}
-                colorClass="primary"
-                delay={0.2}
-              />
-            </div>
+            <PayrollSummaryCards
+              remunerations={remunerations}
+              deductions={deductions}
+              netAmount={netAmount}
+            />
           </div>
           <div className="step-actions">
             <Button variant="secondary" onClick={() => setCurrentStep('search')}>
