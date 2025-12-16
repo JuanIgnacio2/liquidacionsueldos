@@ -6,6 +6,7 @@ import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { Button } from '../ui/button';
 import { PayrollSummaryCards } from './PayrollSummaryCards';
+import ConceptModal from '../ConceptModal/ConceptModal';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -322,9 +323,77 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   const handleConfirmConeptos = (nuevos) => {
-    const lista = [...conceptos, ...nuevos];
-    setConceptos(lista);
-    setTotal(calcTotal(lista));
+    if (!selectedEmployee || nuevos.length === 0) {
+      setModalOpen(false);
+      return;
+    }
+
+    // Calcular total de remuneraciones actual para recalcular descuentos
+    const gremioNombre = selectedEmployee.gremio?.nombre?.toUpperCase() || '';
+    const isUocra = gremioNombre === 'UOCRA';
+    const basicoEmpleado = isUocra ? basicSalary : 0;
+    
+    const totalRemuneracionesActual = basicoEmpleado + conceptos
+      .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
+      .reduce((sum, c) => sum + (c.total || 0), 0);
+
+    // Procesar los nuevos conceptos
+    const nuevosProcesados = nuevos.map(concepto => {
+      // Si es un descuento con porcentaje, calcular sobre el total de remuneraciones
+      if (concepto.tipo === 'DESCUENTO' && concepto.porcentaje > 0) {
+        const montoUnitario = (totalRemuneracionesActual * concepto.porcentaje) / 100;
+        return {
+          ...concepto,
+          montoUnitario,
+          total: -(montoUnitario * concepto.cantidad),
+        };
+      }
+      
+      // Si es CONCEPTO_UOCRA con porcentaje pero montoUnitario no calculado (es el porcentaje)
+      if (concepto.tipo === 'CONCEPTO_UOCRA' && concepto.porcentaje > 0 && isUocra && basicoEmpleado > 0) {
+        // Si montoUnitario es igual al porcentaje, significa que no se calculó
+        if (concepto.montoUnitario === concepto.porcentaje) {
+          const montoUnitario = (basicoEmpleado * concepto.porcentaje) / 100;
+          return {
+            ...concepto,
+            montoUnitario,
+            total: montoUnitario * concepto.cantidad,
+          };
+        }
+      }
+      
+      // Para otros conceptos, mantener el total calculado
+      return {
+        ...concepto,
+        total: concepto.tipo === 'DESCUENTO' 
+          ? -Math.abs(concepto.total || 0)
+          : Math.abs(concepto.total || 0),
+      };
+    });
+
+    // Agregar los nuevos conceptos a la lista existente
+    const lista = [...conceptos, ...nuevosProcesados];
+    
+    // Recalcular todos los descuentos basados en el nuevo total de remuneraciones
+    const totalRemuneracionesNuevo = basicoEmpleado + lista
+      .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
+      .reduce((sum, c) => sum + (c.total || 0), 0);
+
+    const listaConDescuentosRecalculados = lista.map(concepto => {
+      if (concepto.tipo === 'DESCUENTO' && concepto.porcentaje > 0) {
+        const montoUnitario = (totalRemuneracionesNuevo * concepto.porcentaje) / 100;
+        return {
+          ...concepto,
+          montoUnitario,
+          total: -(montoUnitario * concepto.cantidad),
+        };
+      }
+      return concepto;
+    });
+
+    setConceptos(listaConDescuentosRecalculados);
+    setTotal(calcTotal(listaConDescuentosRecalculados));
+    setModalOpen(false);
   };
 
   // Filtrar empleados por búsqueda
@@ -875,6 +944,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         </div>
       )}
 
+      {/* Modal para agregar conceptos */}
+      <ConceptModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={handleConfirmConeptos}
+        employee={selectedEmployee}
+        basicSalary={basicSalary}
+      />
     </Modal>
   );
 }

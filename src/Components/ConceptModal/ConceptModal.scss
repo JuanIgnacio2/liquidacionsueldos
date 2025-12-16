@@ -1,0 +1,136 @@
+@import '../../styles/main.scss';
+
+.concept-modal {
+  .concept-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-6;
+    min-height: 400px;
+  }
+
+  .concept-modal-loading,
+  .concept-modal-error {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: $spacing-8;
+    min-height: 200px;
+  }
+
+  .concept-modal-error {
+    color: $color-red-primary;
+    background-color: rgba($color-red-primary, 0.1);
+    border-radius: 8px;
+    padding: $spacing-4;
+  }
+
+  .concept-selector-row {
+    display: flex;
+    gap: $spacing-3;
+    align-items: center;
+
+    .concept-select {
+      flex: 1;
+      padding: $spacing-3;
+      border: 1px solid $color-gray-300;
+      border-radius: 6px;
+      font-size: $font-size-base;
+      background-color: white;
+
+      &:focus {
+        outline: none;
+        border-color: $color-green-primary;
+        box-shadow: 0 0 0 3px rgba($color-green-primary, 0.1);
+      }
+    }
+  }
+
+  .concept-items-table {
+    overflow-x: auto;
+    border: 1px solid $color-gray-200;
+    border-radius: 8px;
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+
+      thead {
+        background-color: $color-gray-50;
+        
+        th {
+          padding: $spacing-3 $spacing-4;
+          text-align: left;
+          font-weight: 600;
+          font-size: $font-size-sm;
+          color: $color-gray-700;
+          border-bottom: 2px solid $color-gray-200;
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid $color-gray-100;
+          transition: background-color 0.2s;
+
+          &:hover {
+            background-color: $color-gray-50;
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+        }
+
+        td {
+          padding: $spacing-3 $spacing-4;
+          font-size: $font-size-sm;
+          color: $color-gray-900;
+        }
+      }
+    }
+
+    .concept-qty-input {
+      width: 80px;
+      padding: $spacing-2;
+      border: 1px solid $color-gray-300;
+      border-radius: 4px;
+      text-align: center;
+      font-size: $font-size-sm;
+
+      &:focus {
+        outline: none;
+        border-color: $color-green-primary;
+        box-shadow: 0 0 0 2px rgba($color-green-primary, 0.1);
+      }
+    }
+
+    .amount-positive {
+      color: $color-green-dark;
+      font-weight: 500;
+    }
+
+    .amount-negative {
+      color: $color-red-primary;
+      font-weight: 500;
+    }
+  }
+
+  .concept-modal-empty {
+    padding: $spacing-8;
+    text-align: center;
+    color: $color-gray-500;
+    font-style: italic;
+    background-color: $color-gray-50;
+    border-radius: 8px;
+  }
+
+  .concept-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: $spacing-3;
+    padding-top: $spacing-4;
+    border-top: 1px solid $color-gray-200;
+  }
+}
+
