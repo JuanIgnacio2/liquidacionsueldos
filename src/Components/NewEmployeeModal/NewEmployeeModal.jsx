@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { User, Building, X, UserPlus, ListChecks } from 'lucide-react';
+import { User, Building, X, UserPlus, ListChecks, Trash2 } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 import { useNotification } from '../../Hooks/useNotification';
 
@@ -54,6 +54,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const availableAreas = areas.filter(a => !selectedSet.has(a.id));
   const [conceptos, setConceptos] = useState([]);
   const [conceptosSeleccionados, setConceptosSeleccionados] = useState({});
+  const [selectedConceptToAdd, setSelectedConceptToAdd] = useState('');
   const [filteredCategorias, setFilteredCategorias] = useState([]);
   const [areasHabilitadas, setAreasHabilitadas] = useState(false);
   const [areasSeleccionadas, setAreasSeleccionadas] = useState([]);
@@ -698,7 +699,10 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
-  // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
+  // Excepción para Luz y Fuerza: "Horas Extras Simples" y "Horas Extras Dobles"
+  //  "Horas Extras Simples" = (((Total bonificaciones)/156)*1.5)*(porcentaje/100)
+  //  "Horas Extras Dobles"  = (((Total bonificaciones)/156)*2)*(porcentaje/100)
+  // Donde Total bonificaciones = básico (categoría) + bono de área + demás bonificaciones (no descuentos)
   const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
     if (!concepto.porcentaje) return 0;
@@ -706,17 +710,53 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     const porcentaje = Number(concepto.porcentaje) || 0;
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
-    
+
     // Si es descuento, calcular sobre el total de remuneraciones
     if (isDescuento) {
       if (!totalRemuneraciones || totalRemuneraciones <= 0) return 0;
       const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
       return -(montoUnitario * unidades);
     }
-    
-    // Si es bonificación, determinar la base de cálculo
+
+    // Manejo especial para Horas Extras de Luz y Fuerza
+    const isHorasExtrasSimples = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Simples');
+    const isHorasExtrasDobles = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Dobles');
+
+    if (isHorasExtrasSimples || isHorasExtrasDobles) {
+      // Total bonificaciones = básico + bono de área + suma de otras bonificaciones seleccionadas (excluyendo descuentos)
+      const salarioBasico = Number(formData.salary) || 0;
+      const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+
+      const otherBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+        if (String(conceptId) === String(concepto.id)) return sum; // excluir el propio concepto
+        const c = conceptos.find(c => String(c.id) === String(conceptId));
+        if (!c) return sum;
+        const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
+        if (cIsDescuento) return sum;
+        const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
+        if (!u || u <= 0) return sum;
+
+        // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+        if (c.tipo === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
+          return sum;
+        }
+
+        // Para el resto, usar el cálculo estándar
+        const total = calculateConceptTotal(c, u);
+        return sum + total;
+      }, 0);
+
+      const totalBonificaciones = salarioBasico + bonoArea + otherBonificaciones;
+      if (totalBonificaciones <= 0) return 0;
+
+      const factor = isHorasExtrasSimples ? 1.5 : 2;
+      const montoUnitario = ((totalBonificaciones / 156) * factor) * (porcentaje / 100);
+      return montoUnitario * unidades;
+    }
+
+    // Si no es Horas Extras, proceder con la lógica anterior
     let baseCalculo = 0;
-    
+
     // Para Luz y Fuerza: CONCEPTO_LYF se calcula sobre categoría 11
     if (concepto.tipo === 'CONCEPTO_LYF' && !concepto.isDescuento) {
       baseCalculo = basicoCat11;
@@ -725,7 +765,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       if (!formData.salary) return 0;
       baseCalculo = Number(formData.salary) || 0;
     }
-    
+
     if (baseCalculo <= 0) return 0;
     const montoUnitario = (baseCalculo * porcentaje) / 100;
     return montoUnitario * unidades;
@@ -1081,86 +1121,101 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                   : 'No hay conceptos disponibles para UOCRA aún'}
               </p>
             ) : (
-              <div className="conceptos-table">
-                <table className="conceptos-table-content">
-                  <thead>
-                    <tr>
-                      <th>Seleccionar</th>
-                      <th>Concepto</th>
-                      <th>Porcentaje</th>
-                      <th>Unidades</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {conceptos.map((concepto) => {
-                      const isSelected = !!conceptosSeleccionados[concepto.id];
-                      const units = conceptosSeleccionados[concepto.id]?.units ?? '';
-                      const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
-                      
-                      // Calcular total de remuneraciones para descuentos
-                      const calcularTotalRemuneraciones = () => {
-                        const salarioBasico = Number(formData.salary) || 0;
-                        const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
-                        const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
-                          const c = conceptos.find(cc => cc.id === conceptId);
-                          if (!c || c.isDescuento || c.tipo === 'DESCUENTO') return sum;
-                          const u = conceptosSeleccionados[conceptId]?.units ?? '';
-                          const uNum = Number(u);
-                          if (!uNum || uNum <= 0) return sum;
-                          return sum + calculateConceptTotal(c, uNum);
-                        }, 0);
-                        return salarioBasico + bonoArea + totalBonificaciones;
-                      };
-                      
-                      // Calcular total solo si está seleccionado y tiene unidades válidas
-                      const totalRemuneraciones = isDescuento ? calcularTotalRemuneraciones() : null;
-                      const total = isSelected && units && Number(units) > 0 
-                        ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones)
-                        : 0;
-                      
-                      return (
-                        <tr key={concepto.id} className={`${isSelected ? 'selected' : ''} ${isDescuento ? 'descuento-row' : ''}`}>
-                          <td>
-                            <input
-                              type="checkbox"
-                              id={`concepto-${concepto.id}`}
-                              checked={isSelected}
-                              onChange={() => handleConceptToggle(concepto.id)}
-                            />
-                          </td>
-                          <td>
-                            <label htmlFor={`concepto-${concepto.id}`} className="concepto-label">
-                              {concepto.nombre}
-                            </label>
-                          </td>
-                          <td className="porcentaje-cell">
-                            {concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              id={`units-${concepto.id}`}
-                              value={units}
-                              onChange={(e) => handleUnitsChange(concepto.id, e.target.value)}
-                              min="0"
-                              step="1"
-                              disabled={!isSelected}
-                              className="units-input-field"
-                            />
-                          </td>
-                          <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
-                            {isSelected && units && total !== 0 
-                              ? formatCurrencyAR(total)
-                              : '-'
-                            }
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {/* Selector para añadir conceptos uno a uno */}
+                <div className="concept-add-row" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                  <select
+                    className="form-select concept-select"
+                    value={selectedConceptToAdd}
+                    onChange={(e) => setSelectedConceptToAdd(e.target.value)}
+                  >
+                    <option value="">Agregar concepto...</option>
+                    {conceptos
+                      .filter(c => !conceptosSeleccionados[c.id])
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre}{c.porcentaje ? ` (${c.porcentaje}%)` : ''}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm add-btn"
+                    onClick={() => {
+                      if (!selectedConceptToAdd) return;
+                      const id = selectedConceptToAdd;
+                      setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
+                      setSelectedConceptToAdd('');
+                    }}
+                    disabled={!selectedConceptToAdd}
+                    aria-label="Agregar concepto"
+                  >
+                    Agregar
+                  </button>
+                </div>
+
+                {/* Tabla sólo con conceptos seleccionados */}
+                <div className="conceptos-table">
+                  <table className="conceptos-table-content">
+                    <thead>
+                      <tr>
+                        <th>Concepto</th>
+                        <th>Porcentaje</th>
+                        <th>Unidades</th>
+                        <th>Total</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(conceptosSeleccionados).map((conceptId) => {
+                        const concepto = conceptos.find(c => String(c.id) === String(conceptId));
+                        const units = conceptosSeleccionados[conceptId]?.units ?? '';
+                        const isDescuento = concepto ? (concepto.isDescuento || concepto.tipo === 'DESCUENTO') : false;
+
+                        const calcularTotalRemuneraciones = () => {
+                          const salarioBasico = Number(formData.salary) || 0;
+                          const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+                          const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, cid) => {
+                            const c = conceptos.find(cc => String(cc.id) === String(cid));
+                            if (!c || c.isDescuento || c.tipo === 'DESCUENTO') return sum;
+                            const u = Number(conceptosSeleccionados[cid]?.units) || 0;
+                            if (!u || u <= 0) return sum;
+                            return sum + calculateConceptTotal(c, u);
+                          }, 0);
+                          return salarioBasico + bonoArea + totalBonificaciones;
+                        };
+
+                        const totalRemuneraciones = isDescuento ? calcularTotalRemuneraciones() : null;
+                        const total = concepto && units && Number(units) > 0 ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones) : 0;
+
+                        return (
+                          <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
+                            <td>
+                              <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
+                            </td>
+                            <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
+                            <td>
+                              <input
+                                type="number"
+                                value={units}
+                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
+                                min="0"
+                                step="1"
+                                className="units-input-field"
+                              />
+                            </td>
+                            <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
+                            <td>
+                              <button type="button" className="icon-btn delete-btn" onClick={() => setConceptosSeleccionados(prev => { const next = { ...prev }; delete next[conceptId]; return next; })} title="Quitar concepto" aria-label="Quitar concepto">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
