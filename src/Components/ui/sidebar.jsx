@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -8,11 +8,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   DollarSign,
-  LogOut,
-  Settings
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getUser as getUserAPI } from '../../services/empleadosAPI';
 import '../../styles/components/_sidebar.scss';
 
 const navItems = [
@@ -47,28 +45,8 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [userName, setUserName] = useState('');
   const location = useLocation();
-  const { logout, user: authUser } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await getUserAPI();
-        // El usuario puede tener username, nombre, o nombreUsuario según la API
-        const name = user?.username || user?.nombre || user?.nombreUsuario || '';
-        setUserName(name);
-      } catch (error) {
-        console.error('Error al obtener el usuario:', error);
-        // Si falla, intentar obtener del contexto de autenticación
-        if (authUser) {
-          const name = authUser.username || authUser.nombre || '';
-          setUserName(name);
-        }
-      }
-    };
-
-    fetchUser();
-  }, [authUser]);
 
   const handleLogout = () => {
     logout();
