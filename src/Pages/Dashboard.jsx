@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [employees, setEmployees] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recentActivities, setRecentActivities] = useState([]);
 
   const countActiveEmployees = async () => {
     try {
@@ -49,10 +50,16 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    countActiveEmployees();
-    countGremios();
-    loadEmployees();
-    loadDashboardStats();
+    const loadAll = async () => {
+      await Promise.all([
+        countActiveEmployees(),
+        countGremios(),
+        loadEmployees(),
+        loadDashboardStats(),
+        loadRecentActivities()
+      ]);
+    };
+    loadAll();
   }, []);
 
   const loadDashboardStats = async () => {
@@ -66,10 +73,63 @@ export default function Dashboard() {
     }
   };
 
+  const loadRecentActivities = async () => {
+    try {
+      const liquidaciones = await api.getUltimosPagos();
+      // Tomar solo las últimas 5
+      const ultimas5 = (liquidaciones || []).slice(0, 5);
+      
+      // Formatear las actividades
+      const actividades = ultimas5.map((liq) => {
+        const nombreCompleto = `${liq.nombreEmpleado || ''} ${liq.apellidoEmpleado || ''}`.trim() || 'Empleado';
+        const monto = liq.total_neto ? `$${Number(liq.total_neto).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null;
+        
+        // Calcular tiempo relativo
+        let tiempoRelativo = 'hace un momento';
+        if (liq.fechaCreacion || liq.fecha || liq.createdAt) {
+          const fecha = new Date(liq.fechaCreacion || liq.fecha || liq.createdAt);
+          const ahora = new Date();
+          const diffMs = ahora - fecha;
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffHours = Math.floor(diffMs / 3600000);
+          const diffDays = Math.floor(diffMs / 86400000);
+          
+          if (diffMins < 1) {
+            tiempoRelativo = 'hace un momento';
+          } else if (diffMins < 60) {
+            tiempoRelativo = `hace ${diffMins} ${diffMins === 1 ? 'minuto' : 'minutos'}`;
+          } else if (diffHours < 24) {
+            tiempoRelativo = `hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+          } else if (diffDays < 7) {
+            tiempoRelativo = `hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+          } else {
+            const diffWeeks = Math.floor(diffDays / 7);
+            tiempoRelativo = `hace ${diffWeeks} ${diffWeeks === 1 ? 'semana' : 'semanas'}`;
+          }
+        }
+        
+        return {
+          id: liq.id || liq.idLiquidacion || liq.idPago,
+          action: 'Liquidación procesada',
+          employee: nombreCompleto,
+          time: tiempoRelativo,
+          amount: monto
+        };
+      });
+      
+      setRecentActivities(actividades);
+    } catch (error) {
+      console.error('Error al cargar actividades recientes:', error);
+      setRecentActivities([]);
+    }
+  };
+
   const handleProcessPayroll = (result) => {
     console.log('Procesamiento completado:', result);
-    // Puedes agregar lógica adicional aquí si es necesario
+    // Refrescar datos después de procesar una liquidación
     countActiveEmployees(); // Refrescar conteo
+    loadRecentActivities(); // Refrescar actividades recientes
+    loadDashboardStats(); // Refrescar estadísticas
   };
 
   const handleSaveEmployee = async (dto, isEdit) => {
@@ -81,6 +141,7 @@ export default function Dashboard() {
       }
       await loadEmployees(); // Refrescar lista
       await countActiveEmployees(); // Refrescar conteo
+      await loadRecentActivities(); // Refrescar actividades (aunque no se muestren empleados agregados, por si acaso)
       setShowNewEmployeeModal(false);
     } catch (err) {
       alert("Error al registrar empleado: " + err.message);
@@ -108,36 +169,6 @@ export default function Dashboard() {
     }
   ];
 
-  const recentActivities = [
-    {
-      id: 1,
-      action: 'Nueva liquidación procesada',
-      employee: 'María González',
-      time: 'hace 2 horas',
-      amount: '$45,000'
-    },
-    {
-      id: 2,
-      action: 'Empleado agregado',
-      employee: 'Carlos Rodríguez',
-      time: 'hace 4 horas',
-      amount: null
-    },
-    {
-      id: 3,
-      action: 'Convenio actualizado',
-      employee: 'Convenio Metalúrgico',
-      time: 'hace 1 día',
-      amount: null
-    },
-    {
-      id: 4,
-      action: 'Liquidación completada',
-      employee: 'Ana Martínez',
-      time: 'hace 1 día',
-      amount: '$52,300'
-    }
-  ];
 
   if (loading) {
     return (
@@ -193,25 +224,31 @@ export default function Dashboard() {
                 <div className="activity-col-header">Tiempo</div>
               </div>
               <div className="activity-list">
-                {recentActivities.map((activity) => (
-                  <div 
-                    key={activity.id}
-                    className="activity-item"
-                  >
-                    <div className="activity-col action-col">
-                      <span className="activity-action">{activity.action}</span>
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => (
+                    <div 
+                      key={activity.id}
+                      className="activity-item"
+                    >
+                      <div className="activity-col action-col">
+                        <span className="activity-action">{activity.action}</span>
+                      </div>
+                      <div className="activity-col employee-col">
+                        <span className="activity-employee">{activity.employee}</span>
+                      </div>
+                      <div className="activity-col amount-col">
+                        <span className="activity-amount">{activity.amount || '-'}</span>
+                      </div>
+                      <div className="activity-col time-col">
+                        <span className="activity-time">{activity.time}</span>
+                      </div>
                     </div>
-                    <div className="activity-col employee-col">
-                      <span className="activity-employee">{activity.employee}</span>
-                    </div>
-                    <div className="activity-col amount-col">
-                      <span className="activity-amount">{activity.amount || '-'}</span>
-                    </div>
-                    <div className="activity-col time-col">
-                      <span className="activity-time">{activity.time}</span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="activity-empty">
+                    <p>No hay actividades recientes</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

@@ -625,6 +625,17 @@
             background: rgba(16, 185, 129, 0.08);
           }
 
+          &.concept-row-add {
+            background: rgba(34, 197, 94, 0.05);
+            border-top: 2px dashed $color-green-primary;
+            border-bottom: 2px dashed $color-green-primary;
+            margin-top: $spacing-2;
+
+            &:hover {
+              background: rgba(34, 197, 94, 0.1);
+            }
+          }
+
           .concept-cell {
             display: flex;
             text-align: center;
@@ -659,6 +670,27 @@
 
               &.negative {
                 color: $color-danger;
+              }
+            }
+
+            .concept-select-input {
+              width: 100%;
+              padding: $spacing-2 $spacing-3;
+              border: 1px solid $color-gray-300;
+              border-radius: $border-radius;
+              font-size: $font-size-sm;
+              background-color: $color-white;
+              cursor: pointer;
+
+              &:focus {
+                outline: none;
+                border-color: $color-green-primary;
+                box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+              }
+
+              &:disabled {
+                background-color: $color-gray-100;
+                cursor: not-allowed;
               }
             }
 
@@ -1336,6 +1368,16 @@
         &:nth-child(even) {
           background: var(--bg-light);
         }
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid var(--border-color);
+
+        &:nth-child(even) {
+          background: var(--bg-light);
+        }
 
         &:hover {
           background: rgba(34, 197, 94, 0.05);
@@ -1374,6 +1416,42 @@
             color: var(--error-color);
             font-weight: 600;
           }
+        }
+      }
+    }
+
+    tfoot {
+      .receipt-totals-row {
+        background: rgba(243, 244, 246, 0.8);
+        border-top: 2px solid $color-gray-300;
+        border-bottom: 1px solid $color-gray-300;
+
+        td {
+          font-size: 0.9rem;
+        }
+
+        .receipt-total-remuneration {
+          color: $color-green-dark;
+        }
+
+        .receipt-total-deduction {
+          color: $color-red-primary;
+        }
+      }
+
+      .receipt-net-row {
+        background: rgba(34, 197, 94, 0.1);
+        border-top: 2px solid $color-green-primary;
+        border-bottom: 2px solid $color-green-primary;
+
+        td {
+          font-size: 1rem;
+        }
+
+        .receipt-net-amount {
+          color: $color-green-dark;
+          font-size: 1.1rem;
+          font-weight: 700;
         }
       }
     }
