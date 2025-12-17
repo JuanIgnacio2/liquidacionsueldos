@@ -110,23 +110,3 @@ export const loginUser = (usuario, password) =>
 
 export const registerUser = (dto) =>
     axiosClient.post('/auth/registro', dto).then((r)=>r.data);
-
-export const changePassword = (dto) =>
-    axiosClient.put('/auth/changepassword', dto).then((r)=>r.data);
-
-export const getUser = () =>
-    axiosClient.get('/auth/usuario-actual').then((r)=>r.data);
-
-export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
-    axiosClient.get(`/aguinaldo/calcular/${legajo}`, {
-        params: { aguinaldoNumero, anio }
-    }).then((r)=>r.data);
-
-export const liquidarAguinaldo = (dto) =>
-    axiosClient.post('/aguinaldo/liquidar', dto).then((r)=>r.data);
-
-export const calcularVacaciones = (legajo, anioVacaciones) =>
-    axiosClient.get(`/vacaciones/calcular/${legajo}`, { params: { legajo, anioVacaciones: parseInt(anioVacaciones, 10) } }	).then((r)=>r.data);
-
-export const liquidarVacaciones = (dto) =>
-    axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
