@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
@@ -29,13 +30,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-<<<<<<< HEAD
   // Catalogs / dropdown state
   const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
   const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
   const [basicoCat11State, setBasicoCat11State] = useState(0);
-=======
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
   // Estados para edición en línea y confirmación de borrado
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
@@ -616,15 +614,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     );
 
   // Actualizar concepto
-<<<<<<< HEAD
   const updateConcept = (uid, field, value) => {
     setConceptos(prev => prev.map(concept => {
       if (concept.uid === uid) {
-=======
-  const updateConcept = (id, field, value) => {
-    setConceptos(prev => prev.map(concept => {
-      if (concept.id === id) {
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
         if (field === 'units' || field === 'unitValue') {
@@ -637,24 +629,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Eliminar concepto
-<<<<<<< HEAD
   const removeConcept = (uid) => {
     setConceptos(prev => prev.filter(concept => concept.uid !== uid));
-=======
-  const removeConcept = (id) => {
-    setConceptos(prev => prev.filter(concept => concept.id !== id));
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
   };
 
   // Iniciar edición del monto (soporta remuneraciones y descuentos)
   const startEditAmount = (concept) => {
     // Preferir montoUnitario, si no existe usar valor absoluto del total
     const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
-<<<<<<< HEAD
     setEditingAmountId(concept.uid);
-=======
-    setEditingAmountId(concept.id);
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
     setEditingAmountValue(String(initial));
   };
 
@@ -665,13 +648,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const saveEditAmount = (concept) => {
     const value = parseFloat(editingAmountValue) || 0;
-<<<<<<< HEAD
     let nuevos = conceptos.map(c => {
       if (c.uid === concept.uid) {
-=======
-    const nuevos = conceptos.map(c => {
-      if (c.id === concept.id) {
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
         if (c.tipo === 'DESCUENTO') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -681,7 +659,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return c;
     });
-<<<<<<< HEAD
 
     // Aplicar Horas Extras recalculadas si corresponde
     const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
@@ -710,8 +687,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       });
     }
 
-=======
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
     cancelEditAmount();
@@ -1896,11 +1871,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
                       <div className="amount-editable-wrapper">
-<<<<<<< HEAD
                         {editingAmountId === concept.uid ? (
-=======
-                        {editingAmountId === concept.id ? (
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -1919,13 +1890,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-<<<<<<< HEAD
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                               <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
                             </div>
-=======
-                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -1936,11 +1903,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
                       <div className="amount-editable-wrapper">
-<<<<<<< HEAD
                         {editingAmountId === concept.uid ? (
-=======
-                        {editingAmountId === concept.id ? (
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -1972,11 +1935,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       {concept.isManual && (
                         <select
                           value={concept.tipo}
-<<<<<<< HEAD
                           onChange={(e) => updateConcept(concept.uid, 'type', e.target.value)}
-=======
-                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                           className="type-select"
                         >
                           <option value="remuneration">Remuneración</option>
@@ -1984,15 +1943,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </select>
                       )}
 
-<<<<<<< HEAD
                       {deletingId === concept.uid ? (
                         <>
                           <button className="btn-accept" onClick={() => acceptDelete(concept.uid)} title="Confirmar borrado">
-=======
-                      {deletingId === concept.id ? (
-                        <>
-                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                             <CheckCircle className="h-4 w-4" />
                           </button>
                           <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
@@ -2000,11 +1953,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </button>
                         </>
                       ) : (
-<<<<<<< HEAD
                         <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
-=======
-                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
->>>>>>> 34b1152 (Componentes de cards, correcciones en notificaciones, loading spinner añadido)
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
