@@ -166,56 +166,8 @@ export const getActividadesRecientesTipo = (tipo) =>
 export const getActividadesRecientesUsuario = (usuario) =>
     axiosClient.get(`/actividad/reciente/usuario/${usuario}`).then((r)=>r.data);
 
-export const getActividadesPaginadas = (page = 0, size = 10, usuario = null, fechaDesde = null, fechaHasta = null, tipo = null) => {
-    const params = { page, size };
-    if (usuario) params.usuario = usuario;
-    if (fechaDesde) params.fechaDesde = fechaDesde;
-    if (fechaHasta) params.fechaHasta = fechaHasta;
-    if (tipo) params.tipo = tipo;
-    return axiosClient.get('/actividad/paginado', { params }).then((r) => r.data);
-};
-
-
-export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
-    axiosClient.get(`/aguinaldo/calcular/${legajo}`, {
-        params: { aguinaldoNumero, anio }
-    }).then((r)=>r.data);
-    
-export const liquidarAguinaldo = (dto) =>
-    axiosClient.post('/aguinaldo/liquidar', dto).then((r)=>r.data);
-    
-export const calcularVacaciones = (legajo, anioVacaciones) =>
-    axiosClient.get(`/vacaciones/calcular/${legajo}`, { params: { legajo, anioVacaciones: parseInt(anioVacaciones, 10) } }	).then((r)=>r.data);
-    
-export const liquidarVacaciones = (dto) =>
-    axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
-    
 export const loginUser = (usuario, password) =>
-        axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
-    
+    axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
+
 export const registerUser = (dto) =>
     axiosClient.post('/auth/registro', dto).then((r)=>r.data);
-    
-export const changePassword = (dto) =>
-    axiosClient.put('/auth/changepassword', dto).then((r)=>r.data);
-    
-export const getUser = () =>
-    axiosClient.get('/auth/usuario-actual').then((r)=>r.data);
-
-export const getListarUsuariosAdmin = () =>
-    axiosClient.get('/admin/users').then((r)=>r.data);
-
-export const getUsuarioAdById = (id) =>
-    axiosClient.get(`/admin/users/${id}`).then((r)=>r.data);
-
-export const createUsuarioNew = (dto) =>
-    axiosClient.post('/admin/users', dto).then((r)=>r.data);
-
-export const updateUsuarioRol = (id, dto) =>
-    axiosClient.put(`/admin/users/${id}/rol`, dto).then((r)=>r.data);
-
-export const  updateUsuarioEstado = (id, dto) =>
-    axiosClient.put(`/admin/users/${id}/estado`, dto).then((r)=>r.data);
-
-export const eliminarUsuarioAdmin = (id) =>
-    axiosClient.delete(`/admin/users/${id}`).then((r)=>r.data);
