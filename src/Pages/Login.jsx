@@ -72,22 +72,11 @@ const Login = () => {
     try {
       const response = await login(loginData.username, loginData.password);
       if (response.token) {
-        const usuario = response.usuario || { username: loginData.username };
-        authLogin(response.token, usuario);
-        
-        // Verificar el rol del usuario
-        const userRole = usuario.userRol || usuario.rol || usuario.role || usuario.rolUsuario;
-        
-        if (userRole === 'NEW_USER') {
-          // Redirigir a página de espera de autorización
-          navigate('/espera-autorizacion');
-        } else {
-          // Usuario autorizado, redirigir al dashboard
-          if (window?.showNotification) {
-            window.showNotification('¡Bienvenido!', 'success', 3000);
-          }
-          navigate('/');
+        authLogin(response.token, response.usuario || { username: loginData.username });
+        if (window?.showNotification) {
+          window.showNotification('¡Bienvenido!', 'success', 3000);
         }
+        navigate('/');
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
@@ -116,12 +105,11 @@ const Login = () => {
       
       const response = await registerUser(dto);
       if (response.token) {
-        const usuario = response.usuario || { 
+        authLogin(response.token, response.usuario || { 
           username: registerData.username,
           nombre: registerData.nombre,
           apellido: registerData.apellido
-        };
-        authLogin(response.token, usuario);
+        });
         
         // Limpiar campos del formulario después de registro exitoso
         setRegisterData({
@@ -133,22 +121,10 @@ const Login = () => {
         });
         setErrors({});
         
-        // Verificar el rol del usuario
-        const userRole = usuario.userRol || usuario.rol || usuario.role || usuario.rolUsuario;
-        
-        if (userRole === 'NEW_USER') {
-          // Redirigir a página de espera de autorización
-          if (window?.showNotification) {
-            window.showNotification('¡Registro exitoso! Esperando autorización del Administrador.', 'info', 5000);
-          }
-          navigate('/espera-autorizacion');
-        } else {
-          // Usuario autorizado (no debería pasar en registro, pero por si acaso)
-          if (window?.showNotification) {
-            window.showNotification('¡Registro exitoso! Bienvenido.', 'success', 3000);
-          }
-          navigate('/');
+        if (window?.showNotification) {
+          window.showNotification('¡Registro exitoso! Bienvenido.', 'success', 3000);
         }
+        navigate('/');
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Error al registrar usuario. Intenta nuevamente.';
