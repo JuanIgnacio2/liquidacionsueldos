@@ -460,12 +460,62 @@
       margin-top: $spacing-4;
       overflow-x: auto;
 
+      /* Fila para añadir conceptos (select + botón) */
+      .concept-add-row {
+        display: flex;
+        gap: $spacing-2;
+        align-items: center;
+        margin-bottom: $spacing-3;
+
+        /* Select específico para añadir conceptos */
+        .concept-select,
+        select.concept-select {
+          flex: 1 1 auto;
+          min-width: 220px;
+          padding: $spacing-2;
+          border: 1px solid $color-gray-200;
+          border-radius: $border-radius;
+          background-color: $color-white !important; /* forzar blanco si hay reglas más generales */
+          box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+          color: $color-gray-900;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+        }
+
+        /* Botón Agregar: estilo compacto y primario del proyecto */
+        .btn.add-btn, .add-btn {
+          margin-left: $spacing-2;
+          padding: $spacing-1 $spacing-3;
+          font-size: $font-size-xs;
+          border-radius: $border-radius;
+          background: $color-green-primary;
+          color: $color-white;
+          border: 1px solid darken($color-green-primary, 6%);
+          box-shadow: none;
+          transition: background .12s ease, transform .08s ease;
+
+          &:hover {
+            background: darken($color-green-primary, 6%);
+            transform: translateY(-1px);
+          }
+
+          &:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+            background: $color-gray-200;
+            color: $color-gray-700;
+          }
+        }
+      }
+
       .conceptos-table-content {
         width: 100%;
         border-collapse: collapse;
         border: 1px solid $color-gray-200;
         border-radius: $border-radius;
         overflow: hidden;
+        table-layout: fixed; /* forzar alineación de columnas */
 
         thead {
           background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
@@ -479,29 +529,31 @@
             border-bottom: 2px solid $color-gray-200;
             white-space: nowrap;
 
-            // Primera columna: checkbox (60px) o Tipo (150px)
+            // Primera columna: checkbox (o Concepto)
             &:first-child {
-              width: 60px;
-              text-align: center;
-            }
-
-            // Segunda columna: Concepto
-            &:nth-child(2) {
-              min-width: 200px;
+              width: 30%;
               text-align: left;
             }
 
-            // Tercera y cuarta columna: Porcentaje y Unidades
-            &:nth-child(3),
-            &:nth-child(4) {
-              width: 120px;
+            &:nth-child(2) {
+              width: 20%;
               text-align: center;
             }
 
-            // Última columna: Total
-            &:last-child {
-              width: 150px;
+            &:nth-child(3) {
+              width: 20%;
+              text-align: center;
+            }
+
+            &:nth-child(4) {
+              width: 20%;
               text-align: right;
+            }
+
+            // Última columna: Acción
+            &:last-child {
+              width: 10%;
+              text-align: center;
             }
           }
         }
@@ -529,16 +581,11 @@
               color: $color-gray-700;
               vertical-align: middle;
 
-              // Primera columna: checkbox o Tipo
+              // Primera columna: Concepto
               &:first-child {
-                text-align: center;
-                
-                input[type='checkbox'] {
-                  width: 18px;
-                  height: 18px;
-                  cursor: pointer;
-                  accent-color: $color-green-primary;
-                }
+                text-align: left;
+                font-weight: 500;
+                color: $color-gray-900;
               }
 
               .concepto-label {
@@ -582,6 +629,31 @@
                 text-align: right;
                 font-weight: 600;
                 color: $color-green-dark;
+
+                &.descuento-total {
+                  color: $color-red-primary;
+                }
+              }
+
+              /* Botones icon-only (eliminar) */
+              .icon-btn {
+                background: transparent;
+                border: none;
+                padding: 6px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                color: $color-gray-700;
+              }
+
+              .icon-btn.delete-btn {
+                color: $color-red-primary;
+              }
+
+              .icon-btn .icon {
+                width: 18px;
+                height: 18px;
               }
             }
           }
