@@ -28,7 +28,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     nombre: '',
     apellido: '',
     domicilio: '',
-    idZona: null,
+    idZonaUocra: null,
     areas: [],
     inicioActividad: new Date().toISOString().split('T')[0], // Fecha actual
     estado: 'ACTIVO',
@@ -568,9 +568,16 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         const concepto = conceptos.find(c => c.id === conceptId);
         const units = conceptosSeleccionados[conceptId]?.units;
         if (concepto && units && units > 0) {
-          const tipoConcepto = concepto.isDescuento || concepto.tipo === 'DESCUENTO' 
-            ? 'DESCUENTO' 
-            : 'BONIFICACION_FIJA';
+          let tipoConcepto;
+          if (concepto.isDescuento || concepto.tipo === 'DESCUENTO') {
+            tipoConcepto = 'DESCUENTO';
+          } else if (concepto.tipo === 'CONCEPTO_UOCRA') {
+            tipoConcepto = 'CONCEPTO_UOCRA';
+          } else if (concepto.tipo === 'CONCEPTO_LYF') {
+            tipoConcepto = 'CONCEPTO_LYF';
+          } else {
+            tipoConcepto = 'BONIFICACION_FIJA';
+          }
           // Usar originalId para enviar al backend
           conceptosAsignados.push({
             idEmpleadoConcepto: null, // Nuevo concepto
@@ -588,7 +595,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           conceptosAsignados.push({
             idEmpleadoConcepto: null,
             legajo: Number(formData.legajo),
-            tipoConcepto: 'BONIFICACION_VARIABLE',
+            tipoConcepto: 'BONIFICACION_AREA',
             idReferencia: Number(areaId),
             unidades: 1 // Por defecto 1 unidad para área
           });
@@ -618,7 +625,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         idAreas: formData.areas && formData.areas.length > 0 ? formData.areas.map(a => Number(a)) : null,
         sexo: formData.sexo || null,
         idGremio: formData.gremioId ? Number(formData.gremioId) : null,
-        idZona: formData.zonaId ? Number(formData.zonaId) : null,
+        idZonaUocra: formData.zonaId ? Number(formData.zonaId) : null,
         estado: "ACTIVO",
         conceptosAsignados: conceptosAsignados.length > 0 ? conceptosAsignados : null
       };
