@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
-import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
+import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
 
@@ -14,80 +14,21 @@ const formatCurrencyAR = (value) => {
   return `$${integerPart},${parts[1]}`;
 };
 
-// Función helper para normalizar strings
-const normalize = (s) =>
-  (s || '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-// Función helper para identificar "Bonif Antigüedad" específicamente
-const isBonifAntiguedad = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return (
-    nombreNormalizado.includes('bonif antiguedad') ||
-    nombreNormalizado.includes('bonif antigüedad')
-  );
-};
-
-// Función helper para identificar conceptos que se calculan sobre el total bruto
-// (excluye "Bonif Antigüedad" que tiene su propio cálculo)
-const isConceptoCalculadoSobreTotalBruto = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return (
-    nombreNormalizado.includes('suplemento antiguedad') ||
-    nombreNormalizado.includes('suplemento antigüedad') ||
-    nombreNormalizado.includes('art 50') ||
-    nombreNormalizado.includes('art 69') ||
-    nombreNormalizado.includes('art 70') ||
-    nombreNormalizado.includes('art 72')
-  );
-};
-
-// Función helper para identificar "Personal de turno" (usa totalRemunerativo directamente, no valorHora)
-const isPersonalDeTurno = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return nombreNormalizado.includes('personal de turno') || nombreNormalizado.includes('personal turno');
-};
-
-// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
-const calculateAntiguedad = (fechaIngreso) => {
-  if (!fechaIngreso) return '—';
-  
-  try {
-    const fechaIngresoDate = new Date(fechaIngreso);
-    const fechaActual = new Date();
-    
-    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
-    
-    // Calcular diferencia en años y meses
-    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
-    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
-    
-    // Ajustar si el mes actual es menor que el mes de ingreso
-    if (meses < 0) {
-      años--;
-      meses += 12;
-    }
-    
-    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
-    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
-      meses--;
-      if (meses < 0) {
-        años--;
-        meses += 12;
-      }
-    }
-    
-    // Formatear con ceros a la izquierda
-    const añosStr = String(años).padStart(2, '0');
-    const mesesStr = String(meses).padStart(2, '0');
-    
-    return `${añosStr}/${mesesStr}`;
-  } catch (error) {
-    console.error('Error al calcular antigüedad:', error);
-    return '—';
+// Función helper para obtener el nombre legible del tipo de concepto
+const getTipoConceptoLabel = (tipoConcepto) => {
+  switch (tipoConcepto) {
+    case 'CONCEPTO_LYF':
+      return 'Concepto LyF';
+    case 'CONCEPTO_UOCRA':
+      return 'Concepto UOCRA';
+    case 'BONIFICACION_AREA':
+      return 'Bonificación de Área';
+    case 'CATEGORIA_ZONA':
+      return 'Categoría-Zona';
+    case 'DESCUENTO':
+      return 'Descuento';
+    default:
+      return tipoConcepto;
   }
 };
 
@@ -373,12 +314,10 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               if (asignado.tipoConcepto === 'BONIFICACION_AREA') {
                 // Bonificaciones de área se calculan sobre categoría 11
                 baseCalculo = basicoCat11;
-              } else if (asignado.tipoConcepto === 'CONCEPTO_LYF' || asignado.tipoConcepto === 'TITULO_LYF') {
-                // Conceptos y títulos de Luz y Fuerza: verificar baseCalculo del concepto
-                // Si baseCalculo === 'BASICO_CATEGORIA_11' o no tiene campo, usar básico cat 11
-                if (!baseCalculoConcepto || baseCalculoConcepto === 'BASICO_CATEGORIA_11' || baseCalculoConcepto === 'basico_categoria_11') {
-                  baseCalculo = basicoCat11;
-                }
+              } else if (asignado.tipoConcepto === 'CONCEPTO_LYF') {
+                // Conceptos de Luz y Fuerza se calculan sobre categoría 11
+                // Nota: las "Horas Extras" se recalcularán después para usar la fórmula especial
+                baseCalculo = basicoCat11;
               } else if (asignado.tipoConcepto === 'CONCEPTO_UOCRA') {
                 // Conceptos de UOCRA se calculan sobre el salario básico del empleado
                 baseCalculo = basicoEmpleado;
@@ -408,95 +347,48 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           })
         );
 
-        // Filtrar nulls primero para evitar errores en los cálculos
-        const conceptosValidos = mappedConceptos.filter(Boolean);
-
-        // --- Calcular horas extras para Luz y Fuerza ---
+        // --- Ajustar los conceptos especiales de "Horas Extras" para Luz y Fuerza ---
+        // Sólo aplicar esta regla cuando el empleado sea de Luz y Fuerza
         if (isLuzYFuerza) {
-          // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
-          const totalBonificacionesArea = conceptosValidos
-            .filter(c => c && c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
+          // Recalcular las "Horas Extras Simples" / "Horas Extras Dobles" usando
+          // Total bonificaciones = básico empleado + bonificaciones de área + demás conceptos (no descuentos)
+          const totalBonificacionesArea = mappedConceptos
+            .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalConceptosLyF = conceptosValidos
-            .filter(c => c && (c.tipoConcepto === 'CONCEPTO_LYF' || c.tipoConcepto === 'TITULO_LYF') && c.total > 0)
+          const totalConceptosLyFNonSpecial = mappedConceptos
+            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0 && c.nombre !== 'Horas Extras Simples' && c.nombre !== 'Horas Extras Dobles')
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalConceptosManualesLyF = conceptosValidos
-            .filter(c => c && c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' && c.total > 0)
-            .reduce((sum, c) => sum + c.total, 0);
-            
-          const totalRemunerativo = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalConceptosManualesLyF;
+          const baseBonificaciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyFNonSpecial;
 
-          // Calcular valor hora
-          const valorHora = totalRemunerativo / 156;
-
-          // Recalcular horas extras
-          conceptosValidos.forEach((c) => {
-            if (c && c.tipoConcepto === 'HORA_EXTRA_LYF') {
-              // Buscar el factor en el catálogo de horas extras
-              const horaExtra = horasExtrasLyF.find(he => 
-                (he.idHoraExtra ?? he.id) === c.idReferencia
-              );
-              
-              // Obtener el factor del catálogo o usar fallback
-              const factor = horaExtra 
-                ? (Number(horaExtra.factor) || (c.idReferencia === 1 ? 1.5 : 2))
-                : (c.idReferencia === 1 ? 1.5 : 2);
-              
-              // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-              let montoUnitario;
-              if (isPersonalDeTurno(c.nombre)) {
-                montoUnitario = totalRemunerativo * factor;
+          // Recalcular especiales
+          mappedConceptos.forEach((c) => {
+            if (c.tipoConcepto === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
+              const factor = c.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+              const p = Number(c.porcentaje) || 0;
+              if (baseBonificaciones > 0 && p) {
+                const montoUnitario = ((baseBonificaciones / 156) * factor) * (p / 100);
+                c.total = montoUnitario * (Number(c.unidades) || 0);
               } else {
-                montoUnitario = valorHora * factor;
+                c.total = 0;
               }
-              
-              c.total = montoUnitario * (Number(c.unidades) || 1);
             }
           });
         }
 
-        // Calcular total bruto (básico + bonificaciones + áreas + horas extras, excluyendo conceptos especiales y descuentos)
-        const totalBonificacionesArea = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
+        // Calcular total de remuneraciones (básico + bonificaciones + áreas)
+        // Incluir bonificaciones de área y conceptos CONCEPTO_LYF que se calculan sobre basicoCat11
+        const totalBonificacionesArea = mappedConceptos
+          .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
         
         const totalConceptosLyF = conceptosValidos
           .filter(c => c && (c.tipoConcepto === 'CONCEPTO_LYF' || c.tipoConcepto === 'TITULO_LYF') && c.total > 0 && !c._esConceptoEspecial && !c._esBonifAntiguedad)
           .reduce((sum, c) => sum + c.total, 0);
         
-        // Incluir "Bonif Antigüedad" en el total bruto (ya calculado con su fórmula especial)
-        const totalBonifAntiguedad = conceptosValidos
-          .filter(c => c && c._esBonifAntiguedad && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalHorasExtras = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalConceptosManualesLyF = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
         // Usar basicoEmpleado (variable local) en lugar del estado
-        // Incluir "Bonif Antigüedad" en el total bruto (ya calculado con su fórmula especial)
-        const totalBruto = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras + totalBonifAntiguedad + totalConceptosManualesLyF;
-
-        // Recalcular conceptos especiales sobre el total bruto
-        conceptosValidos.forEach(concepto => {
-          if (concepto && concepto._esConceptoEspecial && concepto.porcentaje && totalBruto > 0) {
-            const montoUnitario = (totalBruto * concepto.porcentaje) / 100;
-            concepto.total = montoUnitario * concepto.unidades;
-          }
-        });
-
-        // Calcular total de remuneraciones (incluyendo conceptos especiales ahora recalculados)
-        const totalConceptosEspeciales = conceptosValidos
-          .filter(c => c && c._esConceptoEspecial && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalRemuneraciones = totalBruto + totalConceptosEspeciales;
+        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
 
         // Recalcular descuentos sobre el total de remuneraciones
         conceptosValidos.forEach(concepto => {

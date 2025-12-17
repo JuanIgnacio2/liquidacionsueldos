@@ -2,7 +2,10 @@ import axios from 'axios';
 import { getToken, removeToken } from '../utils/authStorage';
 
 const axiosClient = axios.create({
-    baseURL: 'https://backend-liquidacion-25-de-mayo.onrender.com/api/',
+    //baseURL: import.meta.env.API_URL || 'http://localhost:8080/api',
+    //baseURL: 'http://localhost:8080/api/',
+    baseURL: 'http://192.168.1.101:8080/api/',
+    //baseURL: 'https://backend-liquidaci-n-25-de-mayo.onrender.com/api/',
     headers: {'Content-Type' : 'application/json'},
     timeout: 10_000,
 });
