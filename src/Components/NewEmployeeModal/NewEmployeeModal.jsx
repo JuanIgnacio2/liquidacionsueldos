@@ -716,8 +716,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           let tipoConcepto;
           if (concepto.isDescuento || concepto.tipo === 'DESCUENTO') {
             tipoConcepto = 'DESCUENTO';
-          } else if (concepto.tipo === 'HORA_EXTRA_LYF') {
-            tipoConcepto = 'HORA_EXTRA_LYF';
           } else if (concepto.tipo === 'CONCEPTO_UOCRA') {
             tipoConcepto = 'CONCEPTO_UOCRA';
           } else if (concepto.tipo === 'CONCEPTO_LYF') {
