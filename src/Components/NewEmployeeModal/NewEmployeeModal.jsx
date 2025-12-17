@@ -1317,7 +1317,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             ) : (
               <>
                 {/* Selector para añadir conceptos uno a uno */}
-                <div className="concept-add-row">
+                <div className="concept-add-row" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
                   <select
                     className="form-select concept-select"
                     value={selectedConceptToAdd}
@@ -1352,11 +1352,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                   <table className="conceptos-table-content">
                     <thead>
                       <tr>
-                        <th style={{ width: '30%', textAlign: 'left' }}>Concepto</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Unidades</th>
-                        <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
+                        <th>Concepto</th>
+                        <th>Porcentaje</th>
+                        <th>Unidades</th>
+                        <th>Total</th>
+                        <th>Acción</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1383,27 +1383,22 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
                         return (
                           <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
-                            <td style={{ textAlign: 'left' }}>
+                            <td>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
-                            <td style={{ textAlign: 'center' }} className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
+                            <td>
                               <input
-                                type="text"
+                                type="number"
                                 value={units}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  // Permitir solo números enteros (sin decimales)
-                                  if (value === '' || /^\d+$/.test(value)) {
-                                    handleUnitsChange(conceptId, value);
-                                  }
-                                }}
+                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
+                                min="0"
+                                step="1"
                                 className="units-input-field"
-                                placeholder="0"
                               />
                             </td>
-                            <td style={{ textAlign: 'right' }} className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
+                            <td>
                               <button type="button" className="icon-btn delete-btn" onClick={() => setConceptosSeleccionados(prev => { const next = { ...prev }; delete next[conceptId]; return next; })} title="Quitar concepto" aria-label="Quitar concepto">
                                 <Trash2 className="h-4 w-4" />
                               </button>
