@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
+<<<<<<< HEAD
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
+=======
+import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
+>>>>>>> a2c6de9 (Agregado desplegable con lista de conceptos, correcciones en valores de liquidación)
 import * as api from "../../services/empleadosAPI";
 import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
