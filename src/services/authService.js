@@ -1,5 +1,5 @@
 import api from '../services/axiosClient';
-import { removeToken, setToken } from '../utils/authStorage';
+import { getToken, removeToken, setToken } from '../utils/authStorage';
 
 export const login = async (username, password) => {
     const response = await api.post('/auth/login', { username, password });
