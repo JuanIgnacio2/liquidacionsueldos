@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import Sidebar from './Components/ui/sidebar';
 import Dashboard from './Pages/Dashboard';
 import Liquidacion from './Pages/Liquidacion';
@@ -8,32 +8,94 @@ import NotFound from './Pages/NotFound';
 import Empleados from './Pages/Empleados';
 import HistorialPagos from './Pages/HistorialPagos';
 import Reportes from './Pages/Reportes';
+import Login from './Pages/Login';
 import './styles/main.scss';
 import ConvenioDetail from './Pages/ConvenioDetail';
 import { NotificationSystem } from './Components/NotificationSystem/NotificationSystem';
 import { ConfirmDialog } from './Components/ConfirmDialog/ConfirmDialog';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './Components/ProtectedRoute';
+
+function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <Routes>
+      <Route path="/login" element={
+        isAuthenticated ? <Navigate to="/" replace /> : <Login />
+      } />
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/empleados" element={
+        <ProtectedRoute>
+          <Empleados />
+        </ProtectedRoute>
+      } />
+      <Route path="/convenios" element={
+        <ProtectedRoute>
+          <Convenios />
+        </ProtectedRoute>
+      } />
+      <Route path="/convenios/:controller" element={
+        <ProtectedRoute>
+          <ConvenioDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/liquidacion" element={
+        <ProtectedRoute>
+          <Liquidacion />
+        </ProtectedRoute>
+      } />
+      <Route path="/historial-pagos" element={
+        <ProtectedRoute>
+          <HistorialPagos />
+        </ProtectedRoute>
+      } />
+      <Route path="/reportes" element={
+        <ProtectedRoute>
+          <Reportes />
+        </ProtectedRoute>
+      } />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+function AppLayout() {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <AppRoutes />
+        <NotificationSystem />
+        <ConfirmDialog />
+      </>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <main className="flex-1 overflow-auto">
+        <AppRoutes />
+      </main>
+      <NotificationSystem />
+      <ConfirmDialog />
+    </div>
+  );
+}
 
 function App() {
   return (
-    <BrowserRouter>
-       <div className="flex h-screen bg-gray-50">
-          <Sidebar />
-          <main className="flex-1 overflow-auto">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/empleados" element={<Empleados />} />
-              <Route path="/convenios" element={<Convenios/>}/>
-              <Route path="/convenios/:controller" element={<ConvenioDetail/>}/>
-              <Route path="/liquidacion" element={<Liquidacion/>}/>
-              <Route path="/historial-pagos" element={<HistorialPagos/>}/>
-              <Route path="/reportes" element={<Reportes/>}/>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-        </main>
-        <NotificationSystem />
-        <ConfirmDialog />
-      </div>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppLayout />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

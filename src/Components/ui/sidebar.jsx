@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Users, 
@@ -7,8 +7,10 @@ import {
   Calculator, 
   ChevronLeft, 
   ChevronRight,
-  DollarSign
+  DollarSign,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import '../../styles/components/_sidebar.scss';
 
 const navItems = [
@@ -37,6 +39,16 @@ const navItems = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    if (window?.showNotification) {
+      window.showNotification('Sesión cerrada correctamente', 'success', 3000);
+    }
+    navigate('/login');
+  };
 
   return (
     <div className={`sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
@@ -89,6 +101,18 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
+
+      {/* Logout Button */}
+      <div className="sidebar-logout">
+        <button
+          onClick={handleLogout}
+          className="logout-btn"
+          title={collapsed ? 'Cerrar sesión' : undefined}
+        >
+          <LogOut className="logout-icon" />
+          {!collapsed && <span className="logout-text">Cerrar Sesión</span>}
+        </button>
+      </div>
 
       {/* Footer */}
       <div className={`sidebar-footer ${collapsed ? 'collapsed' : ''}`}>
