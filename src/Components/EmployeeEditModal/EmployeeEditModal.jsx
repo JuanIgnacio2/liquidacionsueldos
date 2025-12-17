@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { User, Building, Save, X, ListChecks, Trash2 } from 'lucide-react';
+import { User, Building, DollarSign, Save, X, ListChecks, Trash2 } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog';
@@ -1295,8 +1295,74 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
   };
 
 
-  // Calcula el total bruto (básico + bono área + bonificaciones, excluyendo conceptos especiales, horas extras y descuentos)
-  const calcularTotalBruto = () => {
+  // Calcula el total de un concepto basado en el básico, porcentaje y unidades
+  // Para descuentos, se calcula sobre el total de remuneraciones
+  // Excepción para Luz y Fuerza: "Horas Extras Simples" y "Horas Extras Dobles"
+  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
+    if (!concepto || !units || units <= 0) return 0;
+    if (!concepto.porcentaje) return 0;
+    
+    const porcentaje = Number(concepto.porcentaje) || 0;
+    const unidades = Number(units) || 0;
+    const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+    
+    // Si es descuento, calcular sobre el total de remuneraciones
+    if (isDescuento) {
+      if (!totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
+      return -(montoUnitario * unidades);
+    }
+
+    // Manejo especial para Horas Extras de Luz y Fuerza
+    const isHorasExtrasSimples = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Simples');
+    const isHorasExtrasDobles = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Dobles');
+
+    if (isHorasExtrasSimples || isHorasExtrasDobles) {
+      const salarioBasico = Number(formData.salary) || 0;
+      const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+
+      const otherBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
+        if (String(conceptId) === String(concepto.id)) return sum;
+        const c = conceptos.find(c => String(c.id) === String(conceptId));
+        if (!c) return sum;
+        const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
+        if (cIsDescuento) return sum;
+        const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
+        if (!u || u <= 0) return sum;
+
+        if (c.tipo === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
+          // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+          return sum;
+        }
+
+        const total = calculateConceptTotal(c, u);
+        return sum + total;
+      }, 0);
+
+      const totalBonificaciones = salarioBasico + bonoArea + otherBonificaciones;
+      if (totalBonificaciones <= 0) return 0;
+
+      const factor = isHorasExtrasSimples ? 1.5 : 2;
+      const montoUnitario = ((totalBonificaciones / 156) * factor) * (porcentaje / 100);
+      return montoUnitario * unidades;
+    }
+
+    // Lógica por defecto
+    let baseCalculo = 0;
+    if (formData.gremio === 'LUZ_Y_FUERZA' && !concepto.isDescuento) {
+      baseCalculo = basicoCat11;
+    } else {
+      if (!formData.salary) return 0;
+      baseCalculo = Number(formData.salary) || 0;
+    }
+    
+    if (baseCalculo <= 0) return 0;
+    const montoUnitario = (baseCalculo * porcentaje) / 100;
+    return montoUnitario * unidades;
+  };
+
+  // Calcula el salario total estipulado inicial
+  const calculateTotalSalary = () => {
     const salarioBasico = Number(formData.salary) || 0;
     const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
     
@@ -1749,11 +1815,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                     {conceptos
                       .filter(c => !conceptosSeleccionados[c.id])
                       .map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                          {c.tipo === 'HORA_EXTRA_LYF' && c.factor ? ` (Factor ${c.factor}x)` : ''}
-                          {c.porcentaje && c.tipo !== 'HORA_EXTRA_LYF' ? ` (${c.porcentaje}%)` : ''}
-                        </option>
+                        <option key={c.id} value={c.id}>{c.nombre}{c.porcentaje ? ` (${c.porcentaje}%)` : ''}</option>
                     ))}
                   </select>
 
@@ -1763,13 +1825,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                     onClick={() => {
                       if (!selectedConceptToAdd) return;
                       const id = selectedConceptToAdd;
-                      const concepto = conceptos.find(c => c.id === id);
-                      // Para conceptos manuales LYF: cantidad 1 (monto viene del concepto)
-                      if (concepto?.tipo === 'CONCEPTO_MANUAL_LYF') {
                       setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
-                      } else {
-                        setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
-                      }
                       setSelectedConceptToAdd('');
                     }}
                     disabled={!selectedConceptToAdd}
@@ -1784,172 +1840,51 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                     <thead>
                       <tr>
                         <th style={{ width: '30%', textAlign: 'left' }}>Concepto</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje / Monto</th>
+                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje</th>
                         <th style={{ width: '20%', textAlign: 'center' }}>Unidades</th>
                         <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
                         <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sortConceptos(
-                        Object.keys(conceptosSeleccionados)
-                          .map(conceptId => conceptos.find(c => String(c.id) === String(conceptId)))
-                          .filter(Boolean)
-                      ).map((concepto) => {
-                          const conceptId = String(concepto.id);
-                          const units = conceptosSeleccionados[conceptId]?.units ?? '';
-                          const isDescuento = isDeduction(concepto);
-                        const isConceptoManualLyF = concepto?.tipo === 'CONCEPTO_MANUAL_LYF';
+                      {Object.keys(conceptosSeleccionados).map((conceptId) => {
+                        const concepto = conceptos.find(c => String(c.id) === String(conceptId));
+                        const units = conceptosSeleccionados[conceptId]?.units ?? '';
+                        const isDescuento = concepto ? (concepto.isDescuento || concepto.tipo === 'DESCUENTO') : false;
 
-                        // Para descuentos, calcular usando la misma lógica que calculateTotalDescuentos
-                        let total = 0;
-                        if (isDescuento && concepto && units && Number(units) > 0) {
-                          const totalRemuneraciones = calculateSueldoBruto();
-                          const unitsNum = Number(units);
-                          
-                          // DESCUENTO_LYF y DESCUENTO_UOCRA: siempre usan porcentaje del catálogo sobre totalRemuneraciones
-                          if (concepto.tipo === 'DESCUENTO_LYF' || concepto.tipo === 'DESCUENTO_UOCRA') {
-                            if (concepto.porcentaje && totalRemuneraciones > 0) {
-                              const montoUnitario = (totalRemuneraciones * concepto.porcentaje / 100);
-                              total = -(montoUnitario * (unitsNum || 1));
-                            }
-                          }
-                          // DESCUENTO: verificar baseCalculo solo para este tipo
-                          else if (concepto.tipo === 'DESCUENTO') {
-                            const baseCalculoDescuento = concepto?.baseCalculo ?? concepto?.base_calculo;
-                            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
-                            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-                            
-                            if (usaTotalBruto && totalRemuneraciones > 0) {
-                              // Usar porcentaje (no unidades) como porcentaje sobre TOTAL_BRUTO
-                              const porcentajeDescuento = Number(concepto.porcentaje) || 0;
-                              if (porcentajeDescuento > 0) {
-                                total = -(totalRemuneraciones * porcentajeDescuento / 100);
-                              }
-                            } else if (usaTotalNeto) {
-                              // Para TOTAL_NETO, necesitamos calcular el neto preliminar
-                              // Calcular descuentos que NO usan TOTAL_NETO
-                              const descuentosNoTotalNeto = Object.keys(conceptosSeleccionados).reduce((sum, cid) => {
-                                const c = conceptos.find(cc => String(cc.id) === String(cid));
-                                if (!c) return sum;
-                                const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_LYF' || c.tipo === 'DESCUENTO_UOCRA';
-                                if (!cIsDescuento) return sum;
-                                // Excluir el descuento actual
-                                if (String(cid) === String(conceptId)) return sum;
-                                
-                                // DESCUENTO_LYF y DESCUENTO_UOCRA siempre se incluyen (no usan TOTAL_NETO)
-                                if (c.tipo === 'DESCUENTO_LYF' || c.tipo === 'DESCUENTO_UOCRA') {
-                                  const cUnits = conceptosSeleccionados[cid]?.units ?? '';
-                                  const cUnitsNum = Number(cUnits);
-                                  if (cUnitsNum > 0 && c.porcentaje && totalRemuneraciones > 0) {
-                                    const montoUnitario = (totalRemuneraciones * c.porcentaje / 100);
-                                    return sum + Math.abs(montoUnitario * (cUnitsNum || 1));
-                                  }
-                                  return sum;
-                                }
-                                
-                                // Para DESCUENTO, verificar si usa TOTAL_NETO
-                                if (c.tipo === 'DESCUENTO') {
-                                  const cBaseCalculo = c?.baseCalculo ?? c?.base_calculo;
-                                  const cUsaTotalNeto = cBaseCalculo === 'TOTAL_NETO' || cBaseCalculo === 'total_neto';
-                                  if (cUsaTotalNeto) return sum; // Excluir los que usan TOTAL_NETO
-                                  
-                                  const cUnits = conceptosSeleccionados[cid]?.units ?? '';
-                                  const cUnitsNum = Number(cUnits);
-                                  if (!cUnitsNum || cUnitsNum <= 0) return sum;
-                                  
-                                  const cUsaTotalBruto = cBaseCalculo === 'TOTAL_BRUTO' || cBaseCalculo === 'total_bruto';
-                                  if (cUsaTotalBruto) {
-                                    const porcentajeDesc = Number(c.porcentaje) || 0;
-                                    if (porcentajeDesc > 0 && totalRemuneraciones > 0) {
-                                      return sum + Math.abs(totalRemuneraciones * porcentajeDesc / 100);
-                                    }
-                                  } else if (c.porcentaje && totalRemuneraciones > 0) {
-                                    const montoUnitario = (totalRemuneraciones * c.porcentaje / 100);
-                                    return sum + Math.abs(montoUnitario * (cUnitsNum || 1));
-                                  }
-                                }
-                                return sum;
-                              }, 0);
-                              const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
-                              
-                              if (netoPreliminar > 0) {
-                                // Verificar si es "Cuota Alimentaria" (solo este usa unidades como porcentaje)
-                                const nombreDescuento = (concepto.nombre || '').toLowerCase();
-                                const esCuotaAlimentaria = nombreDescuento.includes('cuota') && nombreDescuento.includes('alimentaria');
-                                
-                                if (esCuotaAlimentaria) {
-                                  // "Cuota Alimentaria": usar cantidad (unidades) como porcentaje sobre el neto preliminar
-                                  const cantidadComoPorcentaje = unitsNum;
-                                  if (cantidadComoPorcentaje > 0) {
-                                    total = -(netoPreliminar * cantidadComoPorcentaje / 100);
-                                  }
-                                } else {
-                                  // Otros descuentos con TOTAL_NETO: usar porcentaje del catálogo
-                                  const porcentajeDescuento = Number(concepto.porcentaje) || 0;
-                                  if (porcentajeDescuento > 0) {
-                                    const montoUnitario = (netoPreliminar * porcentajeDescuento) / 100;
-                                    total = -(montoUnitario * (unitsNum || 1));
-                                  }
-                                }
-                              }
-                            } else if (concepto.porcentaje && totalRemuneraciones > 0) {
-                              // Comportamiento tradicional
-                              const montoUnitario = (totalRemuneraciones * concepto.porcentaje / 100);
-                              total = -(montoUnitario * (unitsNum || 1));
-                            }
-                          }
-                        } else if (concepto && units && Number(units) > 0) {
-                          // Para no descuentos, usar calculateConceptTotal normalmente
-                          total = calculateConceptTotal(concepto, Number(units));
-                        }
+                        const calcularTotalRemuneraciones = () => {
+                          const salarioBasico = Number(formData.salary) || 0;
+                          const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
+                          const totalBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, cid) => {
+                            const c = conceptos.find(cc => String(cc.id) === String(cid));
+                            if (!c || c.isDescuento || c.tipo === 'DESCUENTO') return sum;
+                            const u = Number(conceptosSeleccionados[cid]?.units) || 0;
+                            if (!u || u <= 0) return sum;
+                            return sum + calculateConceptTotal(c, u);
+                          }, 0);
+                          return salarioBasico + bonoArea + totalBonificaciones;
+                        };
+
+                        const totalRemuneraciones = isDescuento ? calcularTotalRemuneraciones() : null;
+                        const total = concepto && units && Number(units) > 0 ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones) : 0;
 
                         return (
                           <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
                             <td>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
-                            <td className="porcentaje-cell">
-                              {isConceptoManualLyF ? (
-                                // Para conceptos manuales LYF: mostrar "-" en porcentaje
-                                <span>-</span>
-                              ) : concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
-                                ? (concepto.factor ? `Factor ${concepto.factor}x` : '-')
-                                : (concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
-                              }
-                            </td>
+                            <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
                             <td>
-                              {isConceptoManualLyF ? (
                               <input
-                                  type="text"
-                                  value="1"
-                                  disabled
-                                  readOnly
-                                  className="units-input-field"
-                                  style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
-                                />
-                              ) : (
-                                <input
-                                  type="text"
+                                type="number"
                                 value={units}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    // Permitir solo números enteros (sin decimales)
-                                    if (value === '' || /^\d+$/.test(value)) {
-                                      handleUnitsChange(conceptId, value);
-                                    }
-                                  }}
+                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
+                                min="0"
+                                step="1"
                                 className="units-input-field"
-                                  placeholder="0"
                               />
-                              )}
                             </td>
-                            <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
-                              {isConceptoManualLyF
-                                ? formatCurrencyAR(Number(concepto?.montoUnitario || 0) * 1) // Siempre cantidad 1, monto del backend
-                                : (units && total !== 0 ? formatCurrencyAR(total) : '-')
-                              }
-                            </td>
+                            <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
                             <td style={{ textAlign: 'center' }}>
                               <button type="button" className="icon-btn delete-btn" onClick={() => setConceptosSeleccionados(prev => { const next = { ...prev }; delete next[conceptId]; return next; })} title="Quitar concepto" aria-label="Quitar concepto">
                                 <Trash2 className="h-4 w-4" />
