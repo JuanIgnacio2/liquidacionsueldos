@@ -115,7 +115,9 @@ export default function Liquidacion() {
   
   const completedCount = liquidaciones.filter(liq => {
     const estado = (liq.estado || '').toLowerCase();
-    return estado === 'procesada' || estado === 'completada' || estado === 'procesado' || estado === 'completado';
+    // Usar la misma lógica que en la lista: si no es pendiente, es procesada/completada
+    const isPendiente = estado === 'pendiente' || estado === 'p';
+    return !isPendiente;
   }).length;
   
   const totalMonthAmount = liquidaciones.reduce((sum, liq) => {
