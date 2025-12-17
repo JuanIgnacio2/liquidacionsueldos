@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
@@ -31,6 +31,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  // Catalogs / dropdown state
+  const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
+  const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
+  const [basicoCat11State, setBasicoCat11State] = useState(0);
   // Estados para edición en línea y confirmación de borrado
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
@@ -43,33 +47,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [descuentosLyFData, setDescuentosLyFData] = useState([]);
   const [descuentosUocraData, setDescuentosUocraData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
-  const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
-  // Normalizar el período inicial a formato YYYY-MM
-  const getInitialPeriod = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  };
-
-  const [periodo, setPeriodo] = useState(getInitialPeriod());
-  const [quincena, setQuincena] = useState(1); // 1 = primera quincena, 2 = segunda quincena
-  const [fechaPago, setFechaPago] = useState(''); // Fecha de pago opcional
-  // Estados para selector de período (año y mes separados)
-  const currentDate = new Date();
-  const [periodoAnio, setPeriodoAnio] = useState(currentDate.getFullYear());
-  const [periodoMes, setPeriodoMes] = useState(String(currentDate.getMonth() + 1).padStart(2, '0'));
-  const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
-  const [liquidacionesEstado, setLiquidacionesEstado] = useState(new Map()); // Map<legajo, {estado: 'completada'|'pendiente', fechaPago: string|null}>
-  // Estados para aguinaldo
-  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo' o 'vacaciones'
-  const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
-  const [aguinaldoAnio, setAguinaldoAnio] = useState(new Date().getFullYear());
-  const [aguinaldoCalculo, setAguinaldoCalculo] = useState(null);
-  // Estados para vacaciones
-  const [anioVacaciones, setAnioVacaciones] = useState(new Date().getFullYear());
-  const [vacacionesCalculo, setVacacionesCalculo] = useState(null);
+  const [periodo, setPeriodo] = useState(
+    new Date().toISOString().slice(0,7)
+  );
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -384,14 +365,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
       const isUocra = gremioUpper.includes('UOCRA');
       
-      let bonificacionesFijas = [];
-      let descuentos = [];
-      let horasExtrasLyF = [];
-      let titulosLyF = [];
-      let conceptosManualesLyF = [];
-      let descuentosLyF = [];
-      let descuentosUocra = [];
-      
       if (isLuzYFuerza) {
         // Para Luz y Fuerza: cargar todos los conceptos requeridos
         [
@@ -426,14 +399,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         descuentos = [];
       }
       
-      // Guardar catálogos para uso posterior
-      setDescuentosData(descuentos);
-      setCatalogBonificaciones(bonificacionesFijas || []);
-      setHorasExtrasLyFData(horasExtrasLyF || []);
-      setTitulosLyFData(titulosLyF || []);
-      setConceptosManualesLyFData(conceptosManualesLyF || []);
-      setDescuentosLyFData(descuentosLyF || []);
-      setDescuentosUocraData(descuentosUocra || []);
+      const descuentos = await api.getDescuentos();
+      setDescuentosData(descuentos); // Guardar descuentos para uso posterior
+      setCatalogBonificaciones(bonificacionesFijas || []); // guardar catálogo para el dropdown
 
       // Obtener básico de categoría 11 para Luz y Fuerza
       let basicoCat11 = 0;
@@ -501,67 +469,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           
           const concepto = buscarConceptoEnCatalogos(asignado.idReferencia, asignado.tipoConcepto);
 
-          // Detectar conceptos que se calculan sobre el total bruto
-          const nombreConcepto = concepto?.nombre ?? concepto?.descripcion ?? asignado.nombre ?? asignado.descripcion ?? 'Concepto';
-          const nombreNormalizado = normalize(nombreConcepto);
-          
-          // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
-          const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
-          const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
-          
-          // Detectar conceptos especiales por nombre (compatibilidad hacia atrás)
-          const isConceptoEspecial = (
-            nombreNormalizado.includes('suplemento antiguedad') ||
-            nombreNormalizado.includes('suplemento antigüedad') ||
-            nombreNormalizado.includes('art 50') ||
-            nombreNormalizado.includes('art 69') ||
-            nombreNormalizado.includes('art 70') ||
-            nombreNormalizado.includes('art 72')
-          ) && isLuzYFuerza;
-
-          const isBonifAntiguedad = nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad') && isLuzYFuerza;
-
-          if (isBonifAntiguedad) {
-
-            const porcentaje = concepto?.porcentaje ?? asignado.porcentaje ?? asignado.porcentajeBonificacion ?? 0;
-            const unidades = Number(asignado.unidades) || 1;
-            const montoUnitario = basicoCat11 * 1.4 * (Number(porcentaje) || 0) / 100;
-            const total = montoUnitario * unidades;
-
-            return {
-              uid: uidCounter.current++,
-              id: asignado.idReferencia,
-              tipo: asignado.tipoConcepto,
-              nombre: nombreConcepto,
-              porcentaje: Number(porcentaje) || null,
-              montoUnitario: montoUnitario,
-              cantidad: unidades,
-              total: total,
-            };
-          }
-          
-          // Si es un concepto que usa TOTAL_BRUTO o es concepto especial por nombre, guardar estructura pero calcular después
-          if (usaTotalBruto || isConceptoEspecial) {
-            const porcentaje = concepto?.porcentaje ?? asignado.porcentaje ?? asignado.porcentajeBonificacion ?? 0;
-            const unidades = Number(asignado.unidades) || 1;
-            
-            // Guardar estructura, se recalculará después con el total bruto
-            return {
-              uid: uidCounter.current++,
-              id: asignado.idReferencia,
-              tipo: asignado.tipoConcepto,
-              nombre: nombreConcepto,
-              montoUnitario: 0, // Se calculará después
-              porcentaje: Number(porcentaje) || null,
-              cantidad: unidades,
-              total: 0, // Se calculará después
-              _esConceptoEspecial: true, // Flag para identificar y recalcular después
-            };
-          }
-
-          // Para Luz y Fuerza (CONCEPTO_LYF y TITULO_LYF): 
-          // - Si baseCalculo === 'BASICO_CATEGORIA_11' o no tiene campo: calcular sobre categoría 11
-          // - Si baseCalculo === 'TOTAL_BRUTO': ya se manejó arriba
+          // Para Luz y Fuerza (CONCEPTO_LYF): calcular sobre categoría 11
           // Para UOCRA (CONCEPTO_UOCRA): calcular sobre el básico del empleado
           let baseCalculo = basicoValue;
           if ((asignado.tipoConcepto === 'CONCEPTO_LYF' || asignado.tipoConcepto === 'TITULO_LYF') && isLuzYFuerza) {
@@ -570,6 +478,31 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             if (!baseCalculoConcepto || baseCalculoConcepto === 'BASICO_CATEGORIA_11' || baseCalculoConcepto === 'basico_categoria_11') {
             baseCalculo = basicoCat11;
             }
+          }
+
+          // Si no encontramos el concepto en el catálogo, usar datos del asignado como fallback
+          if (!concepto) {
+            const porcentajeAsignado = asignado.porcentaje ?? asignado.porcentajeBonificacion ?? null;
+            const nombreAsignado = asignado.nombre ?? asignado.descripcion ?? 'Concepto';
+            let montoUnitario = 0;
+
+            if (porcentajeAsignado != null) {
+              montoUnitario = (baseCalculo * porcentajeAsignado / 100);
+            } else {
+              // Si no hay porcentaje, intentar usar un monto directo en el registro asignado
+              montoUnitario = asignado.montoUnitario ?? asignado.monto ?? 0;
+            }
+
+              return {
+                uid: uidCounter.current++,
+                id: asignado.idReferencia,
+                tipo: asignado.tipoConcepto,
+                nombre: nombreAsignado,
+                montoUnitario: Number(montoUnitario) || 0,
+                porcentaje: porcentajeAsignado != null ? Number(porcentajeAsignado) : null,
+                cantidad: Number(asignado.unidades) || 1,
+                total: (Number(montoUnitario) || 0) * (Number(asignado.unidades) || 1),
+              };
           }
 
           // Si no encontramos el concepto en el catálogo, usar datos del asignado como fallback
@@ -614,6 +547,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       if (isUocra) console.debug('ProcessPayrollModal - UOCRA bonificacionesMapped:', bonificacionesMapped);
 
+      // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
+      const totalRemuneraciones = basicoValue + 
+        bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0) +
+        bonificacionesMapped.reduce((sum, b) => sum + (b.total || 0), 0);
+
       // Descuentos iniciales (solo guardar estructura, se recalcularán después de Horas Extras)
       const descuentosMapped = conceptosAsignados
         .filter(asignado => 
@@ -650,11 +588,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             id: asignado.idReferencia,
             tipo: tipoDescuento, // Mantener el tipo específico (DESCUENTO, DESCUENTO_LYF, DESCUENTO_UOCRA)
             nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
-            montoUnitario: 0, // Se calculará después
-            porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular (si no usa baseCalculo)
+            montoUnitario: Number(montoUnitario) || 0,
+            porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular
             cantidad: Number(asignado.unidades) || 1,
-            total: 0, // Se calculará después
-            baseCalculo: baseCalculoDescuento || null, // Guardar baseCalculo del catálogo
+            total: -(Number(montoUnitario) || 0) * (Number(asignado.unidades) || 1), // Negativo porque es descuento
           };
         })
         .filter(Boolean);
@@ -665,174 +602,42 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         ? [...bonificacionesMapped, ...descuentosMapped]
         : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
 
-      // Calcular horas extras DESPUÉS de todas las bonificaciones
-      const calcularHorasExtras = (items) => {
-        if (!isLuzYFuerza || horasExtrasAsignadas.length === 0) return [];
+      // Aplicar cálculo especial de Horas Extras para Luz y Fuerza
+      const applyHorasExtras = (items) => {
+        if (!isLuzYFuerza) return items;
+        const salarioBasico = basicoValue || 0;
+        const bonoAreaSum = items.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
 
-        // Calcular total remunerativo (básico + bonificaciones, sin horas extras, descuentos ni conceptos especiales)
-        const totalRemunerativo = items
-          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && !c._esConceptoEspecial)
-          .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        return items.map(item => {
+          if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+            const unidades = Number(item.cantidad) || 1;
 
-        // Calcular valor hora
-        const valorHora = totalRemunerativo / 156;
+            // Calcular sumatoria de otras bonificaciones (excluye descuentos, la propia fila y otras Horas Extras)
+            const otherBonificaciones = items.reduce((sum, other) => {
+              if (other === item) return sum;
+              if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
+              // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+              if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
 
-        // Mapear horas extras asignadas
-        return horasExtrasAsignadas.map((asignado) => {
-          const horaExtra = horasExtrasLyF.find(he => 
-            (he.idHoraExtra ?? he.id) === asignado.idReferencia
-          );
+              return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
+            }, 0);
 
-          const nombreConcepto = horaExtra 
-            ? (horaExtra.descripcion ?? horaExtra.codigo ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'))
-            : (asignado.nombre ?? asignado.descripcion ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'));
-          
-          const factor = horaExtra 
-            ? (Number(horaExtra.factor) || (asignado.idReferencia === 1 ? 1.5 : 2))
-            : (asignado.idReferencia === 1 ? 1.5 : 2);
-          const unidades = Number(asignado.unidades) || 1;
+            const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
+            if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
 
-          // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-          let montoUnitario;
-          if (isPersonalDeTurno(nombreConcepto)) {
-            montoUnitario = totalRemunerativo * factor;
-          } else {
-            montoUnitario = valorHora * factor;
-          }
-          
-          const total = montoUnitario * unidades;
-
-          if (!horaExtra) {
-            // Fallback si no se encuentra en el catálogo
-            return {
-              uid: uidCounter.current++,
-              id: asignado.idReferencia,
-              tipo: 'HORA_EXTRA_LYF',
-              nombre: nombreConcepto,
-              montoUnitario: Number(montoUnitario) || 0,
-              factor: factor,
-              cantidad: unidades,
-              total: Number(total) || 0,
-            };
+            const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+            const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
+            return { ...item, montoUnitario, total: montoUnitario * unidades };
           }
 
-          return {
-            uid: uidCounter.current++,
-            id: horaExtra.idHoraExtra ?? horaExtra.id ?? asignado.idReferencia,
-            tipo: 'HORA_EXTRA_LYF',
-            nombre: nombreConcepto,
-            montoUnitario: Number(montoUnitario) || 0,
-            factor: Number(factor),
-            cantidad: unidades,
-            total: Number(total) || 0,
-          };
+          return item;
         });
       };
 
-      const horasExtrasMapped = calcularHorasExtras(listaSinHoras);
-      const listaConHoras = [...listaSinHoras, ...horasExtrasMapped];
+      const listaConHoras = applyHorasExtras(lista);
 
-      // Recalcular conceptos especiales usando la función auxiliar
-      const listaConConceptosEspeciales = recalcularConceptosEspeciales(listaConHoras, isUocra, basicoValue);
-
-      // Recalcular descuentos DESPUÉS de aplicar Horas Extras y conceptos especiales con el total correcto de remuneraciones
-      const recalcularDescuentos = (items) => {
-        // Calcular total de remuneraciones (incluyendo horas extras)
-        // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
-        // Para Luz y Fuerza: el básico está en la lista como 'CATEGORIA', así que solo sumamos de la lista
-        let totalRemuneraciones = 0;
-        if (isUocra) {
-          // Para UOCRA, el básico no está en la lista, sumarlo por separado
-          totalRemuneraciones = basicoValue + 
-            items
-              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
-              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-        } else {
-          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', sumar todo excepto descuentos
-          totalRemuneraciones = items
-            .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA')
-            .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-        }
-
-        let listaActual = items.map(item => ({ ...item })); // Clonar para no mutar el original
-        
-        // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO (TOTAL_BRUTO o porcentaje tradicional)
-        listaActual = listaActual.map(item => {
-          if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
-            const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
-            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            
-            // Solo calcular los que NO usan TOTAL_NETO en este paso
-            if (usaTotalBruto) {
-              // Usar cantidad como porcentaje sobre TOTAL_BRUTO
-              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-              if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-                const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-                return {
-                  ...item,
-                  montoUnitario: Math.abs(nuevoTotal),
-                  total: nuevoTotal
-                };
-              }
-            } else if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
-              // Comportamiento tradicional: usar porcentaje del catálogo
-              const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
-              const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
-              return {
-                ...item,
-                montoUnitario: Number(montoUnitario) || 0,
-                total: nuevoTotal
-              };
-            }
-            // Si usa TOTAL_NETO, dejarlo para el siguiente paso
-          }
-          return item;
-        });
-        
-        // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
-        const descuentosNoTotalNeto = listaActual
-          .filter(c => {
-            if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
-            const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            return !usaTotalNeto; // Solo los que NO usan TOTAL_NETO
-          })
-          .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
-        const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
-        
-        // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
-        listaActual = listaActual.map(item => {
-          if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
-            const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            
-            if (usaTotalNeto) {
-              // Usar cantidad como porcentaje sobre el neto preliminar
-              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-              if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-                const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-                return {
-                  ...item,
-                  montoUnitario: Math.abs(nuevoTotal),
-                  total: nuevoTotal
-                };
-              }
-            }
-          }
-          return item;
-        });
-        
-        return listaActual;
-      };
-
-      const listaFinal = recalcularDescuentos(listaConConceptosEspeciales);
-
-      // Calcular asistencia inicial si es UOCRA usando la función helper
-      const listaConAsistencia = calculateAsistencia(listaFinal, employee);
-
-      setTotal(calcTotal(listaConAsistencia));
-      setConceptos(listaConAsistencia);
+      setTotal(calcTotal(listaConHoras));
+      setConceptos(listaConHoras);
       setCurrentStep('payroll');
     } catch (error) {
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
@@ -944,99 +749,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
 
-  // Determinar si un concepto puede tener cantidad editable
-  const canEditQuantity = (concept) => {
-    // Conceptos manuales LYF siempre tienen cantidad 1 (no editables)
-    if (concept.tipo === 'CONCEPTO_MANUAL_LYF') {
-      return false;
-    }
-    // Aguinaldo no es editable
-    if (concept.tipo === 'AGUINALDO') {
-      return false;
-    }
-    
-    const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
-    const isLuzYFuerza = gremioNombre.includes('LUZ') && gremioNombre.includes('FUERZA');
-    const isUocra = gremioNombre === 'UOCRA';
-    
-    // Para Luz y Fuerza: solo HORA_EXTRA_LYF con id 1 (simples) o 2 (dobles)
-    if (isLuzYFuerza) {
-      if (concept.tipo === 'HORA_EXTRA_LYF' && (concept.id === 1 || concept.id === 2)) {
-        return true;
-      }
-      return false;
-    }
-    
-    // Para UOCRA: Hs. Normales, Horas Extras, Horas Extras Dobles (asistencia se calcula automáticamente)
-    if (isUocra) {
-      const nombreUpper = (concept.nombre || '').toUpperCase();
-      // Identificar conceptos de horas por nombre
-      if (nombreUpper.includes('HS.NORMALES') || 
-          nombreUpper.includes('HORAS NORMALES') ||
-          nombreUpper.includes('HORAS EXTRAS DOBLES') ||
-          nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES')) {
-        return true;
-      }
-      // Asistencia NO es editable (se calcula automáticamente)
-      if (nombreUpper.includes('ASISTENCIA')) {
-        return false;
-      }
-      return false;
-    }
-    
-    // Para otros gremios: no editable
-    return false;
-  };
-
-  // Calcular asistencia automáticamente para UOCRA
-  // Acepta una lista de conceptos y retorna la lista actualizada con la asistencia calculada
-  const calculateAsistencia = (listaConceptos, empleado = selectedEmployee) => {
-    const gremioNombre = empleado?.gremio?.nombre?.toUpperCase() || '';
-    const isUocra = gremioNombre === 'UOCRA';
-    
-    if (!isUocra) return listaConceptos;
-    
-    // Buscar conceptos de horas
-    const horasNormales = listaConceptos.find(c => {
-      const nombreUpper = (c.nombre || '').toUpperCase();
-      return nombreUpper.includes('HS.NORMALES') || nombreUpper.includes('HORAS NORMALES');
-    });
-    
-    const horasExtras = listaConceptos.find(c => {
-      const nombreUpper = (c.nombre || '').toUpperCase();
-      return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
-    });
-    
-    const horasExtrasDobles = listaConceptos.find(c => {
-      const nombreUpper = (c.nombre || '').toUpperCase();
-      return nombreUpper.includes('HORAS EXTRAS DOBLES');
-    });
-    
-    // Buscar concepto de asistencia
-    const asistencia = listaConceptos.find(c => {
-      const nombreUpper = (c.nombre || '').toUpperCase();
-      return nombreUpper.includes('ASISTENCIA');
-    });
-    
-    if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
-      // Calcular suma de las tres horas
-      const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
-      const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
-      const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
-      const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
-      
-      // Actualizar cantidad de asistencia
-      return listaConceptos.map(c => {
-        if (c.uid === asistencia.uid) {
-          return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
-        }
-        return c;
-      });
-    }
-    
-    return listaConceptos;
-  };
-
   // Actualizar cantidad de un concepto
   const handleQtyChange = (conceptUid, nuevaCantidad) => {
     const cantidad = Number(nuevaCantidad) || 0;
@@ -1056,170 +768,79 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         return cloned;
       }
       // Para los demás, asegurar total consistente (unidad * cantidad) salvo Horas Extras que se recalculan después
-      if (cloned.tipo === 'HORA_EXTRA_LYF') {
+      if (cloned.tipo === 'CONCEPTO_LYF' && (cloned.nombre === 'Horas Extras Simples' || cloned.nombre === 'Horas Extras Dobles')) {
         return cloned; // dejar para recalcular más abajo
       }
       cloned.total = (cloned.montoUnitario || 0) * (cloned.cantidad || 1);
       return cloned;
     });
 
-    // 2) Recalcular Horas Extras (si corresponde)
-    const recalcularHorasExtras = (items) => {
+    // 2) Aplicar recálculo especial de Horas Extras (si corresponde)
+    const applyHorasExtrasNow = (items) => {
       const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
       if (!isLuz) return items;
-
-      // Calcular total remunerativo (sin horas extras ni descuentos)
-      const totalRemunerativo = items
-        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
-        .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0) + basicSalary;
-
-      // Calcular valor hora
-      const valorHora = totalRemunerativo / 156;
+      const salarioBasico = basicSalary || 0;
+      const bonoAreaSum = items.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
 
       return items.map(item => {
-        if (item.tipo === 'HORA_EXTRA_LYF') {
+        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
           const unidades = Number(item.cantidad) || 1;
-          const factor = Number(item.factor) || (item.id === 1 ? 1.5 : 2);
-          
-          // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-          let montoUnitario;
-          if (isPersonalDeTurno(item.nombre)) {
-            montoUnitario = totalRemunerativo * factor;
-          } else {
-            montoUnitario = valorHora * factor;
-          }
-          
-          return { ...item, montoUnitario: Number(montoUnitario) || 0, total: (Number(montoUnitario) || 0) * unidades };
+
+          // Sumar otras bonificaciones (excluye descuentos, la propia fila y otras Horas Extras)
+          const otherBonificaciones = items.reduce((sum, other) => {
+            if (other === item) return sum;
+            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
+            // Excluir otras Horas Extras para evitar dependencia circular
+            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
+
+            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
+          }, 0);
+
+          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
+          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
+
+          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
+          return { ...item, montoUnitario, total: montoUnitario * unidades };
         }
+
         return item;
       });
     };
 
-    nuevos = recalcularHorasExtras(nuevos);
+    nuevos = applyHorasExtrasNow(nuevos);
 
-    // 3) Recalcular descuentos basados en el nuevo total de remuneraciones (incluyendo horas extras)
+    // 3) Recalcular descuentos basados en el nuevo total de remuneraciones
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     const totalRemuneraciones = basicoEmpleado + nuevos
-      .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
+      .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
       .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
 
-    // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
-    let listaActual = nuevos.map(concept => {
-      if (concept.tipo === 'DESCUENTO' || concept.tipo === 'DESCUENTO_LYF' || concept.tipo === 'DESCUENTO_UOCRA') {
-        const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
-        const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
-        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-        
-        // Solo calcular los que NO usan TOTAL_NETO en este paso
-        if (usaTotalBruto) {
-          const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
-          if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-            const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
-          }
-        } else if (!usaTotalNeto && concept.porcentaje && totalRemuneraciones > 0) {
-          // Comportamiento tradicional
+    const nuevosConDescuentos = nuevos.map(concept => {
+      if (concept.tipo === 'DESCUENTO') {
+        if (concept.porcentaje && totalRemuneraciones > 0) {
           const montoUnitario = (totalRemuneraciones * concept.porcentaje / 100);
           const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          const nuevoTotal = -(montoUnitario * (Number(cantidadActual) || 1));
-          return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: nuevoTotal };
+          return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: -(Number(montoUnitario) || 0) * (Number(cantidadActual) || 1) };
         }
-        // Si usa TOTAL_NETO, dejarlo para el siguiente paso
+        // Mantener tal cual si no hay porcentaje
+        return { ...concept, montoUnitario: Number(concept.montoUnitario) || 0, total: Number(concept.total) || 0 };
       }
       return { ...concept, montoUnitario: Number(concept.montoUnitario) || 0, cantidad: Number(concept.cantidad) || 1, total: (Number(concept.montoUnitario) || 0) * (Number(concept.cantidad) || 1) };
     });
-    
-    // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
-    const descuentosNoTotalNeto = listaActual
-      .filter(c => {
-        if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
-        const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
-        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-        return !usaTotalNeto;
-      })
-      .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
-    const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
-    
-    // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
-    const nuevosConDescuentos = listaActual.map(concept => {
-      if (concept.tipo === 'DESCUENTO' || concept.tipo === 'DESCUENTO_LYF' || concept.tipo === 'DESCUENTO_UOCRA') {
-        const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
-        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-        
-        if (usaTotalNeto) {
-          const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
-          if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-            const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
-          }
-        }
-      }
-      return concept;
-    });
 
-    // Calcular asistencia si es UOCRA
-    const listaConAsistencia = calculateAsistencia(nuevosConDescuentos);
-    
-    setConceptos(listaConAsistencia);
-    setTotal(calcTotal(listaConAsistencia));
+    setConceptos(nuevosConDescuentos);
+    setTotal(calcTotal(nuevosConDescuentos));
+  };
+  const handleAddConcepto = () => {
+    setModalOpen(true);
   };
 
-  // Obtener gremios únicos de los empleados
-  const gremiosDisponibles = useMemo(() => {
-    const gremiosSet = new Set();
-    employees.forEach(emp => {
-      const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
-      if (gremio) {
-        const gremioUpper = gremio.toUpperCase();
-        if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-          gremiosSet.add('LUZ_Y_FUERZA');
-        } else if (gremioUpper === 'UOCRA') {
-          gremiosSet.add('UOCRA');
-        } else {
-          gremiosSet.add('Convenio General');
-        }
-      }
-    });
-    return Array.from(gremiosSet).sort();
-  }, [employees]);
-
-  // Función para obtener el gremio normalizado de un empleado
-  const getGremioFromEmployee = (emp) => {
-    const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
-    if (!gremio) return '';
-    
-    const gremioUpper = gremio.toUpperCase();
-    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-      return 'LUZ_Y_FUERZA';
-    } else if (gremioUpper === 'UOCRA') {
-      return 'UOCRA';
-    }
-    return 'Convenio General';
-  };
-
-  // Función para obtener el estado de procesamiento de un empleado
-  const getEstadoProcesamiento = (emp) => {
-    const legajo = Number(emp.legajo);
-    
-    // Si tiene liquidación en el mes actual
-    if (processedLegajos.has(legajo)) {
-      const liquidacionInfo = liquidacionesEstado.get(legajo);
-      if (liquidacionInfo) {
-        // Si tiene fechaPago o estado es 'completada', es completada
-        if (liquidacionInfo.estado === 'completada' || liquidacionInfo.fechaPago) {
-          return 'Completada';
-        }
-        // Si no tiene fechaPago y estado es 'pendiente', es pendiente
-        return 'Pendiente';
-      }
-      // Fallback: si está en el set pero no hay info, asumir completada
-      return 'Completada';
-    }
-    
-    // Si no tiene liquidación para el mes actual
-    return 'No realizada';
+  const handleConfirmConeptos = (nuevos) => {
+    const withUids = nuevos.map(n => n.uid ? n : { ...n, uid: uidCounter.current++ });
+    const lista = [...conceptos, ...withUids];
+    setConceptos(lista);
+    setTotal(calcTotal(lista));
   };
 
   // Filtrar empleados por búsqueda
@@ -1236,9 +857,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     );
 
   // Actualizar concepto
-  const updateConcept = (id, field, value) => {
+  const updateConcept = (uid, field, value) => {
     setConceptos(prev => prev.map(concept => {
-      if (concept.id === id) {
+      if (concept.uid === uid) {
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
         if (field === 'units' || field === 'unitValue') {
@@ -1251,15 +872,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Eliminar concepto
-  const removeConcept = (id) => {
-    setConceptos(prev => prev.filter(concept => concept.id !== id));
+  const removeConcept = (uid) => {
+    setConceptos(prev => prev.filter(concept => concept.uid !== uid));
   };
 
   // Iniciar edición del monto (soporta remuneraciones y descuentos)
   const startEditAmount = (concept) => {
     // Preferir montoUnitario, si no existe usar valor absoluto del total
     const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
-    setEditingAmountId(concept.id);
+    setEditingAmountId(concept.uid);
     setEditingAmountValue(String(initial));
   };
 
@@ -1270,8 +891,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const saveEditAmount = (concept) => {
     const value = parseFloat(editingAmountValue) || 0;
-    const nuevos = conceptos.map(c => {
-      if (c.id === concept.id) {
+    let nuevos = conceptos.map(c => {
+      if (c.uid === concept.uid) {
         if (c.tipo === 'DESCUENTO') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -1281,6 +902,34 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return c;
     });
+
+    // Aplicar Horas Extras recalculadas si corresponde
+    const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
+    if (isLuz) {
+      const salarioBasico = basicSalary || 0;
+      const bonoAreaSum = nuevos.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+      nuevos = nuevos.map(item => {
+        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+          const unidades = Number(item.cantidad) || 1;
+          const otherBonificaciones = nuevos.reduce((sum, other) => {
+            if (other === item) return sum;
+            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
+            // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
+            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
+          }, 0);
+
+          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
+          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
+
+          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
+          return { ...item, montoUnitario, total: montoUnitario * unidades };
+        }
+        return item;
+      });
+    }
+
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
     cancelEditAmount();
@@ -2874,81 +2523,28 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </div>
               </div>
 
-              <div className="concept-add-row">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <select
                   className="form-select concept-select"
                   value={selectedCatalogConcept}
                   onChange={(e) => setSelectedCatalogConcept(e.target.value)}
                 >
                   <option value="">Agregar desde catálogo...</option>
-                  {/* Conceptos LYF */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA') && catalogBonificaciones.map((c) => {
-                    const id = c.idConceptoLyF ?? c.idBonificacion ?? c.id;
-                    const label = `${c.nombre ?? c.descripcion}${c.porcentaje ? ` (${c.porcentaje}%)` : ''}`;
-                    const exists = conceptos.some(ct => ct.id === id && (ct.tipo === 'CONCEPTO_LYF' || ct.tipo === 'CONCEPTO_UOCRA'));
-                    if (exists) return null;
-                    return <option key={`BON_${id}`} value={`BON_${id}`}>{label}</option>;
-                  })}
-                  
-                  {/* Conceptos UOCRA */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA' && catalogBonificaciones.map((c) => {
+                  {catalogBonificaciones.map((c) => {
                     const id = c.idBonificacion ?? c.id;
                     const label = `${c.nombre ?? c.descripcion}${c.porcentaje ? ` (${c.porcentaje}%)` : ''}`;
-                    const exists = conceptos.some(ct => ct.id === id && (ct.tipo === 'CONCEPTO_UOCRA' || ct.tipo === 'CONCEPTO_LYF'));
+                    // Excluir si ya existe en la lista de conceptos
+                    const exists = conceptos.some(ct => ct.id === id && (ct.tipo === 'CONCEPTO_LYF' || ct.tipo === 'CONCEPTO_UOCRA' || ct.tipo === 'BONIFICACION_AREA' || ct.tipo === 'CONCEPTO'));
                     if (exists) return null;
                     return <option key={`BON_${id}`} value={`BON_${id}`}>{label}</option>;
                   })}
 
-                  {/* Títulos LYF */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && titulosLyFData.map((t) => {
-                    const id = t.idTituloLyF ?? t.id;
-                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'CONCEPTO_LYF');
-                    if (exists) return null;
-                    return <option key={`TIT_${id}`} value={`TIT_${id}`}>{`${t.nombre ?? t.descripcion}${t.porcentaje ? ` (${t.porcentaje}%)` : ''}`}</option>;
-                  })}
-
-                  {/* Conceptos Manuales LYF */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA') && conceptosManualesLyFData.map((cm) => {
-                    const id = cm.idConceptosManualesLyF ?? cm.idConceptoManualLyF ?? cm.id;
-                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'CONCEPTO_MANUAL_LYF');
-                    if (exists) return null;
-                    const monto = Number(cm.monto ?? cm.valor ?? 0);
-                    return <option key={`MAN_${id}`} value={`MAN_${id}`}>{`${cm.nombre ?? cm.descripcion} (Monto: ${formatCurrencyAR(monto)})`}</option>;
-                  })}
-
-                  {/* Descuentos generales */}
                   {descuentosData.map((d) => {
                     const id = d.idDescuento ?? d.id;
                     const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'DESCUENTO');
                     if (exists) return null;
                     return <option key={`DESC_${id}`} value={`DESC_${id}`}>{`${d.nombre ?? d.descripcion} (Desc ${d.porcentaje}%)`}</option>;
                   })}
-
-                  {/* Descuentos LYF */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA') && descuentosLyFData.map((d) => {
-                    const id = d.idDescuentoLyF ?? d.idDescuento ?? d.id;
-                    const exists = conceptos.some(ct => ct.id === id && (ct.tipo === 'DESCUENTO' || ct.tipo === 'DESCUENTO_LYF'));
-                    if (exists) return null;
-                    return <option key={`DESC_LYF_${id}`} value={`DESC_LYF_${id}`}>{`${d.nombre ?? d.descripcion} (Desc ${d.porcentaje}%)`}</option>;
-                  })}
-
-                  {/* Descuentos UOCRA */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA' && descuentosUocraData.map((d) => {
-                    const id = d.idDescuentoUocra ?? d.idDescuento ?? d.id;
-                    const exists = conceptos.some(ct => ct.id === id && (ct.tipo === 'DESCUENTO' || ct.tipo === 'DESCUENTO_UOCRA'));
-                    if (exists) return null;
-                    return <option key={`DESC_UOCRA_${id}`} value={`DESC_UOCRA_${id}`}>{`${d.nombre ?? d.descripcion} (Desc ${d.porcentaje}%)`}</option>;
-                  })}
-
-                  {/* Horas Extras LYF solo para Luz y Fuerza */}
-                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA') && horasExtrasLyFData.map((he) => {
-                    const id = he.idHoraExtra ?? he.id;
-                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'HORA_EXTRA_LYF');
-                    if (exists) return null;
-                    const factor = Number(he.factor) || (id === 1 ? 1.5 : 2);
-                    return <option key={`HE_${id}`} value={`HE_${id}`}>{`${he.descripcion ?? he.codigo ?? (id === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles')} (Factor ${factor}x)`}</option>;
-                  })}
-
                 </select>
 
                 <button
@@ -2957,40 +2553,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   onClick={() => {
                     if (!selectedCatalogConcept) return;
                     // Añadir concepto seleccionado del catálogo
-                    const parts = selectedCatalogConcept.split('_');
-                    const pref = parts[0];
-                    const rawId = parts.length > 2 ? parts.slice(1).join('_') : parts[1]; // Manejar DESC_LYF_X o DESC_UOCRA_X
+                    const [pref, rawId] = selectedCatalogConcept.split('_');
                     const idNum = Number(rawId);
 
                     // Evitar duplicados defensivamente
-                    const isDuplicate = conceptos.some(c => {
-                      if (pref === 'BON' || pref === 'TIT') {
-                        return c.id === idNum && (c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA');
-                      } else if (pref === 'MAN') {
-                        return c.id === idNum && c.tipo === 'CONCEPTO_MANUAL_LYF';
-                      } else if (pref === 'DESC') {
-                        // Verificar según el prefijo completo
-                        if (selectedCatalogConcept.startsWith('DESC_LYF_')) {
-                          return c.id === idNum && (c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_LYF');
-                        } else if (selectedCatalogConcept.startsWith('DESC_UOCRA_')) {
-                          return c.id === idNum && (c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_UOCRA');
-                        } else {
-                          return c.id === idNum && (c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_LYF' || c.tipo === 'DESCUENTO_UOCRA');
-                        }
-                      } else if (pref === 'HE') {
-                        return c.id === idNum && c.tipo === 'HORA_EXTRA_LYF';
-                      }
-                      return false;
-                    });
-                    
-                    if (isDuplicate) {
+                    if (conceptos.some(c => c.id === idNum && ((pref === 'BON' && c.tipo !== 'DESCUENTO') || (pref === 'DESC' && c.tipo === 'DESCUENTO')) )) {
                       notify.error('El concepto ya está agregado');
                       setSelectedCatalogConcept('');
                       return;
                     }
 
                     if (pref === 'BON') {
-                      const raw = catalogBonificaciones.find(b => (b.idConceptoLyF ?? b.idBonificacion ?? b.id) === idNum);
+                      const raw = catalogBonificaciones.find(b => (b.idBonificacion ?? b.id) === idNum);
                       if (!raw) {
                         notify.error('Concepto no encontrado en el catálogo');
                         setSelectedCatalogConcept('');
@@ -3000,37 +2574,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       // Determinar base para el cálculo
                       const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
                       const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
-
-                      // Verificar si el concepto usa TOTAL_BRUTO
-                      const baseCalculoConcepto = raw?.baseCalculo ?? raw?.base_calculo;
-                      const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
-
-                      // Si usa TOTAL_BRUTO, crear como concepto especial para calcular después
-                      if (usaTotalBruto && isLuz) {
-                        const nuevo = {
-                          uid: uidCounter.current++,
-                          id: idNum,
-                          tipo: 'CONCEPTO_LYF',
-                          nombre: raw.nombre ?? raw.descripcion ?? 'Concepto',
-                          porcentaje: raw.porcentaje != null ? Number(raw.porcentaje) : null,
-                          montoUnitario: 0, // Se calculará después
-                          cantidad: 1,
-                          total: 0, // Se calculará después
-                          _esConceptoEspecial: true // Flag para identificar y recalcular después
-                        };
-
-                        const next = [...conceptos, nuevo];
-                        // Recalcular conceptos especiales después de agregar
-                        const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
-                        const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
-                        // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
-                        setConceptos(listaConAsistencia);
-                        setTotal(calcTotal(listaConAsistencia));
-                        setSelectedCatalogConcept('');
-                        notify.success('Concepto agregado');
-                        return;
-                      }
 
                       // Elegir la base de cálculo: preferir básico según gremio, si no está disponible usar remuneración asignada como fallback
                       let base = (isUocra ? basicSalary : (basicoCat11State || basicSalary)) || remunerationAssigned || 0;
@@ -3055,329 +2598,46 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
-                      setConceptos(listaConAsistencia);
-                      setTotal(calcTotal(listaConAsistencia));
+                      setConceptos(next);
+                      setTotal(calcTotal(next));
                       setSelectedCatalogConcept('');
                       notify.success('Concepto agregado');
                       return;
                     }
 
-                    if (pref === 'TIT') {
-                      const raw = titulosLyFData.find(t => (t.idTituloLyF ?? t.id) === idNum);
-                      if (!raw) {
-                        notify.error('Título no encontrado en el catálogo');
-                        setSelectedCatalogConcept('');
-                        return;
-                      }
-
-                      // Verificar si el título usa TOTAL_BRUTO
-                      const baseCalculoConcepto = raw?.baseCalculo ?? raw?.base_calculo;
-                      const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
-
-                      // Si usa TOTAL_BRUTO, crear como concepto especial para calcular después
-                      if (usaTotalBruto) {
-                        const nuevo = {
-                          uid: uidCounter.current++,
-                          id: idNum,
-                          tipo: 'TITULO_LYF',
-                          nombre: raw.nombre ?? raw.descripcion ?? 'Título',
-                          porcentaje: raw.porcentaje != null ? Number(raw.porcentaje) : null,
-                          montoUnitario: 0, // Se calculará después
-                          cantidad: 1,
-                          total: 0, // Se calculará después
-                          _esConceptoEspecial: true // Flag para identificar y recalcular después
-                        };
-
-                        const next = [...conceptos, nuevo];
-                        // Recalcular conceptos especiales después de agregar
-                        const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
-                        const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
-                        // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
-                        setConceptos(listaConAsistencia);
-                        setTotal(calcTotal(listaConAsistencia));
-                        setSelectedCatalogConcept('');
-                        notify.success('Título agregado');
-                        return;
-                      }
-
-                      // Determinar base para el cálculo (usar básico cat 11 para títulos LYF)
-                      const base = basicoCat11State || basicSalary || remunerationAssigned || 0;
-
-                      // Si el título tiene porcentaje, calcular; si tiene montoUnitario usarlo
-                      let montoUnitario = 0;
-                      if (raw.porcentaje) {
-                        montoUnitario = (Number(base || 0) * Number(raw.porcentaje || 0)) / 100;
-                      } else if (raw.montoUnitario || raw.monto) {
-                        montoUnitario = Number(raw.montoUnitario ?? raw.monto ?? 0);
-                      }
-
-                      const nuevo = {
-                        uid: uidCounter.current++,
-                        id: idNum,
-                        tipo: 'TITULO_LYF',
-                        nombre: raw.nombre ?? raw.descripcion ?? 'Título',
-                        porcentaje: raw.porcentaje != null ? Number(raw.porcentaje) : null,
-                        montoUnitario: Number(montoUnitario) || 0,
-                        cantidad: 1,
-                        total: (Number(montoUnitario) || 0) * 1
-                      };
-
-                      const next = [...conceptos, nuevo];
-                      // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
-                      setConceptos(listaConAsistencia);
-                      setTotal(calcTotal(listaConAsistencia));
-                      setSelectedCatalogConcept('');
-                      notify.success('Título agregado');
-                      return;
-                    }
-
-                    if (pref === 'MAN') {
-                      const raw = conceptosManualesLyFData.find(cm => (cm.idConceptosManualesLyF ?? cm.idConceptoManualLyF ?? cm.id) === idNum);
-                      if (!raw) {
-                        notify.error('Concepto manual no encontrado en el catálogo');
-                        setSelectedCatalogConcept('');
-                        return;
-                      }
-
-                      // Conceptos manuales LYF: usar monto fijo del concepto
-                      const montoFijo = Number(raw.monto ?? raw.valor ?? 0);
-
-                      const nuevo = {
-                        uid: uidCounter.current++,
-                        id: idNum,
-                        tipo: 'CONCEPTO_MANUAL_LYF',
-                        nombre: raw.nombre ?? raw.descripcion ?? 'Concepto Manual',
-                        porcentaje: null, // No tiene porcentaje, mostrar "-"
-                        montoUnitario: montoFijo,
-                        cantidad: 1, // Siempre cantidad 1
-                        total: montoFijo * 1 // Monto del backend * cantidad (1)
-                      };
-
-                      const next = [...conceptos, nuevo];
-                      // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
-                      setConceptos(listaConAsistencia);
-                      setTotal(calcTotal(listaConAsistencia));
-                      setSelectedCatalogConcept('');
-                      notify.success('Concepto manual agregado');
-                      return;
-                    }
-
                     if (pref === 'DESC') {
-                      // Determinar qué catálogo de descuentos usar según el prefijo completo
-                      let raw = null;
-                      
-                      if (selectedCatalogConcept.startsWith('DESC_LYF_')) {
-                        raw = descuentosLyFData.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === idNum);
-                      } else if (selectedCatalogConcept.startsWith('DESC_UOCRA_')) {
-                        raw = descuentosUocraData.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === idNum);
-                      } else {
-                        raw = descuentosData.find(d => (d.idDescuento ?? d.id) === idNum);
-                      }
-                      
+                      const raw = descuentosData.find(d => (d.idDescuento ?? d.id) === idNum);
                       if (!raw) {
                         notify.error('Descuento no encontrado en el catálogo');
                         setSelectedCatalogConcept('');
                         return;
                       }
 
-                      // Verificar si el descuento tiene baseCalculo
-                      const baseCalculoDescuento = raw?.baseCalculo ?? raw?.base_calculo;
-                      const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
-                      const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+                      // Calcular montoUnitario sobre las remuneraciones actuales
+                      const remuneracionesActuales = basicSalary + conceptos
+                        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
+                        .reduce((s, c) => s + (c.total || 0), 0);
 
-                      // Determinar el tipo de descuento según el prefijo
-                      let tipoDescuento = 'DESCUENTO';
-                      if (selectedCatalogConcept.startsWith('DESC_LYF_')) {
-                        tipoDescuento = 'DESCUENTO_LYF';
-                      } else if (selectedCatalogConcept.startsWith('DESC_UOCRA_')) {
-                        tipoDescuento = 'DESCUENTO_UOCRA';
-                      }
-
-                      let montoUnitario = 0;
-                      let cantidad = 1;
-
-                      if (usaTotalBruto || usaTotalNeto) {
-                        // Si usa baseCalculo, la cantidad se usará como porcentaje
-                        // Por defecto, cantidad = 1 (se puede editar después)
-                        cantidad = 1;
-                        montoUnitario = 0; // Se calculará después en recalcularDescuentos
-                      } else {
-                        // Comportamiento tradicional: calcular sobre remuneraciones actuales
-                        const remuneracionesActuales = basicSalary + conceptos
-                          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
-                          .reduce((s, c) => s + (c.total || 0), 0);
-                        montoUnitario = (remuneracionesActuales * (Number(raw.porcentaje || 0))) / 100;
-                      }
+                      const montoUnitario = (remuneracionesActuales * (Number(raw.porcentaje || 0))) / 100;
 
                       const nuevo = {
                         uid: uidCounter.current++,
                         id: idNum,
-                        tipo: tipoDescuento,
+                        tipo: 'DESCUENTO',
                         nombre: raw.nombre ?? raw.descripcion ?? 'Descuento',
-                        porcentaje: usaTotalBruto || usaTotalNeto ? null : Number(raw.porcentaje || 0),
+                        porcentaje: Number(raw.porcentaje || 0),
                         montoUnitario: Number(montoUnitario) || 0,
-                        cantidad: cantidad,
-                        total: -(Number(montoUnitario) || 0) * cantidad,
-                        baseCalculo: baseCalculoDescuento || null
+                        cantidad: 1,
+                        total: -(Number(montoUnitario) || 0) * 1
                       };
 
                       const next = [...conceptos, nuevo];
-                      // Si usa baseCalculo, recalcular descuentos para obtener el monto correcto
-                      if (usaTotalBruto || usaTotalNeto) {
-                        const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
-                        const basicoValue = isUocra ? basicSalary : 0;
-                        // Recalcular descuentos con la nueva lista
-                        const recalcularDescuentos = (items) => {
-                          let totalRemuneraciones = 0;
-                          if (isUocra) {
-                            totalRemuneraciones = basicoValue + 
-                              items
-                                .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
-                                .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-                          } else {
-                            totalRemuneraciones = items
-                              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA')
-                              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-                          }
-                          
-                          let listaActual = items.map(item => ({ ...item })); // Clonar
-                          
-                          // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
-                          listaActual = listaActual.map(item => {
-                            if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
-                              const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
-                              const usaTotalBrutoItem = baseCalculoItem === 'TOTAL_BRUTO' || baseCalculoItem === 'total_bruto';
-                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
-                              
-                              // Solo calcular los que NO usan TOTAL_NETO en este paso
-                              if (usaTotalBrutoItem) {
-                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-                                if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-                                  const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-                                  return {
-                                    ...item,
-                                    montoUnitario: Math.abs(nuevoTotal),
-                                    total: nuevoTotal
-                                  };
-                                }
-                              } else if (!usaTotalNetoItem && item.porcentaje && totalRemuneraciones > 0) {
-                                const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
-                                const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
-                                return {
-                                  ...item,
-                                  montoUnitario: Number(montoUnitario) || 0,
-                                  total: nuevoTotal
-                                };
-                              }
-                              // Si usa TOTAL_NETO, dejarlo para el siguiente paso
-                            }
-                            return item;
-                          });
-                          
-                          // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
-                          const descuentosNoTotalNeto = listaActual
-                            .filter(c => {
-                              if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
-                              const baseCalculoItem = c.baseCalculo ?? c.base_calculo;
-                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
-                              return !usaTotalNetoItem;
-                            })
-                            .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
-                          const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
-                          
-                          // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
-                          listaActual = listaActual.map(item => {
-                            if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
-                              const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
-                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
-                              
-                              if (usaTotalNetoItem) {
-                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-                                if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-                                  const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-                                  return {
-                                    ...item,
-                                    montoUnitario: Math.abs(nuevoTotal),
-                                    total: nuevoTotal
-                                  };
-                                }
-                              }
-                            }
-                            return item;
-                          });
-                          
-                          return listaActual;
-                        };
-                        const listaConDescuentos = recalcularDescuentos(next);
-                        // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(listaConDescuentos);
-                        setConceptos(listaConAsistencia);
-                        setTotal(calcTotal(listaConAsistencia));
-                      } else {
-                        // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(next);
-                        setConceptos(listaConAsistencia);
-                        setTotal(calcTotal(listaConAsistencia));
-                      }
+                      setConceptos(next);
+                      setTotal(calcTotal(next));
                       setSelectedCatalogConcept('');
                       notify.success('Descuento agregado');
                       return;
                     }
-
-                    if (pref === 'HE') {
-                      const raw = horasExtrasLyFData.find(he => (he.idHoraExtra ?? he.id) === idNum);
-                      if (!raw) {
-                        notify.error('Hora extra no encontrada en el catálogo');
-                        setSelectedCatalogConcept('');
-                        return;
-                      }
-
-                      // Calcular total remunerativo actual (sin horas extras ni descuentos)
-                      const totalRemunerativo = basicSalary + conceptos
-                        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
-                        .reduce((s, c) => s + (c.total || 0), 0);
-
-                      // Calcular valor hora
-                      const valorHora = totalRemunerativo / 156;
-
-                      // Calcular monto unitario usando el factor (1 = simples 1.5x, 2 = dobles 2x)
-                      const factor = Number(raw.factor) || (idNum === 1 ? 1.5 : 2);
-                      const nombreConcepto = raw.descripcion ?? raw.codigo ?? (idNum === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles');
-                      
-                      // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-                      let montoUnitario;
-                      if (isPersonalDeTurno(nombreConcepto)) {
-                        montoUnitario = totalRemunerativo * factor;
-                      } else {
-                        montoUnitario = valorHora * factor;
-                      }
-
-                      const nuevo = {
-                        uid: uidCounter.current++,
-                        id: idNum,
-                        tipo: 'HORA_EXTRA_LYF',
-                        nombre: nombreConcepto,
-                        montoUnitario: Number(montoUnitario) || 0,
-                        factor: Number(factor),
-                        cantidad: 1,
-                        total: (Number(montoUnitario) || 0) * 1
-                      };
-
-                      const next = [...conceptos, nuevo];
-                      // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
-                      setConceptos(listaConAsistencia);
-                      setTotal(calcTotal(listaConAsistencia));
-                      setSelectedCatalogConcept('');
-                      notify.success('Hora extra agregada');
-                      return;
-                    }
-
 
                   }}
                   disabled={!selectedCatalogConcept}
@@ -3396,10 +2656,22 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span>Acciones</span>
               </div>
 
-              {conceptos
-                .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
-                .map(concept => (
+              {conceptos.map(concept => (
                 <div key={concept.uid} className="concept-row">
+                  <div className="concept-cell">
+                    {concept.isManual ? (
+                      <input
+                        type="text"
+                        value={concept.id}
+                        onChange={(e) => updateConcept(concept.uid, 'code', e.target.value)}
+                        className="concept-input small"
+                        placeholder="Cód"
+                      />
+                    ) : (
+                      <span>{concept.id}</span>
+                    )}
+                  </div>
+
                   <div className="concept-cell">
                     {concept.isManual ? (
                       <input
@@ -3425,13 +2697,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     <input
                         type="text"
                       value={concept.cantidad}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          // Permitir números con decimales (0.1, 0.01, etc.)
-                          if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                            handleQtyChange(concept.uid, parseFloat(value) || 0);
-                          }
-                        }}
+                      onChange={(e) => handleQtyChange(concept.uid, parseFloat(e.target.value) || 0)}
                       className="concept-input small"
                         placeholder="0"
                     />
@@ -3448,7 +2714,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -3467,7 +2733,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
+                            </div>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -3478,7 +2746,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -3510,7 +2778,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       {concept.isManual && (
                         <select
                           value={concept.tipo}
-                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
+                          onChange={(e) => updateConcept(concept.uid, 'type', e.target.value)}
                           className="type-select"
                         >
                           <option value="remuneration">Remuneración</option>
@@ -3518,9 +2786,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </select>
                       )}
 
-                      {deletingId === concept.id ? (
+                      {deletingId === concept.uid ? (
                         <>
-                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
+                          <button className="btn-accept" onClick={() => acceptDelete(concept.uid)} title="Confirmar borrado">
                             <CheckCircle className="h-4 w-4" />
                           </button>
                           <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
@@ -3528,7 +2796,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </button>
                         </>
                       ) : (
-                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -3650,10 +2918,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </tr>
               </thead>
               <tbody>
-                {sortConceptos(
-                  conceptos.filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
-                ).map(concept => (
-                  <tr key={concept.id}>
+                {conceptos.map(concept => (
+                  <tr key={concept.uid}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
                     <td className="concept-units">{concept.cantidad}</td>
