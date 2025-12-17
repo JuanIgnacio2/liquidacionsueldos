@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
+<<<<<<< HEAD
 import React, { useEffect, useState, useRef } from 'react';
+=======
+>>>>>>> 534ced0 (Agregado desplegable con lista de conceptos, correcciones en valores de liquidación)
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
@@ -32,6 +35,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  // Catalogs / dropdown state
+  const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
+  const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
+  const [basicoCat11State, setBasicoCat11State] = useState(0);
   // Estados para edición en línea y confirmación de borrado
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
@@ -846,9 +853,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     );
 
   // Actualizar concepto
-  const updateConcept = (id, field, value) => {
+  const updateConcept = (uid, field, value) => {
     setConceptos(prev => prev.map(concept => {
-      if (concept.id === id) {
+      if (concept.uid === uid) {
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
         if (field === 'units' || field === 'unitValue') {
@@ -861,15 +868,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Eliminar concepto
-  const removeConcept = (id) => {
-    setConceptos(prev => prev.filter(concept => concept.id !== id));
+  const removeConcept = (uid) => {
+    setConceptos(prev => prev.filter(concept => concept.uid !== uid));
   };
 
   // Iniciar edición del monto (soporta remuneraciones y descuentos)
   const startEditAmount = (concept) => {
     // Preferir montoUnitario, si no existe usar valor absoluto del total
     const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
-    setEditingAmountId(concept.id);
+    setEditingAmountId(concept.uid);
     setEditingAmountValue(String(initial));
   };
 
@@ -880,8 +887,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const saveEditAmount = (concept) => {
     const value = parseFloat(editingAmountValue) || 0;
-    const nuevos = conceptos.map(c => {
-      if (c.id === concept.id) {
+    let nuevos = conceptos.map(c => {
+      if (c.uid === concept.uid) {
         if (c.tipo === 'DESCUENTO') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -891,6 +898,34 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return c;
     });
+
+    // Aplicar Horas Extras recalculadas si corresponde
+    const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
+    if (isLuz) {
+      const salarioBasico = basicSalary || 0;
+      const bonoAreaSum = nuevos.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+      nuevos = nuevos.map(item => {
+        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+          const unidades = Number(item.cantidad) || 1;
+          const otherBonificaciones = nuevos.reduce((sum, other) => {
+            if (other === item) return sum;
+            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
+            // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
+            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
+          }, 0);
+
+          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
+          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
+
+          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
+          return { ...item, montoUnitario, total: montoUnitario * unidades };
+        }
+        return item;
+      });
+    }
+
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
     cancelEditAmount();
@@ -2415,7 +2450,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -2434,7 +2469,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
+                            </div>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -2445,7 +2482,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -2477,7 +2514,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       {concept.isManual && (
                         <select
                           value={concept.tipo}
-                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
+                          onChange={(e) => updateConcept(concept.uid, 'type', e.target.value)}
                           className="type-select"
                         >
                           <option value="remuneration">Remuneración</option>
@@ -2485,9 +2522,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </select>
                       )}
 
-                      {deletingId === concept.id ? (
+                      {deletingId === concept.uid ? (
                         <>
-                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
+                          <button className="btn-accept" onClick={() => acceptDelete(concept.uid)} title="Confirmar borrado">
                             <CheckCircle className="h-4 w-4" />
                           </button>
                           <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
@@ -2495,7 +2532,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </button>
                         </>
                       ) : (
-                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
