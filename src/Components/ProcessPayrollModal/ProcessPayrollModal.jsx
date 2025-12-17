@@ -30,6 +30,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  // Catalogs / dropdown state
+  const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
+  const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
+  const [basicoCat11State, setBasicoCat11State] = useState(0);
   // Estados para edición en línea y confirmación de borrado
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
@@ -38,7 +42,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [descuentosData, setDescuentosData] = useState([]);
   const [horasExtrasLyFData, setHorasExtrasLyFData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
-  const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
   const [periodo, setPeriodo] = useState(
     new Date().toISOString().slice(0,7)
@@ -407,6 +410,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       if (isUocra) console.debug('ProcessPayrollModal - UOCRA bonificacionesMapped:', bonificacionesMapped);
 
+      // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
+      const totalRemuneraciones = basicoValue + 
+        bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0) +
+        bonificacionesMapped.reduce((sum, b) => sum + (b.total || 0), 0);
+
       // Descuentos iniciales (solo guardar estructura, se recalcularán después de Horas Extras)
       const descuentosMapped = conceptosAsignados
         .filter(asignado => asignado.tipoConcepto === 'DESCUENTO')
@@ -423,10 +431,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             id: asignado.idReferencia,
             tipo: 'DESCUENTO',
             nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
-            montoUnitario: 0, // Se calculará después
+            montoUnitario: Number(montoUnitario) || 0,
             porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular
             cantidad: Number(asignado.unidades) || 1,
-            total: 0, // Se calculará después
+            total: -(Number(montoUnitario) || 0) * (Number(asignado.unidades) || 1), // Negativo porque es descuento
           };
         })
         .filter(Boolean);
@@ -471,42 +479,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       const listaConHoras = applyHorasExtras(lista);
 
-      // Recalcular descuentos DESPUÉS de aplicar Horas Extras con el total correcto de remuneraciones
-      const recalcularDescuentos = (items) => {
-        // Calcular total de remuneraciones
-        // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
-        // Para Luz y Fuerza: el básico está en la lista como 'CATEGORIA', así que solo sumamos de la lista
-        let totalRemuneraciones = 0;
-        if (isUocra) {
-          // Para UOCRA, el básico no está en la lista, sumarlo por separado
-          totalRemuneraciones = basicoValue + 
-            items
-              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
-              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-        } else {
-          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', solo sumar de la lista
-          totalRemuneraciones = items
-            .filter(c => c.tipo !== 'DESCUENTO')
-            .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
-        }
-
-        return items.map(item => {
-          if (item.tipo === 'DESCUENTO' && item.porcentaje && totalRemuneraciones > 0) {
-            const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
-            return {
-              ...item,
-              montoUnitario: Number(montoUnitario) || 0,
-              total: -(Number(montoUnitario) || 0) * (Number(item.cantidad) || 1)
-            };
-          }
-          return item;
-        });
-      };
-
-      const listaFinal = recalcularDescuentos(listaConHoras);
-
-      setTotal(calcTotal(listaFinal));
-      setConceptos(listaFinal);
+      setTotal(calcTotal(listaConHoras));
+      setConceptos(listaConHoras);
       setCurrentStep('payroll');
     } catch (error) {
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
@@ -719,9 +693,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     );
 
   // Actualizar concepto
-  const updateConcept = (id, field, value) => {
+  const updateConcept = (uid, field, value) => {
     setConceptos(prev => prev.map(concept => {
-      if (concept.id === id) {
+      if (concept.uid === uid) {
         const updated = { ...concept, [field]: value };
         // Auto-calculate amount if units or unitValue change
         if (field === 'units' || field === 'unitValue') {
@@ -734,15 +708,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Eliminar concepto
-  const removeConcept = (id) => {
-    setConceptos(prev => prev.filter(concept => concept.id !== id));
+  const removeConcept = (uid) => {
+    setConceptos(prev => prev.filter(concept => concept.uid !== uid));
   };
 
   // Iniciar edición del monto (soporta remuneraciones y descuentos)
   const startEditAmount = (concept) => {
     // Preferir montoUnitario, si no existe usar valor absoluto del total
     const initial = concept.montoUnitario ?? Math.abs(concept.total ?? 0);
-    setEditingAmountId(concept.id);
+    setEditingAmountId(concept.uid);
     setEditingAmountValue(String(initial));
   };
 
@@ -753,8 +727,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const saveEditAmount = (concept) => {
     const value = parseFloat(editingAmountValue) || 0;
-    const nuevos = conceptos.map(c => {
-      if (c.id === concept.id) {
+    let nuevos = conceptos.map(c => {
+      if (c.uid === concept.uid) {
         if (c.tipo === 'DESCUENTO') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -764,6 +738,34 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       }
       return c;
     });
+
+    // Aplicar Horas Extras recalculadas si corresponde
+    const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
+    if (isLuz) {
+      const salarioBasico = basicSalary || 0;
+      const bonoAreaSum = nuevos.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+      nuevos = nuevos.map(item => {
+        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+          const unidades = Number(item.cantidad) || 1;
+          const otherBonificaciones = nuevos.reduce((sum, other) => {
+            if (other === item) return sum;
+            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
+            // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
+            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
+          }, 0);
+
+          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
+          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
+
+          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
+          return { ...item, montoUnitario, total: montoUnitario * unidades };
+        }
+        return item;
+      });
+    }
+
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
     cancelEditAmount();
@@ -1860,7 +1862,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </div>
               </div>
 
-              <div className="concept-add-row">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <select
                   className="form-select concept-select"
                   value={selectedCatalogConcept}
@@ -1999,6 +2001,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     {concept.isManual ? (
                       <input
                         type="text"
+                        value={concept.id}
+                        onChange={(e) => updateConcept(concept.uid, 'code', e.target.value)}
+                        className="concept-input small"
+                        placeholder="Cód"
+                      />
+                    ) : (
+                      <span>{concept.id}</span>
+                    )}
+                  </div>
+
+                  <div className="concept-cell">
+                    {concept.isManual ? (
+                      <input
+                        type="text"
                         value={concept.nombre}
                         onChange={(e) => updateConcept(concept.uid, 'name', e.target.value)}
                         className="concept-input"
@@ -2013,13 +2029,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     <input
                       type="text"
                       value={concept.cantidad}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // Permitir números con decimales (0.1, 0.01, etc.)
-                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                          handleQtyChange(concept.uid, parseFloat(value) || 0);
-                        }
-                      }}
+                      onChange={(e) => handleQtyChange(concept.uid, parseFloat(e.target.value) || 0)}
                       className="concept-input small"
                       placeholder="0"
                     />
@@ -2031,7 +2041,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'CONCEPTO_LYF' ||
                       concept.tipo === 'CONCEPTO_UOCRA') && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -2050,7 +2060,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <span className="amount positive">{formatCurrencyAR(concept.montoUnitario || 0)}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                              <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
+                            </div>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -2061,7 +2073,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   <div className="concept-cell">
                     {concept.tipo === 'DESCUENTO' && (
                       <div className="amount-editable-wrapper">
-                        {editingAmountId === concept.id ? (
+                        {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
                               type="number"
@@ -2093,7 +2105,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       {concept.isManual && (
                         <select
                           value={concept.tipo}
-                          onChange={(e) => updateConcept(concept.id, 'type', e.target.value)}
+                          onChange={(e) => updateConcept(concept.uid, 'type', e.target.value)}
                           className="type-select"
                         >
                           <option value="remuneration">Remuneración</option>
@@ -2101,9 +2113,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </select>
                       )}
 
-                      {deletingId === concept.id ? (
+                      {deletingId === concept.uid ? (
                         <>
-                          <button className="btn-accept" onClick={() => acceptDelete(concept.id)} title="Confirmar borrado">
+                          <button className="btn-accept" onClick={() => acceptDelete(concept.uid)} title="Confirmar borrado">
                             <CheckCircle className="h-4 w-4" />
                           </button>
                           <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
@@ -2111,7 +2123,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </button>
                         </>
                       ) : (
-                        <button className="remove-btn" onClick={() => confirmDelete(concept.id)} title="Eliminar concepto">
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -2234,7 +2246,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </thead>
               <tbody>
                 {conceptos.map(concept => (
-                  <tr key={concept.id}>
+                  <tr key={concept.uid}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
                     <td className="concept-units">{concept.cantidad}</td>
