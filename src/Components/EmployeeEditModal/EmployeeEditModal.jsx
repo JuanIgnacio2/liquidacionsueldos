@@ -26,7 +26,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     categoria: '',
     idCategoria: null,
     gremioId: null,
-    idZona: null,
+    idZonaUocra: null,
     bank: 'Banco Nación',
     inicioActividad: '',
     cuil: '',
@@ -692,7 +692,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         idAreas: formData.areas && formData.areas.length > 0 ? formData.areas.map(a => Number(a)) : null,
         sexo: formData.sexo || null,
         idGremio: formData.gremioId ? Number(formData.gremioId) : null,
-        idZona: formData.idZona ? Number(formData.idZona) : null,
+        idZonaUocra: formData.idZona ? Number(formData.idZona) : null,
         estado: formData.status === 'Activo' ? 'ACTIVO' : 'DADO_DE_BAJA',
         conceptosAsignados: conceptosAsignados.length > 0 ? conceptosAsignados : null
       };
