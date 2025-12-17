@@ -184,12 +184,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       // Cargar catálogo de conceptos disponibles para agregar manualmente
       const conceptosDisponiblesList = [];
-      
+
       // Agregar bonificaciones disponibles
       bonificacionesFijas.forEach((b) => {
         const porcentaje = Number(b.porcentaje ?? 0);
         let montoUnitario = 0;
-        
+
         if (porcentaje > 0) {
           if (isLuzYFuerza) {
             montoUnitario = (basicoCat11Value * porcentaje) / 100;
@@ -212,7 +212,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       // Agregar descuentos disponibles
       descuentos.forEach((d) => {
         const porcentaje = Number(d.porcentaje ?? 0);
-        const montoUnitario = porcentaje > 0 
+        const montoUnitario = porcentaje > 0
           ? porcentaje // Se calculará después basado en el total de remuneraciones
           : Number(d.montoUnitario ?? d.monto ?? 0);
 
@@ -239,12 +239,19 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
           // Para Luz y Fuerza (CONCEPTO_LYF): calcular sobre categoría 11
           // Para UOCRA (CONCEPTO_UOCRA): calcular sobre el básico del empleado
-          let baseCalculo = basicoValue;
-          if (asignado.tipoConcepto === 'CONCEPTO_LYF' && isLuzYFuerza) {
-            baseCalculo = basicoCat11;
-          }
+          const porcentaje = Number(concepto.porcentaje ?? 0);
+          let montoUnitario = 0;
 
-          const montoUnitario = (baseCalculo * concepto.porcentaje / 100);
+          if (porcentaje > 0) {
+            let baseCalculo = basicoValue;
+            if (asignado.tipoConcepto === 'CONCEPTO_LYF' && isLuzYFuerza) {
+              baseCalculo = basicoCat11Value; // También corregir esto
+            }
+            montoUnitario = (baseCalculo * porcentaje / 100);
+          } else {
+            // Si no tiene porcentaje, es un monto fijo
+            montoUnitario = Number(concepto.montoUnitario ?? concepto.monto ?? 0);
+          }
 
           return {
             id: asignado.idReferencia,
@@ -306,7 +313,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (isOpen && initialEmployee) {
       // Establecer el paso directamente a 'payroll' cuando hay un empleado inicial
       setCurrentStep('payroll');
-      
+
       // Siempre seleccionar el empleado cuando hay un initialEmployee (para cargar los datos)
       // Esto asegura que los conceptos se carguen correctamente
       if (!selectedEmployee || selectedEmployee.legajo !== initialEmployee.legajo) {
@@ -335,12 +342,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   }, [isOpen, initialEmployee]);
 
   // Actualizar cantidad de un concepto
-  const handleQtyChange = (conceptId, nuevaCantidad) => {
+  const handleQtyChange = (conceptId, conceptTipo, nuevaCantidad) => {
     const cantidad = Number(nuevaCantidad) || 0;
 
     // Primero actualizar el concepto modificado
     const nuevos = conceptos.map(concept => {
-      if (concept.id === conceptId) {
+      if (concept.id === conceptId && concept.tipo === conceptTipo) {
         if (concept.tipo === 'DESCUENTO') {
           // Para descuentos, mantener el montoUnitario y recalcular después
           return { ...concept, cantidad };
@@ -355,7 +362,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const totalRemuneraciones = basicoEmpleado + nuevos
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
       .reduce((sum, c) => {
-        if (c.id === conceptId && c.tipo !== 'DESCUENTO') {
+        if (c.id === conceptId && c.tipo === conceptTipo && c.tipo !== 'DESCUENTO') {
           return sum + ((c.montoUnitario || 0) * cantidad);
         }
         return sum + (c.total || 0);
@@ -367,7 +374,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         // Usar el porcentaje guardado en el concepto para recalcular
         if (concept.porcentaje && totalRemuneraciones > 0) {
           const montoUnitario = (totalRemuneraciones * concept.porcentaje / 100);
-          const cantidadActual = concept.id === conceptId ? cantidad : concept.cantidad;
+          const cantidadActual = (concept.id === conceptId && concept.tipo === conceptTipo) ? cantidad : concept.cantidad;
           return { ...concept, montoUnitario, total: -(montoUnitario * cantidadActual) };
         }
         return concept;
@@ -382,14 +389,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const handleAddConcepto = () => {
     if (!conceptoSeleccionado || !selectedEmployee) return;
 
-    const concepto = conceptosDisponibles.find(c => 
+    const concepto = conceptosDisponibles.find(c =>
       `${c.id}-${c.tipo}` === conceptoSeleccionado
     );
 
     if (!concepto) return;
 
     // Verificar si el concepto ya está agregado
-    const yaExiste = conceptos.some(c => 
+    const yaExiste = conceptos.some(c =>
       c.id === concepto.id && c.tipo === concepto.tipo
     );
 
@@ -402,7 +409,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const gremioNombre = selectedEmployee.gremio?.nombre?.toUpperCase() || '';
     const isUocra = gremioNombre === 'UOCRA';
     const basicoEmpleado = isUocra ? basicSalary : 0;
-    
+
     const totalRemuneracionesActual = basicoEmpleado + conceptos
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
       .reduce((sum, c) => sum + (c.total || 0), 0);
@@ -433,7 +440,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
     // Agregar el nuevo concepto a la lista
     const lista = [...conceptos, nuevoConcepto];
-    
+
     // Recalcular todos los descuentos basados en el nuevo total de remuneraciones
     const totalRemuneracionesNuevo = basicoEmpleado + lista
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
@@ -468,7 +475,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const nuevos = conceptos.map(concept => {
       if (concept.id === id && concept.isManual) {
         const updated = { ...concept, [field]: value };
-        
+
         // Si se actualiza el nombre o código, solo actualizar esos campos
         if (field === 'name' || field === 'nombre') {
           updated.nombre = value;
@@ -477,12 +484,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         } else if (field === 'type' || field === 'tipo') {
           updated.tipo = value;
         }
-        
+
         return updated;
       }
       return concept;
     });
-    
+
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
   };
@@ -490,12 +497,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   // Eliminar concepto
   const removeConcept = (id) => {
     const lista = conceptos.filter(concept => concept.id !== id);
-    
+
     // Recalcular descuentos si se eliminó un concepto
     const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
     const isUocra = gremioNombre === 'UOCRA';
     const basicoEmpleado = isUocra ? basicSalary : 0;
-    
+
     const totalRemuneraciones = basicoEmpleado + lista
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
       .reduce((sum, c) => sum + (c.total || 0), 0);
@@ -706,205 +713,205 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <LoadingSpinner message="Cargando datos del empleado..." size="lg" className="list-loading" />
           ) : (
             <>
-          <div className="employee-header">
-            <div className="employee-summary">
-              <div className="employee-avatar-small">
-                <User className="avatar-icon" />
-                <div className="status-dot-small"></div>
-              </div>
-              <div className="summary-details">
-                <h4>{selectedEmployee?.nombre || initialEmployee?.nombre}</h4>
-                <div className="summary-badges">
-                  <span className="badge">#{selectedEmployee?.legajo || initialEmployee?.legajo}</span>
-                  <span className="badge">{selectedEmployee?.categoria || initialEmployee?.categoria}</span>
-                  <span className="badge">{formatGremioNombre((selectedEmployee?.gremio?.nombre || initialEmployee?.gremio?.nombre))}</span>
-                </div>
-                {basicSalary > 0 && (
-                  <div className="salary-info" style={{ marginTop: '8px', fontSize: '0.9rem', color: '#666' }}>
-                    <span>Sueldo Básico: </span>
-                    <strong>{formatCurrencyAR(basicSalary)}</strong>
+              <div className="employee-header">
+                <div className="employee-summary">
+                  <div className="employee-avatar-small">
+                    <User className="avatar-icon" />
+                    <div className="status-dot-small"></div>
                   </div>
-                )}
-              </div>
-            </div>
-            <div className="period-info">
-              <Calendar className="period-icon" />
-              <div className="period-details">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <input
-                    type="month"
-                    value={periodo}
-                    onChange={(e) => setPeriodo(e.target.value)}
-                    style={{
-                      padding: '4px 8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                  <span className="period-status">En proceso</span>
+                  <div className="summary-details">
+                    <h4>{selectedEmployee?.nombre || initialEmployee?.nombre}</h4>
+                    <div className="summary-badges">
+                      <span className="badge">#{selectedEmployee?.legajo || initialEmployee?.legajo}</span>
+                      <span className="badge">{selectedEmployee?.categoria || initialEmployee?.categoria}</span>
+                      <span className="badge">{formatGremioNombre((selectedEmployee?.gremio?.nombre || initialEmployee?.gremio?.nombre))}</span>
+                    </div>
+                    {basicSalary > 0 && (
+                      <div className="salary-info" style={{ marginTop: '8px', fontSize: '0.9rem', color: '#666' }}>
+                        <span>Sueldo Básico: </span>
+                        <strong>{formatCurrencyAR(basicSalary)}</strong>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="concepts-section">
-            <div className="section-header">
-              <div className="header-left">
-                <h3>Conceptos de Liquidación</h3>
-                <div className="concepts-counter">
-                  <Badge className="counter-icon" />
-                  <span>{concepts.length} conceptos</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="concepts-table">
-              <div className="table-header">
-                <span>Código</span>
-                <span>Concepto</span>
-                <span>Unidades</span>
-                <span>Remuneraciones Sujetas a retenciones</span>
-                <span>Descuentos</span>
-                <span>Acciones</span>
-              </div>
-
-              {conceptos.map((concept, index) => (
-                <div key={`${concept.id}-${concept.tipo}-${index}`} className="concept-row">
-                  <div className="concept-cell">
-                    {concept.isManual ? (
+                <div className="period-info">
+                  <Calendar className="period-icon" />
+                  <div className="period-details">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <input
-                        type="text"
-                        value={concept.id}
-                        onChange={(e) => updateConcept(concept.id, 'code', e.target.value)}
-                        className="concept-input small"
-                        placeholder="Cód"
+                        type="month"
+                        value={periodo}
+                        onChange={(e) => setPeriodo(e.target.value)}
+                        style={{
+                          padding: '4px 8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '0.9rem'
+                        }}
                       />
-                    ) : (
-                      <span>{concept.id}</span>
-                    )}
-                  </div>
-
-                  <div className="concept-cell">
-                    {concept.isManual ? (
-                      <input
-                        type="text"
-                        value={concept.nombre}
-                        onChange={(e) => updateConcept(concept.id, 'name', e.target.value)}
-                        className="concept-input"
-                        placeholder="Nombre del concepto"
-                      />
-                    ) : (
-                      <span>{concept.nombre}</span>
-                    )}
-                  </div>
-
-                  <div className="concept-cell">
-                    <input
-                      type="number"
-                      value={concept.cantidad}
-                      onChange={(e) => handleQtyChange(concept.id, parseFloat(e.target.value) || 0)}
-                      className="concept-input small"
-                      step="0.1"
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="concept-cell">
-                    {(concept.tipo === 'CATEGORIA' ||
-                      concept.tipo === 'BONIFICACION_AREA' ||
-                      concept.tipo === 'CONCEPTO_LYF' ||
-                      concept.tipo === 'CONCEPTO_UOCRA') && (
-                        <span className="amount positive">
-                          {formatCurrencyAR(concept.montoUnitario || 0)}
-                        </span>
-                      )}
-                  </div>
-
-                  <div className="concept-cell">
-                    {concept.tipo === 'DESCUENTO' && (
-                      <span className="amount negative">
-                        {formatCurrencyAR(Math.abs(concept.total || 0))}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="concept-cell">
-                    <div className="concept-actions">
-                      {concept.isManual && (
-                        <Button
-                          variant="remove"
-                          icon={X}
-                          onClick={() => removeConcept(concept.id)}
-                          title="Eliminar concepto"
-                        />
-                      )}
+                      <span className="period-status">En proceso</span>
                     </div>
                   </div>
                 </div>
-              ))}
-              
-              {/* Fila para agregar nuevos conceptos */}
-              <div className="concept-row concept-row-add">
-                <div className="concept-cell">
-                  <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>
+              </div>
+
+              <div className="concepts-section">
+                <div className="section-header">
+                  <div className="header-left">
+                    <h3>Conceptos de Liquidación</h3>
+                    <div className="concepts-counter">
+                      <Badge className="counter-icon" />
+                      <span>{concepts.length} conceptos</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="concept-cell">
-                  <select
-                    value={conceptoSeleccionado}
-                    onChange={(e) => setConceptoSeleccionado(e.target.value)}
-                    className="concept-select-input"
-                  >
-                    <option value="">-- Seleccionar concepto para agregar --</option>
-                    {conceptosDisponibles
-                      .filter(c => !conceptos.some(existente => existente.id === c.id && existente.tipo === c.tipo))
-                      .map((c) => (
-                        <option key={`${c.id}-${c.tipo}`} value={`${c.id}-${c.tipo}`}>
-                          {c.nombre} {c.tipo === 'DESCUENTO' ? '-' : '+'}
-                          {c.porcentaje > 0 ? `${c.porcentaje}%` : formatCurrencyAR(c.montoUnitario)}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div className="concept-cell">
-                  <span style={{ color: '#999' }}>—</span>
-                </div>
-                <div className="concept-cell">
-                  <span style={{ color: '#999' }}>—</span>
-                </div>
-                <div className="concept-cell">
-                  <span style={{ color: '#999' }}>—</span>
-                </div>
-                <div className="concept-cell">
-                  <Button
-                    variant="primary"
-                    icon={Plus}
-                    onClick={handleAddConcepto}
-                    disabled={!conceptoSeleccionado}
-                    title="Agregar concepto"
-                  >
-                    Agregar
-                  </Button>
+
+                <div className="concepts-table">
+                  <div className="table-header">
+                    <span>Código</span>
+                    <span>Concepto</span>
+                    <span>Unidades</span>
+                    <span>Remuneraciones Sujetas a retenciones</span>
+                    <span>Descuentos</span>
+                    <span>Acciones</span>
+                  </div>
+
+                  {conceptos.map((concept, index) => (
+                    <div key={`${concept.id}-${concept.tipo}-${index}`} className="concept-row">
+                      <div className="concept-cell">
+                        {concept.isManual ? (
+                          <input
+                            type="text"
+                            value={concept.id}
+                            onChange={(e) => updateConcept(concept.id, 'code', e.target.value)}
+                            className="concept-input small"
+                            placeholder="Cód"
+                          />
+                        ) : (
+                          <span>{concept.id}</span>
+                        )}
+                      </div>
+
+                      <div className="concept-cell">
+                        {concept.isManual ? (
+                          <input
+                            type="text"
+                            value={concept.nombre}
+                            onChange={(e) => updateConcept(concept.id, 'name', e.target.value)}
+                            className="concept-input"
+                            placeholder="Nombre del concepto"
+                          />
+                        ) : (
+                          <span>{concept.nombre}</span>
+                        )}
+                      </div>
+
+                      <div className="concept-cell">
+                        <input
+                          type="number"
+                          value={concept.cantidad}
+                          onChange={(e) => handleQtyChange(concept.id, concept.tipo, parseFloat(e.target.value) || 0)}
+                          className="concept-input small"
+                          step="0.1"
+                          min="0"
+                        />
+                      </div>
+
+                      <div className="concept-cell">
+                        {(concept.tipo === 'CATEGORIA' ||
+                          concept.tipo === 'BONIFICACION_AREA' ||
+                          concept.tipo === 'CONCEPTO_LYF' ||
+                          concept.tipo === 'CONCEPTO_UOCRA') && (
+                            <span className="amount positive">
+                              {formatCurrencyAR(concept.total || 0)}
+                            </span>
+                          )}
+                      </div>
+
+                      <div className="concept-cell">
+                        {concept.tipo === 'DESCUENTO' && (
+                          <span className="amount negative">
+                            {formatCurrencyAR(Math.abs(concept.total || 0))}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="concept-cell">
+                        <div className="concept-actions">
+                          {concept.isManual && (
+                            <Button
+                              variant="remove"
+                              icon={X}
+                              onClick={() => removeConcept(concept.id)}
+                              title="Eliminar concepto"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Fila para agregar nuevos conceptos */}
+                  <div className="concept-row concept-row-add">
+                    <div className="concept-cell">
+                      <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>
+                    </div>
+                    <div className="concept-cell">
+                      <select
+                        value={conceptoSeleccionado}
+                        onChange={(e) => setConceptoSeleccionado(e.target.value)}
+                        className="concept-select-input"
+                      >
+                        <option value="">-- Seleccionar concepto para agregar --</option>
+                        {conceptosDisponibles
+                          .filter(c => !conceptos.some(existente => existente.id === c.id && existente.tipo === c.tipo))
+                          .map((c) => (
+                            <option key={`${c.id}-${c.tipo}`} value={`${c.id}-${c.tipo}`}>
+                              {c.nombre} {c.tipo === 'DESCUENTO' ? '-' : '+'}
+                              {c.porcentaje > 0 ? `${c.porcentaje}%` : formatCurrencyAR(c.montoUnitario)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="concept-cell">
+                      <span style={{ color: '#999' }}>—</span>
+                    </div>
+                    <div className="concept-cell">
+                      <span style={{ color: '#999' }}>—</span>
+                    </div>
+                    <div className="concept-cell">
+                      <span style={{ color: '#999' }}>—</span>
+                    </div>
+                    <div className="concept-cell">
+                      <Button
+                        variant="primary"
+                        icon={Plus}
+                        onClick={handleAddConcepto}
+                        disabled={!conceptoSeleccionado}
+                        title="Agregar concepto"
+                      >
+                        Agregar
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="totals-summary">
-            <PayrollSummaryCards
-              remunerations={remunerations}
-              deductions={deductions}
-              netAmount={netAmount}
-            />
-          </div>
-          <div className="step-actions">
-            <Button variant="secondary" onClick={() => setCurrentStep('search')}>
-              Volver
-            </Button>
-            <Button variant="primary" icon={CheckCircle} iconPosition="left" onClick={generatePayroll} disabled={isProcessing || !selectedEmployee}>
-              Generar Recibo
-            </Button>
-          </div>
+              <div className="totals-summary">
+                <PayrollSummaryCards
+                  remunerations={remunerations}
+                  deductions={deductions}
+                  netAmount={netAmount}
+                />
+              </div>
+              <div className="step-actions">
+                <Button variant="secondary" onClick={() => setCurrentStep('search')}>
+                  Volver
+                </Button>
+                <Button variant="primary" icon={CheckCircle} iconPosition="left" onClick={generatePayroll} disabled={isProcessing || !selectedEmployee}>
+                  Generar Recibo
+                </Button>
+              </div>
             </>
           )}
         </div>
