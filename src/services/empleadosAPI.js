@@ -98,3 +98,9 @@ export const getActividadesRecientesTipo = (tipo) =>
 
 export const getActividadesRecientesUsuario = (usuario) =>
     axiosClient.get(`/actividad/reciente/usuario/${usuario}`).then((r)=>r.data);
+
+export const loginUser = (usuario, password) =>
+    axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
+
+export const registerUser = (dto) =>
+    axiosClient.post('/auth/registro', dto).then((r)=>r.data);
