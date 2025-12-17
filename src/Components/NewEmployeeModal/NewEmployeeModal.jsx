@@ -1154,19 +1154,15 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
-  // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
-  // Para conceptos especiales (Bonif Antigüedad, Suplementos, ART): se calculan sobre el total bruto
-  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null, skipTotalBruto = false) => {
+  // Excepción para Luz y Fuerza: "Horas Extras Simples" y "Horas Extras Dobles"
+  //  "Horas Extras Simples" = (((Total bonificaciones)/156)*1.5)*(porcentaje/100)
+  //  "Horas Extras Dobles"  = (((Total bonificaciones)/156)*2)*(porcentaje/100)
+  // Donde Total bonificaciones = básico (categoría) + bono de área + demás bonificaciones (no descuentos)
+  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
     
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
-
-    // Si es CONCEPTO_MANUAL_LYF, usar monto del concepto (montoUnitario)
-    if (concepto.tipo === 'CONCEPTO_MANUAL_LYF') {
-      const montoManual = Number(concepto.montoUnitario) || 0;
-      return montoManual * unidades; // Siempre cantidad 1, pero por si acaso
-    }
 
     // Si es descuento, calcular sobre el total de remuneraciones
     if (isDescuento) {
@@ -1176,40 +1172,12 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       return -(montoUnitario * unidades);
     }
 
-    // Manejo especial para "Bonif Antigüedad" (Luz y Fuerza)
-    // Fórmula: (basicoCat11 * 1.4) * porcentaje / 100 * unidades
-    if (isBonifAntiguedad(concepto.nombre) && formData.gremio === 'LUZ_Y_FUERZA') {
-      if (basicoCat11 <= 0 || !concepto.porcentaje) return 0;
-      const porcentaje = Number(concepto.porcentaje) || 0;
-      const baseCalculo = basicoCat11 * 1.4;
-      const montoUnitario = (baseCalculo * porcentaje) / 100;
-      return montoUnitario * unidades;
-    }
+    // Manejo especial para Horas Extras de Luz y Fuerza
+    const isHorasExtrasSimples = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Simples');
+    const isHorasExtrasDobles = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Dobles');
 
-    // Manejo especial para conceptos que se calculan sobre el total bruto
-    const nombreNormalizado = normalize(concepto.nombre || '');
-    
-    // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
-    const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
-    const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
-    
-    // Detectar conceptos especiales por nombre (compatibilidad hacia atrás) o por campo baseCalculo
-    const isConceptoEspecial = (isConceptoCalculadoSobreTotalBruto(concepto.nombre) || usaTotalBruto) 
-      && formData.gremio === 'LUZ_Y_FUERZA';
-    
-    if (isConceptoEspecial && !skipTotalBruto) {
-      // Calcular sobre el total bruto (básico + bono área + otras bonificaciones)
-      const totalBruto = calcularTotalBruto();
-      if (totalBruto <= 0 || !concepto.porcentaje) return 0;
-      
-      const porcentaje = Number(concepto.porcentaje) || 0;
-      // Fórmula: total bruto * porcentaje / 100 * unidades
-      return (totalBruto * porcentaje / 100) * unidades;
-    }
-
-    // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
-    if (concepto.tipo === 'HORA_EXTRA_LYF') {
-      // Total bonificaciones = básico + bono de área + suma de otras bonificaciones seleccionadas (excluyendo descuentos y horas extras)
+    if (isHorasExtrasSimples || isHorasExtrasDobles) {
+      // Total bonificaciones = básico + bono de área + suma de otras bonificaciones seleccionadas (excluyendo descuentos)
       const salarioBasico = Number(formData.salary) || 0;
       const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
 
@@ -1219,42 +1187,26 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         if (!c) return sum;
         const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
         if (cIsDescuento) return sum;
-        if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
-
-        // Excluir conceptos que se calculan sobre total bruto del cálculo de horas extras
-        // (pero incluir "Bonif Antigüedad" ya que no se calcula sobre total bruto)
-        if (isConceptoCalculadoSobreTotalBruto(c.nombre)) {
-          return sum;
-        }
-        
         const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
         if (!u || u <= 0) return sum;
 
+        // Excluir otras Horas Extras para evitar dependencia circular entre ambas
+        if (c.tipo === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
+          return sum;
+        }
+
         // Para el resto, usar el cálculo estándar
-        const total = calculateConceptTotal(c, u, null, true); // Pasar flag para evitar recursión
+        const total = calculateConceptTotal(c, u);
         return sum + total;
       }, 0);
 
-      const totalRemunerativo = salarioBasico + bonoArea + otherBonificaciones;
-      if (totalRemunerativo <= 0) return 0;
+      const totalBonificaciones = salarioBasico + bonoArea + otherBonificaciones;
+      if (totalBonificaciones <= 0) return 0;
 
-      const factor = Number(concepto.factor) || (concepto.originalId === 1 ? 1.5 : 2);
-      
-      // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-      if (isPersonalDeTurno(concepto.nombre)) {
-        const montoUnitario = totalRemunerativo * factor;
-        return montoUnitario * unidades;
-      }
-      
-      // Para otras horas extras: calcular valor hora y usar el factor
-      const valorHora = totalRemunerativo / 156;
-      const montoUnitario = valorHora * factor;
+      const factor = isHorasExtrasSimples ? 1.5 : 2;
+      const montoUnitario = ((totalBonificaciones / 156) * factor) * (porcentaje / 100);
       return montoUnitario * unidades;
     }
-
-    // Para conceptos con porcentaje (bonificaciones normales)
-    if (!concepto.porcentaje) return 0;
-    const porcentaje = Number(concepto.porcentaje) || 0;
 
     // Si no es Horas Extras, proceder con la lógica anterior
     let baseCalculo = 0;
@@ -1668,7 +1620,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             ) : (
               <>
                 {/* Selector para añadir conceptos uno a uno */}
-                <div className="concept-add-row">
+                <div className="concept-add-row" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
                   <select
                     className="form-select concept-select"
                     value={selectedConceptToAdd}
@@ -1678,11 +1630,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                     {conceptos
                       .filter(c => !conceptosSeleccionados[c.id])
                       .map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                          {c.tipo === 'HORA_EXTRA_LYF' && c.factor ? ` (Factor ${c.factor}x)` : ''}
-                          {c.porcentaje && c.tipo !== 'HORA_EXTRA_LYF' ? ` (${c.porcentaje}%)` : ''}
-                        </option>
+                        <option key={c.id} value={c.id}>{c.nombre}{c.porcentaje ? ` (${c.porcentaje}%)` : ''}</option>
                     ))}
                   </select>
 
@@ -1692,13 +1640,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                     onClick={() => {
                       if (!selectedConceptToAdd) return;
                       const id = selectedConceptToAdd;
-                      const concepto = conceptos.find(c => c.id === id);
-                      // Para conceptos manuales LYF: cantidad 1 (monto viene del concepto)
-                      if (concepto?.tipo === 'CONCEPTO_MANUAL_LYF') {
                       setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
-                      } else {
-                        setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
-                      }
                       setSelectedConceptToAdd('');
                     }}
                     disabled={!selectedConceptToAdd}
@@ -1713,11 +1655,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                   <table className="conceptos-table-content">
                     <thead>
                       <tr>
-                        <th style={{ width: '30%', textAlign: 'left' }}>Concepto</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje / Monto</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Unidades</th>
-                        <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
+                        <th>Concepto</th>
+                        <th>Porcentaje</th>
+                        <th>Unidades</th>
+                        <th>Total</th>
+                        <th>Acción</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1725,7 +1667,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                         const concepto = conceptos.find(c => String(c.id) === String(conceptId));
                         const units = conceptosSeleccionados[conceptId]?.units ?? '';
                         const isDescuento = concepto ? (concepto.isDescuento || concepto.tipo === 'DESCUENTO') : false;
-                        const isConceptoManualLyF = concepto?.tipo === 'CONCEPTO_MANUAL_LYF';
 
                         const calcularTotalRemuneraciones = () => {
                           const salarioBasico = Number(formData.salary) || 0;
@@ -1745,51 +1686,22 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
                         return (
                           <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
-                            <td style={{ textAlign: 'left' }}>
+                            <td>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
-                            <td style={{ textAlign: 'center' }} className="porcentaje-cell">
-                              {isConceptoManualLyF ? (
-                                // Para conceptos manuales LYF: mostrar "-" en porcentaje y el monto fijo (no editable)
-                                <span>-</span>
-                              ) : concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
-                                ? (concepto.factor ? `Factor ${concepto.factor}x` : '-')
-                                : (concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
-                              }
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              {isConceptoManualLyF ? (
+                            <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
+                            <td>
                               <input
-                                  type="text"
-                                  value="1"
-                                  disabled
-                                  readOnly
-                                  className="units-input-field"
-                                  style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
-                                />
-                              ) : (
-                                <input
-                                  type="text"
+                                type="number"
                                 value={units}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    // Permitir solo números enteros (sin decimales)
-                                    if (value === '' || /^\d+$/.test(value)) {
-                                      handleUnitsChange(conceptId, value);
-                                    }
-                                  }}
+                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
+                                min="0"
+                                step="1"
                                 className="units-input-field"
-                                  placeholder="0"
                               />
-                              )}
                             </td>
-                            <td style={{ textAlign: 'right' }} className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
-                              {isConceptoManualLyF
-                                ? formatCurrencyAR(Number(concepto?.montoUnitario || 0) * 1) // Siempre cantidad 1, monto del backend
-                                : (units && total !== 0 ? formatCurrencyAR(total) : '-')
-                              }
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
+                            <td>
                               <button type="button" className="icon-btn delete-btn" onClick={() => setConceptosSeleccionados(prev => { const next = { ...prev }; delete next[conceptId]; return next; })} title="Quitar concepto" aria-label="Quitar concepto">
                                 <Trash2 className="h-4 w-4" />
                               </button>
