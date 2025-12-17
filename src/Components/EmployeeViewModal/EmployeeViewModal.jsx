@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
-import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
+import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -275,35 +275,38 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           })
         );
 
-        // --- Calcular horas extras para Luz y Fuerza ---
+        // --- Ajustar los conceptos especiales de "Horas Extras" para Luz y Fuerza ---
+        // Sólo aplicar esta regla cuando el empleado sea de Luz y Fuerza
         if (isLuzYFuerza) {
-          // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
+          // Recalcular las "Horas Extras Simples" / "Horas Extras Dobles" usando
+          // Total bonificaciones = básico empleado + bonificaciones de área + demás conceptos (no descuentos)
           const totalBonificacionesArea = mappedConceptos
             .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalConceptosLyF = mappedConceptos
-            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
+          const totalConceptosLyFNonSpecial = mappedConceptos
+            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0 && c.nombre !== 'Horas Extras Simples' && c.nombre !== 'Horas Extras Dobles')
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalRemunerativo = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
+          const baseBonificaciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyFNonSpecial;
 
-          // Calcular valor hora
-          const valorHora = totalRemunerativo / 156;
-
-          // Recalcular horas extras
+          // Recalcular especiales
           mappedConceptos.forEach((c) => {
-            if (c.tipoConcepto === 'HORA_EXTRA_LYF') {
-              // Factor: 1.5 para idReferencia 1 (simples), 2 para idReferencia 2 (dobles)
-              const factor = c.idReferencia === 1 ? 1.5 : 2;
-              const montoUnitario = valorHora * factor;
-              c.total = montoUnitario * (Number(c.unidades) || 1);
+            if (c.tipoConcepto === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
+              const factor = c.nombre === 'Horas Extras Simples' ? 1.5 : 2;
+              const p = Number(c.porcentaje) || 0;
+              if (baseBonificaciones > 0 && p) {
+                const montoUnitario = ((baseBonificaciones / 156) * factor) * (p / 100);
+                c.total = montoUnitario * (Number(c.unidades) || 0);
+              } else {
+                c.total = 0;
+              }
             }
           });
         }
 
-        // Calcular total de remuneraciones (básico + bonificaciones + áreas + horas extras)
-        // Incluir bonificaciones de área, conceptos CONCEPTO_LYF y horas extras
+        // Calcular total de remuneraciones (básico + bonificaciones + áreas)
+        // Incluir bonificaciones de área y conceptos CONCEPTO_LYF que se calculan sobre basicoCat11
         const totalBonificacionesArea = mappedConceptos
           .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
@@ -312,12 +315,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
         
-        const totalHorasExtras = mappedConceptos
-          .filter(c => c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
         // Usar basicoEmpleado (variable local) en lugar del estado
-        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras;
+        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
 
         // Recalcular descuentos sobre el total de remuneraciones
         mappedConceptos.forEach(concepto => {
