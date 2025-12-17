@@ -1729,17 +1729,12 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                             <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
                             <td>
                               <input
-                                type="text"
+                                type="number"
                                 value={units}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  // Permitir solo números enteros (sin decimales)
-                                  if (value === '' || /^\d+$/.test(value)) {
-                                    handleUnitsChange(conceptId, value);
-                                  }
-                                }}
+                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
+                                min="0"
+                                step="1"
                                 className="units-input-field"
-                                placeholder="0"
                               />
                             </td>
                             <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
