@@ -23,19 +23,19 @@
   }
 
   .stats-overview {
-    display: grid;
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+    display: flex;
     gap: $spacing-4;
     margin-bottom: $spacing-6;
 
-    @media (min-width: 768px) {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-
     .stat-card {
+      flex: 1 1 0;
       padding: $spacing-3 $spacing-4;
       transition: box-shadow 0.3s ease;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+      background-color: $color-white;
+      border: 1px solid $color-gray-200;
+      border-radius: $border-radius-lg;
+      overflow: hidden;
 
       .stat-label {
         font-size: $font-size-sm;
@@ -43,25 +43,51 @@
         margin-bottom: $spacing-1;
       }
 
-      .stat-value {
-        font-size: $font-size-2xl;
-        font-weight: 700;
-        margin-bottom: $spacing-1;
+      .stat-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
 
-        &.success {
-          color: $color-success;
+        .stat-info {
+          .stat-value {
+            font-size: $font-size-2xl;
+            font-weight: 700;
+            margin-bottom: $spacing-1;
+
+            &.warning {
+              color: $color-warning;
+            }
+
+            &.success {
+              color: $color-success;
+            }
+
+            &.primary {
+              color: $color-green-primary;
+            }
+          }
+
+          .stat-label {
+            font-size: $font-size-sm;
+            color: $color-gray-500;
+          }
         }
 
-        &.primary {
-          color: $color-green-primary;
-        }
+        .stat-icon {
+          width: 2rem;
+          height: 2rem;
 
-        &.warning {
-          color: $color-warning;
-        }
+          &.warning {
+            color: $color-warning;
+          }
 
-        &.default {
-          color: $color-gray-900;
+          &.success {
+            color: $color-success;
+          }
+
+          &.primary {
+            color: $color-green-primary;
+          }
         }
       }
     }
@@ -84,20 +110,24 @@
       }
 
       .activity-header {
-        padding: $spacing-4;
+        padding: $spacing-6;
+        border-bottom: 1px solid $color-gray-100;
 
         .card-title {
-          font-size: $font-size-base;
+          font-size: $font-size-2xl;
+          font-weight: 600;
+          color: $color-gray-900;
           margin-bottom: $spacing-1;
         }
 
         .card-description {
-          font-size: $font-size-xs;
+          font-size: $font-size-sm;
+          color: $color-gray-500;
         }
       }
 
       .activity-content {
-        padding: $spacing-4;
+        padding: $spacing-6;
       }
 
       .activity-table {
@@ -177,6 +207,10 @@
 
     .quick-actions {
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+      background-color: $color-white;
+      border: 1px solid $color-gray-200;
+      border-radius: $border-radius-lg;
+      overflow: hidden;
 
       .actions-list {
         display: flex;

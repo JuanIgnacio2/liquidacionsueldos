@@ -443,7 +443,8 @@ body {
     color: $color-gray-700;
 
     &:hover {
-      background-color: $color-gray-300;
+      background-color: $color-gray-900;
+      color: $color-white;
     }
   }
 

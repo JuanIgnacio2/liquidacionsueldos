@@ -6,8 +6,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -28,7 +28,7 @@
 .confirm-dialog {
   background: $color-white;
   border-radius: $border-radius-xl;
-  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4), 0 0 40px rgba(34, 197, 94, 0.1);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2), 0 0 40px rgba(34, 197, 94, 0.15);
   max-width: 520px;
   width: 100%;
   max-height: 90vh;
@@ -38,7 +38,7 @@
   border: 1px solid $color-gray-200;
   position: relative;
 
-  // Efecto de borde superior con gradiente
+  // Efecto de borde superior con gradiente (estilo del proyecto)
   &::before {
     content: '';
     position: absolute;
@@ -48,6 +48,21 @@
     height: 4px;
     background: linear-gradient(90deg, $color-green-primary 0%, $color-green-dark 50%, $color-yellow-primary 100%);
     z-index: 1;
+    box-shadow: 0 2px 10px rgba(34, 197, 94, 0.3);
+  }
+
+  // Efecto de brillo sutil
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(234, 179, 8, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
   }
 
   @media (max-width: 480px) {
@@ -59,12 +74,13 @@
 
 .confirm-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: $spacing-4;
-  padding: $spacing-6;
+  padding: $spacing-2;
   border-bottom: 1px solid $color-gray-200;
   background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
   position: relative;
+  z-index: 1;
 
   .confirm-icon-wrapper {
     flex-shrink: 0;
@@ -81,7 +97,7 @@
     position: relative;
     overflow: hidden;
 
-    // Efecto de brillo en el icono
+    // Efecto de brillo en el icono (estilo del proyecto)
     &::before {
       content: '';
       position: absolute;
@@ -89,7 +105,7 @@
       left: -50%;
       width: 200%;
       height: 200%;
-      background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%);
       opacity: 0;
       transition: opacity 0.3s ease;
     }
@@ -98,32 +114,36 @@
       opacity: 1;
     }
 
-    // Estilos según el tipo
+    // Estilos según el tipo con colores del proyecto
     &.confirm-icon-wrapper-warning {
-      background: rgba(234, 179, 8, 0.1);
-      border-color: rgba(234, 179, 8, 0.3);
+      background: rgba(234, 179, 8, 0.15);
+      border-color: rgba(234, 179, 8, 0.4);
+      box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);
     }
 
     &.confirm-icon-wrapper-danger {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
 
     &.confirm-icon-wrapper-success {
-      background: rgba(34, 197, 94, 0.1);
-      border-color: rgba(34, 197, 94, 0.3);
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.4);
+      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
     }
 
     &.confirm-icon-wrapper-info {
-      background: rgba(59, 130, 246, 0.1);
-      border-color: rgba(59, 130, 246, 0.3);
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
     }
   }
 
   .confirm-icon {
     flex-shrink: 0;
     z-index: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 
     &.confirm-icon-warning {
       color: $color-yellow-primary;
@@ -149,8 +169,21 @@
     margin: 0;
     flex: 1;
     line-height: 1.4;
-    @extend .section-title-effect;
+    position: relative;
     padding-left: $spacing-2;
+
+    // Efecto section-title-effect del proyecto
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -$spacing-3;
+      width: 4px;
+      height: 100%;
+      background: linear-gradient(180deg, $color-green-primary, $color-yellow-primary);
+      border-radius: 2px;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+    }
   }
 
   .confirm-close-btn {
@@ -186,10 +219,12 @@
 }
 
 .confirm-body {
-  padding: $spacing-6;
+  padding: $spacing-3;
   flex: 1;
   overflow-y: auto;
   background: $color-white;
+  position: relative;
+  z-index: 1;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -222,10 +257,12 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: $spacing-3;
-  padding: $spacing-5 $spacing-6;
+  gap: $spacing-4;
+  padding: $spacing-3 $spacing-4;
   border-top: 1px solid $color-gray-200;
   background: linear-gradient(180deg, $color-gray-50 0%, $color-white 100%);
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 480px) {
     flex-direction: column-reverse;
@@ -244,6 +281,7 @@
     position: relative;
     overflow: hidden;
 
+    // Efecto de brillo al hover (estilo del proyecto)
     &::before {
       content: '';
       position: absolute;
@@ -251,7 +289,7 @@
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
       transition: left 0.5s;
     }
 
@@ -264,6 +302,24 @@
 
       &:hover {
         box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+        transform: translateY(-1px);
+      }
+    }
+
+    &.btn-success {
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+        transform: translateY(-1px);
+      }
+    }
+
+    &.btn-danger {
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
         transform: translateY(-1px);
       }
     }
