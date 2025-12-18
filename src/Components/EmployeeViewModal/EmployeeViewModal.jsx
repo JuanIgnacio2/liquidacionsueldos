@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
-import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
+import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -28,46 +28,6 @@ const getTipoConceptoLabel = (tipoConcepto) => {
       return 'Descuento';
     default:
       return tipoConcepto;
-  }
-};
-
-// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
-const calculateAntiguedad = (fechaIngreso) => {
-  if (!fechaIngreso) return '—';
-  
-  try {
-    const fechaIngresoDate = new Date(fechaIngreso);
-    const fechaActual = new Date();
-    
-    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
-    
-    // Calcular diferencia en años y meses
-    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
-    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
-    
-    // Ajustar si el mes actual es menor que el mes de ingreso
-    if (meses < 0) {
-      años--;
-      meses += 12;
-    }
-    
-    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
-    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
-      meses--;
-      if (meses < 0) {
-        años--;
-        meses += 12;
-      }
-    }
-    
-    // Formatear con ceros a la izquierda
-    const añosStr = String(años).padStart(2, '0');
-    const mesesStr = String(meses).padStart(2, '0');
-    
-    return `${añosStr}/${mesesStr}`;
-  } catch (error) {
-    console.error('Error al calcular antigüedad:', error);
-    return '—';
   }
 };
 
@@ -519,7 +479,24 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         <div className={'action-buttons'}>
           <button
             className={`${'action-btn'} ${'primary'}`}
-            onClick={() => onLiquidarSueldo && onLiquidarSueldo(employee)}
+            onClick={() => {
+              if (onEditEmployee) {
+                onEditEmployee(employee);
+              }
+            }}
+            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
+          >
+            <Edit className="btn-icon" />
+            Editar Empleado
+          </button>
+          <button
+            className={`${'action-btn'} ${'primary'}`}
+            onClick={() => {
+              if (onLiquidarSueldo) {
+                onLiquidarSueldo(employee);
+              }
+            }}
             disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
             title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >
