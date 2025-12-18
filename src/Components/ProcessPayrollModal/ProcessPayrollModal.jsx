@@ -1,14 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-<<<<<<< HEAD
-import React, { useEffect, useState, useRef } from 'react';
-=======
->>>>>>> 534ced0 (Agregado desplegable con lista de conceptos, correcciones en valores de liquidación)
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
-import html2pdf from 'html2pdf.js';
 import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -39,10 +34,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
   const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
   const [basicoCat11State, setBasicoCat11State] = useState(0);
-  // Estados para edición en línea y confirmación de borrado
+  // Estados para edición en línea
   const [editingAmountId, setEditingAmountId] = useState(null);
   const [editingAmountValue, setEditingAmountValue] = useState('');
-  const [deletingId, setDeletingId] = useState(null);
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [horasExtrasLyFData, setHorasExtrasLyFData] = useState([]);
@@ -776,19 +770,27 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     cancelEditAmount();
   };
 
-  // Confirmar eliminación
-  const confirmDelete = (id) => {
-    setDeletingId(id);
-  };
+  // Confirmar eliminación con diálogo
+  const confirmDelete = async (uid) => {
+    const concepto = conceptos.find(c => c.uid === uid);
+    const nombreConcepto = concepto?.nombre || 'este concepto';
+    
+    const result = await confirmAction({
+      title: 'Eliminar Concepto',
+      message: `¿Está seguro de eliminar "${nombreConcepto}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      confirmButtonVariant: 'danger',
+      cancelButtonVariant: 'secondary'
+    });
 
-  const acceptDelete = (id) => {
-    removeConcept(id);
-    if (deletingId === id) setDeletingId(null);
-    const nuevos = conceptos.filter(c => c.id !== id);
-    setTotal(calcTotal(nuevos));
+    if (result) {
+      removeConcept(uid);
+      const nuevos = conceptos.filter(c => c.uid !== uid);
+      setTotal(calcTotal(nuevos));
+    }
   };
-
-  const cancelDelete = () => setDeletingId(null);
 
   // Calcular totales
   const calculateTotals = () => {
@@ -1966,7 +1968,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div className="concept-add-row">
                 <select
                   className="form-select concept-select"
                   value={selectedCatalogConcept}
@@ -2120,7 +2122,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     <input
                       type="text"
                       value={concept.cantidad}
-                      onChange={(e) => handleQtyChange(concept.uid, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Permitir números con decimales (0.1, 0.01, etc.)
+                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                          handleQtyChange(concept.uid, parseFloat(value) || 0);
+                        }
+                      }}
                       className="concept-input small"
                       placeholder="0"
                     />
@@ -2140,12 +2148,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
-                              type="number"
+                              type="text"
                               value={editingAmountValue}
-                              onChange={(e) => setEditingAmountValue(e.target.value)}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Permitir números con decimales (0.01, etc.)
+                                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                  setEditingAmountValue(value);
+                                }
+                              }}
                               className="concept-input small"
-                              step="0.01"
-                              min="0"
+                              placeholder="0.00"
                             />
                             <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
                               <CheckCircle className="h-4 w-4" />
@@ -2172,12 +2185,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
                             <input
-                              type="number"
+                              type="text"
                               value={editingAmountValue}
-                              onChange={(e) => setEditingAmountValue(e.target.value)}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Permitir números con decimales (0.01, etc.)
+                                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                  setEditingAmountValue(value);
+                                }
+                              }}
                               className="concept-input small"
-                              step="0.01"
-                              min="0"
+                              placeholder="0.00"
                             />
                             <button className="btn-accept" onClick={() => saveEditAmount(concept)} title="Aceptar">
                               <CheckCircle className="h-4 w-4" />
@@ -2207,21 +2225,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           <option value="remuneration">Remuneración</option>
                           <option value="deduction">Descuento</option>
                         </select>
-                      )}
-
-                      {deletingId === concept.uid ? (
-                        <>
-                          <button className="btn-accept" onClick={() => acceptDelete(concept.uid)} title="Confirmar borrado">
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                          <button className="btn-cancel" onClick={cancelDelete} title="Cancelar">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       )}
 
                       <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">

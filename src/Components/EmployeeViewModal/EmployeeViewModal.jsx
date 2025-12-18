@@ -500,8 +500,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                 onEditEmployee(employee);
               }
             }}
-            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
-            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
+            disabled={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
           >
             <Edit className="btn-icon" />
             Editar Empleado
@@ -513,8 +513,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                 onLiquidarSueldo(employee);
               }
             }}
-            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
-            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
+            disabled={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() === 'DADO_DE_BAJA' || String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >
             <DollarSign className="btn-icon" />
             Liquidar Sueldo
