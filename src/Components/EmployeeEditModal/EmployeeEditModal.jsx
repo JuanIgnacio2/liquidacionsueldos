@@ -371,11 +371,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           }
         }
 
-        // Calcular bonos para cada área usando siempre categoría 11
+        // Calcular bonos para cada área usando el porcentaje de la categoría del empleado y el básico de categoría 11
         const bonosPromises = formData.areas.map(async (areaId) => {
           try {
-            // Usar categoría 11 para obtener el porcentaje (no la categoría del empleado)
-            const porcentajeResponse = await api.getPorcentajeArea(Number(areaId), 11);
+            // Usar la categoría del empleado para obtener el porcentaje de área
+            const porcentajeResponse = await api.getPorcentajeArea(Number(areaId), formData.idCategoria);
             // El porcentaje puede venir como número directo o como objeto con propiedad porcentaje
             const porcentajeNum = typeof porcentajeResponse === 'number' 
               ? porcentajeResponse 
@@ -1268,12 +1268,17 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                             <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
                             <td>
                               <input
-                                type="number"
+                                type="text"
                                 value={units}
-                                onChange={(e) => handleUnitsChange(conceptId, e.target.value)}
-                                min="0"
-                                step="1"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  // Permitir solo números enteros (sin decimales)
+                                  if (value === '' || /^\d+$/.test(value)) {
+                                    handleUnitsChange(conceptId, value);
+                                  }
+                                }}
                                 className="units-input-field"
+                                placeholder="0"
                               />
                             </td>
                             <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>

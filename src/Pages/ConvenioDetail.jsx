@@ -425,9 +425,6 @@ export default function ConvenioDetail() {
                   <span>Vigente hasta</span>
                 </div>
               )}
-              <div className={`status-badge ${currentData.status.toLowerCase()}`}>
-                {currentData.status}
-              </div>
             </div>
           </div>
 
