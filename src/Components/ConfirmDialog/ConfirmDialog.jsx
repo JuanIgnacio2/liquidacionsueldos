@@ -21,7 +21,7 @@ export const ConfirmDialog = () => {
           cancelText = 'Cancelar',
           type = 'warning',
           confirmButtonVariant = 'primary',
-          cancelButtonVariant = 'secondary'
+          cancelButtonVariant = 'cancel'
         } = options;
 
         setDialog({

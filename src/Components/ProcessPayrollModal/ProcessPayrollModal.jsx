@@ -733,17 +733,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {/* STEP 2: PAYROLL FORM */}
       {currentStep === 'payroll' && selectedEmployee && (
         <div className="payroll-form">
-          <div className="section-header-enhanced">
-            <div className="step-indicator">
-              <span className="step-number">2</span>
-              <Star className="step-star" />
-            </div>
-            <div className="header-content">
-              <h3 className="section-title">Configurar Liquidación</h3>
-              <p className="section-subtitle">Ajusta los conceptos y genera el recibo de sueldo</p>
-            </div>
-          </div>
-
           <div className="employee-header">
             <div className="employee-summary">
               <div className="employee-avatar-small">
@@ -922,7 +911,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
             <div className="concepts-table">
               <div className="table-header">
-                <span>Código</span>
                 <span>Concepto</span>
                 <span>Unidades</span>
                 <span>Remuneraciones</span>
@@ -932,20 +920,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
               {conceptos.map(concept => (
                 <div key={concept.uid} className="concept-row">
-                  <div className="concept-cell">
-                    {concept.isManual ? (
-                      <input
-                        type="text"
-                        value={concept.id}
-                        onChange={(e) => updateConcept(concept.uid, 'code', e.target.value)}
-                        className="concept-input small"
-                        placeholder="Cód"
-                      />
-                    ) : (
-                      <span>{concept.id}</span>
-                    )}
-                  </div>
-
                   <div className="concept-cell">
                     {concept.isManual ? (
                       <input
@@ -1067,23 +1041,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </div>
                 </div>
               ))}
-
-              {/* Fila para añadir nuevo concepto */}
-              <div className="concept-row add-row">
-                <div className="concept-cell">—</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">
-                  <div className="concept-actions">
-                    <button className="btn btn-secondary btn-sm" onClick={handleAddConcepto} title="Agregar concepto">
-                      <Plus className="h-4 w-4 mr-1" />
-                      Agregar
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="totals-summary">

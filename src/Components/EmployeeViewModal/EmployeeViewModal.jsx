@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
-import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
+import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -31,7 +31,7 @@ const getTipoConceptoLabel = (tipoConcepto) => {
   }
 };
 
-export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones }) {
+export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones, onEditEmployee }) {
   const [conceptosAsignados, setConceptosAsignados] = useState([]);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
   const [areas, setAreas] = useState([]);
@@ -445,7 +445,24 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         <div className={'action-buttons'}>
           <button
             className={`${'action-btn'} ${'primary'}`}
-            onClick={() => onLiquidarSueldo && onLiquidarSueldo(employee)}
+            onClick={() => {
+              if (onEditEmployee) {
+                onEditEmployee(employee);
+              }
+            }}
+            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
+          >
+            <Edit className="btn-icon" />
+            Editar Empleado
+          </button>
+          <button
+            className={`${'action-btn'} ${'primary'}`}
+            onClick={() => {
+              if (onLiquidarSueldo) {
+                onLiquidarSueldo(employee);
+              }
+            }}
             disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
             title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >

@@ -1233,7 +1233,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         <ModalFooter>
           <button 
             type="button" 
-            className="btn btn-secondary" 
+            className="btn btn-cancel" 
             onClick={handleClose}
             disabled={isLoading}
             >

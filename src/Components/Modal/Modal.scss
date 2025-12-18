@@ -32,6 +32,7 @@
     &.medium {
       width: 100%;
       max-width: 800px;
+      height: 90vh;
     }
 
     &.large {
@@ -48,14 +49,14 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: $spacing-6;
+      padding: $spacing-2 $spacing-6;
       border-bottom: 1px solid $color-gray-200;
-      background: linear-gradient(135deg, $color-gray-50 0%, $color-white 100%);
+      background: $color-green-light;
 
       .modal-title {
         font-size: $font-size-xl;
         font-weight: 600;
-        color: $color-gray-900;
+        color: $color-white;
         margin: 0;
         @extend .section-title-effect;
       }
@@ -70,8 +71,8 @@
         transition: all 0.15s ease;
 
         &:hover {
-          background-color: $color-gray-100;
-          color: $color-gray-700;
+          background-color: $color-red-light;
+          color: $color-white;
           transform: scale(1.1);
         }
 
@@ -84,8 +85,11 @@
 
     .modal-body {
       padding: $spacing-6;
-      max-height: calc(90vh - 120px);
+      max-height: calc(90vh - 60px);
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
 
       &::-webkit-scrollbar {
         width: 6px;
@@ -113,7 +117,6 @@
       gap: $spacing-3;
       padding: $spacing-4 $spacing-6;
       border-top: 1px solid $color-gray-200;
-      background: $color-gray-50;
     }
   }
 }
@@ -239,6 +242,7 @@
         &:hover {
           transform: translateY(-2px);
           box-shadow: 0 5px 15px rgba(234, 179, 8, 0.3);
+          color: $color-red-light;
         }
       }
 
@@ -476,7 +480,7 @@
           border: 1px solid $color-gray-200;
           border-radius: $border-radius;
           background-color: $color-white !important; /* forzar blanco si hay reglas más generales */
-          box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+          box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
           color: $color-gray-900;
           -webkit-appearance: none;
           -moz-appearance: none;
