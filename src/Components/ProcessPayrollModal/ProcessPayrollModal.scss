@@ -91,38 +91,9 @@
       height: 100%;
       flex: 1;
       min-height: 0;
-      gap: $spacing-4;
 
-      .search-filters-container {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr;
-        gap: $spacing-4;
-        align-items: end;
-        padding: $spacing-5;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(34, 197, 94, 0.03));
-        border: 2px solid rgba(34, 197, 94, 0.2);
-        border-radius: $border-radius-lg;
-        margin-bottom: $spacing-2;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-
-        @media (max-width: 768px) {
-          grid-template-columns: 1fr;
-          gap: $spacing-3;
-        }
-
-        .search-field-wrapper,
-        .filter-field-wrapper {
-          display: flex;
-          flex-direction: column;
-          gap: $spacing-1;
-
-          label {
-            font-size: $font-size-sm;
-            font-weight: 600;
-            color: $color-gray-700;
-            margin-bottom: 0.25rem;
-          }
-        }
+      .search-container {
+        flex-shrink: 0;
 
         .search-input-container {
           position: relative;
@@ -214,40 +185,24 @@
 
       .employees-list {
         flex: 1;
-        overflow-y: auto;
+        overflow-y: visible;
         overflow-x: hidden;
-        padding: $spacing-4;
+        padding: $spacing-4 0;
         margin-top: 0;
-        border-radius: 0 0 $border-radius-lg $border-radius-lg;
+        border-radius: $border-radius-lg;
         min-height: 0;
-        background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(245, 158, 11, 0.02));
-        border: 2px solid rgba(34, 197, 94, 0.2);
-        border-top: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         
         // Ocultar scrollbar si aparece
         &::-webkit-scrollbar {
-          width: 8px;
+          display: none;
         }
-        
-        &::-webkit-scrollbar-track {
-          background: rgba(34, 197, 94, 0.05);
-          border-radius: 4px;
-        }
-        
-        &::-webkit-scrollbar-thumb {
-          background: rgba(34, 197, 94, 0.3);
-          border-radius: 4px;
-          
-          &:hover {
-            background: rgba(34, 197, 94, 0.5);
-          }
-        }
+        -ms-overflow-style: none;
+        scrollbar-width: none;
 
         .employee-card {
           position: relative;
-          padding: $spacing-4 $spacing-6;
-          border: 2px solid rgba(34, 197, 94, 0.3);
+          padding: $spacing-2 $spacing-6;
+          border: 1px solid $color-gray-200;
           border-radius: $border-radius-lg;
           margin-bottom: $spacing-4;
           cursor: pointer;
@@ -1035,70 +990,6 @@
               flex: 0 0 120px;
               justify-content: center;
               text-align: center;
-            }
-
-            /* Editable amount wrapper */
-            .amount-editable-wrapper {
-              width: 100%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-
-            .amount-editable {
-              display: inline-flex;
-              align-items: center;
-              gap: $spacing-2;
-              position: relative;
-
-              .amount-column-wrapper {
-                display: flex;
-                flex-direction: column;
-                align-items: flex-end;
-              }
-
-              .edit-icon {
-                opacity: 0;
-                transition: opacity 0.12s ease-in-out;
-                cursor: pointer;
-                color: $color-gray-500;
-              }
-            }
-
-            /* Mostrar icono al hacer hover sobre la fila */
-            &:hover .amount-editable .edit-icon {
-              opacity: 1;
-            }
-
-            .amount-edit-controls {
-              display: inline-flex;
-              align-items: center;
-              gap: $spacing-2;
-
-              .concept-input {
-                width: 100px;
-              }
-
-              .btn-accept,
-              .btn-cancel,
-              .remove-btn {
-                background: transparent;
-                border: none;
-                cursor: pointer;
-                padding: 6px;
-                border-radius: $border-radius;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-              }
-
-              .btn-accept:hover {
-                background: rgba(34,197,94,0.08);
-              }
-
-              .btn-cancel:hover {
-                background: rgba(220,38,38,0.06);
-              }
             }
 
             /* Editable amount wrapper */
