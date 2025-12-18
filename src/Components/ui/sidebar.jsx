@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Users, 
@@ -7,8 +7,11 @@ import {
   Calculator, 
   ChevronLeft, 
   ChevronRight,
-  DollarSign
+  DollarSign,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNotification } from '../../Hooks/useNotification';
 import '../../styles/components/_sidebar.scss';
 
 const navItems = [
@@ -37,12 +40,21 @@ const navItems = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(true); // Inicia colapsado
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
+  const notify = useNotification();
 
   // El sidebar está expandido cuando no está colapsado
   const isExpanded = !collapsed;
 
   const handleToggle = () => {
     setCollapsed(!collapsed);
+  };
+
+  const handleLogout = () => {
+    logout();
+    notify.success('Sesión cerrada exitosamente');
+    navigate('/login');
   };
 
   return (
@@ -99,6 +111,23 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
+
+      {/* Logout Button */}
+      <div className="sidebar-logout">
+        <button
+          onClick={handleLogout}
+          className={`logout-btn ${!isExpanded ? 'collapsed' : ''}`}
+          title={!isExpanded ? 'Cerrar sesión' : undefined}
+        >
+          <LogOut className="logout-icon" />
+          {isExpanded && <span className="logout-text">Cerrar Sesión</span>}
+        </button>
+        {isExpanded && user && (
+          <div className="user-info">
+            <p className="user-name">{user.username || user.name || 'Usuario'}</p>
+          </div>
+        )}
+      </div>
 
       {/* Footer */}
       <div className={`sidebar-footer ${!isExpanded ? 'collapsed' : ''}`}>
