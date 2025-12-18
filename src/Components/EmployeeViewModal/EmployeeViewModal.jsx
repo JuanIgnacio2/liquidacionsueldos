@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
-<<<<<<< HEAD
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
-=======
-import { User, DollarSign, Building, FileText, ListChecks } from 'lucide-react';
->>>>>>> a2c6de9 (Agregado desplegable con lista de conceptos, correcciones en valores de liquidación)
 import * as api from "../../services/empleadosAPI";
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
 
@@ -648,7 +644,24 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         <div className={'action-buttons'}>
           <button
             className={`${'action-btn'} ${'primary'}`}
-            onClick={() => onLiquidarSueldo && onLiquidarSueldo(employee)}
+            onClick={() => {
+              if (onEditEmployee) {
+                onEditEmployee(employee);
+              }
+            }}
+            disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
+            title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede editarse' : 'Editar empleado'}
+          >
+            <Edit className="btn-icon" />
+            Editar Empleado
+          </button>
+          <button
+            className={`${'action-btn'} ${'primary'}`}
+            onClick={() => {
+              if (onLiquidarSueldo) {
+                onLiquidarSueldo(employee);
+              }
+            }}
             disabled={String(employee.estado || '').toUpperCase() !== 'ACTIVO'}
             title={String(employee.estado || '').toUpperCase() !== 'ACTIVO' ? 'Empleado dado de baja - no puede liquidarse' : 'Liquidar sueldo'}
           >
