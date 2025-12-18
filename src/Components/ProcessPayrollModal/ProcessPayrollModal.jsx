@@ -1884,122 +1884,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {/* STEP 2: PAYROLL FORM */}
       {currentStep === 'payroll' && selectedEmployee && (
         <div className="payroll-form">
-          {/* Selector de tipo de liquidación */}
-          <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
-              Tipo de Liquidación
-            </label>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="liquidacionType"
-                  value="normal"
-                  checked={liquidacionType === 'normal'}
-                  onChange={(e) => {
-                    setLiquidacionType(e.target.value);
-                    setAguinaldoCalculo(null);
-                    setConceptos([]);
-                    setTotal(0);
-                  }}
-                />
-                <span>Liquidación Normal</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="liquidacionType"
-                  value="aguinaldo"
-                  checked={liquidacionType === 'aguinaldo'}
-                  onChange={(e) => {
-                    setLiquidacionType(e.target.value);
-                    setAguinaldoCalculo(null);
-                    setConceptos([]);
-                    setTotal(0);
-                  }}
-                />
-                <span>Aguinaldo</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Campos de aguinaldo */}
-          {liquidacionType === 'aguinaldo' && (
-            <div style={{ marginBottom: '1rem', padding: '1rem', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
-                    Aguinaldo Número
-                  </label>
-                  <select
-                    value={aguinaldoNumero}
-                    onChange={(e) => {
-                      setAguinaldoNumero(Number(e.target.value));
-                      setAguinaldoCalculo(null);
-                      setConceptos([]);
-                      setTotal(0);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    <option value={1}>Primer Aguinaldo</option>
-                    <option value={2}>Segundo Aguinaldo</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
-                    Año
-                  </label>
-                  <input
-                    type="number"
-                    value={aguinaldoAnio}
-                    onChange={(e) => {
-                      setAguinaldoAnio(Number(e.target.value));
-                      setAguinaldoCalculo(null);
-                      setConceptos([]);
-                      setTotal(0);
-                    }}
-                    min="2000"
-                    max="2100"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={calcularAguinaldo}
-                disabled={isProcessing}
-                style={{ width: '100%' }}
-              >
-                {isProcessing ? 'Calculando...' : 'Calcular Aguinaldo'}
-              </button>
-              {aguinaldoCalculo && (
-                <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#d1e7dd', borderRadius: '4px', fontSize: '0.9rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span><strong>Aguinaldo:</strong></span>
-                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.aguinaldo || 0)}</strong></span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #0f5132', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                    <span><strong>Total Aguinaldo:</strong></span>
-                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.totalAguinaldo || aguinaldoCalculo.aguinaldo || 0)}</strong></span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="employee-header">
             <div className="employee-summary">
               <div className="employee-avatar-small">
@@ -2235,20 +2119,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     {concept.isManual ? (
                       <input
                         type="text"
-                        value={concept.id}
-                        onChange={(e) => updateConcept(concept.uid, 'code', e.target.value)}
-                        className="concept-input small"
-                        placeholder="Cód"
-                      />
-                    ) : (
-                      <span>{concept.id}</span>
-                    )}
-                  </div>
-
-                  <div className="concept-cell">
-                    {concept.isManual ? (
-                      <input
-                        type="text"
                         value={concept.nombre}
                         onChange={(e) => updateConcept(concept.uid, 'name', e.target.value)}
                         className="concept-input"
@@ -2370,23 +2240,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </div>
                 </div>
               ))}
-
-              {/* Fila para añadir nuevo concepto */}
-              <div className="concept-row add-row">
-                <div className="concept-cell">—</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">&nbsp;</div>
-                <div className="concept-cell">
-                  <div className="concept-actions">
-                    <button className="btn btn-secondary btn-sm" onClick={handleAddConcepto} title="Agregar concepto">
-                      <Plus className="h-4 w-4 mr-1" />
-                      Agregar
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="totals-summary">
