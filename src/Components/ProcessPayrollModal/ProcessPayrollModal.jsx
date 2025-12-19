@@ -41,6 +41,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [descuentosData, setDescuentosData] = useState([]);
   const [horasExtrasLyFData, setHorasExtrasLyFData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
+  const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
   const [periodo, setPeriodo] = useState(
     new Date().toISOString().slice(0,7)
@@ -409,11 +410,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       if (isUocra) console.debug('ProcessPayrollModal - UOCRA bonificacionesMapped:', bonificacionesMapped);
 
-      // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
-      const totalRemuneraciones = basicoValue + 
-        bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0) +
-        bonificacionesMapped.reduce((sum, b) => sum + (b.total || 0), 0);
-
       // Descuentos iniciales (solo guardar estructura, se recalcularán después de Horas Extras)
       const descuentosMapped = conceptosAsignados
         .filter(asignado => asignado.tipoConcepto === 'DESCUENTO')
@@ -430,10 +426,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             id: asignado.idReferencia,
             tipo: 'DESCUENTO',
             nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
-            montoUnitario: Number(montoUnitario) || 0,
+            montoUnitario: 0, // Se calculará después
             porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular
             cantidad: Number(asignado.unidades) || 1,
-            total: -(Number(montoUnitario) || 0) * (Number(asignado.unidades) || 1), // Negativo porque es descuento
+            total: 0, // Se calculará después
           };
         })
         .filter(Boolean);
@@ -478,8 +474,42 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       const listaConHoras = applyHorasExtras(lista);
 
-      setTotal(calcTotal(listaConHoras));
-      setConceptos(listaConHoras);
+      // Recalcular descuentos DESPUÉS de aplicar Horas Extras con el total correcto de remuneraciones
+      const recalcularDescuentos = (items) => {
+        // Calcular total de remuneraciones
+        // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
+        // Para Luz y Fuerza: el básico está en la lista como 'CATEGORIA', así que solo sumamos de la lista
+        let totalRemuneraciones = 0;
+        if (isUocra) {
+          // Para UOCRA, el básico no está en la lista, sumarlo por separado
+          totalRemuneraciones = basicoValue + 
+            items
+              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
+              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        } else {
+          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', solo sumar de la lista
+          totalRemuneraciones = items
+            .filter(c => c.tipo !== 'DESCUENTO')
+            .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        }
+
+        return items.map(item => {
+          if (item.tipo === 'DESCUENTO' && item.porcentaje && totalRemuneraciones > 0) {
+            const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Number(montoUnitario) || 0,
+              total: -(Number(montoUnitario) || 0) * (Number(item.cantidad) || 1)
+            };
+          }
+          return item;
+        });
+      };
+
+      const listaFinal = recalcularDescuentos(listaConHoras);
+
+      setTotal(calcTotal(listaFinal));
+      setConceptos(listaFinal);
       setCurrentStep('payroll');
     } catch (error) {
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
@@ -2328,7 +2358,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </thead>
               <tbody>
                 {conceptos.map(concept => (
-                  <tr key={concept.uid}>
+                  <tr key={concept.id}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
                     <td className="concept-units">{concept.cantidad}</td>
@@ -2402,12 +2432,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               <input
                 type="text"
                 className="amount-words-input"
-                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
+                value={amountInWords}
                 onChange={(e) => {
                   // Solo permite letras, espacios y caracteres especiales comunes en español
                   const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-                  // Convertir a mayúsculas
-                  setAmountInWords(value.toUpperCase());
+                  setAmountInWords(value);
                 }}
                 placeholder="Escriba el monto en palabras..."
               />
