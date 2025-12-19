@@ -109,7 +109,7 @@ export default function Liquidacion() {
       colorClass: 'primary'
     },
     {
-      label: 'Liquidaciones Hechas',
+      label: 'Liquidaciones Realizadas',
       value: dashboardStats?.cantidadLiquidacionesHechas ?? '—',
       icon: TrendingUp,
       colorClass: 'success'
