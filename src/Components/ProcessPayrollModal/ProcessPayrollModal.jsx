@@ -1,8 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-<<<<<<< HEAD
-import React, { useEffect, useState, useRef } from 'react';
-=======
->>>>>>> 534ced0 (Agregado desplegable con lista de conceptos, correcciones en valores de liquidación)
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
@@ -475,7 +471,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Filtrar empleados por búsqueda
   const filteredEmployees = employees
-    .filter(emp => {
+     .filter(emp => {
       // Excluir empleados que no estén activos
       const estado = (emp.estado || '').toString().toUpperCase();
       return estado === 'ACTIVO';
