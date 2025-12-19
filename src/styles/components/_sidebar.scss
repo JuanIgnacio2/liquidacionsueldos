@@ -220,6 +220,16 @@
       font-size: $font-size-sm;
       color: rgba(255, 255, 255, 0.7);
 
+      .user-name {
+        font-weight: 600;
+        color: $color-white;
+        margin-bottom: $spacing-1;
+        font-size: $font-size-sm;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+
       .version {
         font-size: $font-size-xs;
       }

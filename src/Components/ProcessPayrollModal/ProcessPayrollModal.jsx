@@ -38,6 +38,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
+  const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
   const [periodo, setPeriodo] = useState(
     new Date().toISOString().slice(0,7)
@@ -248,12 +249,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       if (isUocra) console.debug('ProcessPayrollModal - UOCRA bonificacionesMapped:', bonificacionesMapped);
 
-      // Calcular total de remuneraciones (básico + bonos de área + bonificaciones)
-      const totalRemuneraciones = basicoValue + 
-        bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0) +
-        bonificacionesMapped.reduce((sum, b) => sum + (b.total || 0), 0);
-
-      // Descuentos se calculan sobre el total de remuneraciones
+      // Descuentos iniciales (solo guardar estructura, se recalcularán después de Horas Extras)
       const descuentosMapped = conceptosAsignados
         .filter(asignado => asignado.tipoConcepto === 'DESCUENTO')
         .map((asignado) => {
@@ -263,18 +259,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
           if (!concepto) return null;
 
-          // Descuentos se calculan sobre el total de remuneraciones
-          const montoUnitario = (totalRemuneraciones * concepto.porcentaje / 100);
-
+          // Guardar estructura, montoUnitario se calculará después de aplicar Horas Extras
           return {
             uid: uidCounter.current++,
             id: asignado.idReferencia,
             tipo: 'DESCUENTO',
             nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
-            montoUnitario: Number(montoUnitario) || 0,
+            montoUnitario: 0, // Se calculará después
             porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular
             cantidad: Number(asignado.unidades) || 1,
-            total: -(Number(montoUnitario) || 0) * (Number(asignado.unidades) || 1), // Negativo porque es descuento
+            total: 0, // Se calculará después
           };
         })
         .filter(Boolean);
@@ -319,8 +313,42 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       const listaConHoras = applyHorasExtras(lista);
 
-      setTotal(calcTotal(listaConHoras));
-      setConceptos(listaConHoras);
+      // Recalcular descuentos DESPUÉS de aplicar Horas Extras con el total correcto de remuneraciones
+      const recalcularDescuentos = (items) => {
+        // Calcular total de remuneraciones
+        // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
+        // Para Luz y Fuerza: el básico está en la lista como 'CATEGORIA', así que solo sumamos de la lista
+        let totalRemuneraciones = 0;
+        if (isUocra) {
+          // Para UOCRA, el básico no está en la lista, sumarlo por separado
+          totalRemuneraciones = basicoValue + 
+            items
+              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
+              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        } else {
+          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', solo sumar de la lista
+          totalRemuneraciones = items
+            .filter(c => c.tipo !== 'DESCUENTO')
+            .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        }
+
+        return items.map(item => {
+          if (item.tipo === 'DESCUENTO' && item.porcentaje && totalRemuneraciones > 0) {
+            const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Number(montoUnitario) || 0,
+              total: -(Number(montoUnitario) || 0) * (Number(item.cantidad) || 1)
+            };
+          }
+          return item;
+        });
+      };
+
+      const listaFinal = recalcularDescuentos(listaConHoras);
+
+      setTotal(calcTotal(listaFinal));
+      setConceptos(listaFinal);
       setCurrentStep('payroll');
     } catch (error) {
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
@@ -1091,27 +1119,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {/* STEP 3: RECEIPT PREVIEW */}
       {currentStep === 'preview' && selectedEmployee && (
         <div className="receipt-preview">
-          <div className="section-header-enhanced">
-            <div className="step-indicator">
-              <span className="step-number">3</span>
-              <Star className="step-star" />
-            </div>
-            <div className="header-content">
-              <h3 className="section-title">Vista Previa del Recibo</h3>
-              <p className="section-subtitle">Revisa y confirma la liquidación antes de imprimir</p>
-            </div>
-          </div>
-
           <div className="receipt-container">
             {/* ENCABEZADO DEL RECIBO */}
             <div className="receipt-header-wrapper">
               <div className="company-logo">
                 <div className="logo-box">
-                  <div className="logo-text">
-                    Marca
-                    <br />
-                    Empresa
-                  </div>
+                  <img src="/logo192.png" alt="Logo Empresa" className="logo-image" />
                 </div>
               </div>
 
@@ -1172,7 +1185,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </thead>
               <tbody>
                 {conceptos.map(concept => (
-                  <tr key={concept.uid}>
+                  <tr key={concept.id}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
                     <td className="concept-units">{concept.cantidad}</td>
@@ -1202,30 +1215,28 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </tr>
                 )}
               </tbody>
+              <tfoot>
+                <tr className="receipt-totals-row">
+                  <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                    TOTALES:
+                  </td>
+                  <td className="receipt-total-remuneration" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                    {formatCurrencyAR(remunerations)}
+                  </td>
+                  <td className="receipt-total-deduction" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                    {formatCurrencyAR(deductions)}
+                  </td>
+                </tr>
+                <tr className="receipt-net-row">
+                  <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
+                    TOTAL NETO A COBRAR:
+                  </td>
+                  <td className="receipt-net-amount" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', fontSize: '1.1rem', color: '#22c55e', borderTop: '2px solid #22c55e' }}>
+                    {formatCurrencyAR(netAmount)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
-
-            {/* SECCIÓN DE TOTALES */}
-            <div className="totals-section">
-              <div className="totals-info">
-                <div className="total-row">
-                  <span className="label">LUGAR Y FECHA DE PAGO</span>
-                  <span className="value">{new Date().toLocaleDateString('es-ES')}</span>
-                </div>
-                <div className="total-row">
-                  <span className="label">Total Remuneraciones</span>
-                  <span className="value positive">{formatCurrencyAR(remunerations)}</span>
-                </div>
-                <div className="total-row">
-                  <span className="label">Total Descuentos</span>
-                  <span className="value negative">{formatCurrencyAR(deductions)}</span>
-                </div>
-              </div>
-
-              <div className="totals-highlight">
-                <span className="amount-label">Total Neto</span>
-                <span className="amount-value">{formatCurrencyAR(netAmount)}</span>
-              </div>
-            </div>
 
             {/* DETALLES DE PAGO */}
             <div className="payment-details">
@@ -1237,6 +1248,22 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span className="label">Cuenta</span>
                 <span className="value">{selectedEmployee.cbu || '—'}</span>
               </div>
+            </div>
+
+            {/* SON PESOS */}
+            <div className="amount-words-section">
+              <label className="amount-words-label">SON PESOS:</label>
+              <input
+                type="text"
+                className="amount-words-input"
+                value={amountInWords}
+                onChange={(e) => {
+                  // Solo permite letras, espacios y caracteres especiales comunes en español
+                  const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+                  setAmountInWords(value);
+                }}
+                placeholder="Escriba el monto en palabras..."
+              />
             </div>
 
             {/* PIE DEL RECIBO */}
@@ -1257,7 +1284,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             </div>
           </div>
         </div>
-      )}
+        )}
 
       <ModalFooter>
         {currentStep === 'search' && (
