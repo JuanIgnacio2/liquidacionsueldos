@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, DollarSign, Search, ArrowLeft, Eye, ChevronLeft, ChevronRight, CheckCircle, Users } from 'lucide-react';
+import { Calendar, DollarSign, Search, Users, ArrowLeft, Eye } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
@@ -31,14 +31,6 @@ const formatDateDDMMYYYY = (dateStr) => {
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 };
-
-// Normaliza strings para comparar sin importar mayúsculas, tildes, espacios, etc.
-const normalize = (s) =>
-  (s || '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
 
 // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
 const formatPeriodToMonthYear = (period) => {
@@ -299,29 +291,6 @@ export default function HistorialPagos() {
     }
    };
 
-  const handleCompletarPago = async (pago) => {
-    const idPago = pago.id || pago.idPago;
-    if (!idPago) {
-      notify.error('No se pudo identificar el ID del pago');
-      return;
-    }
-
-    const confirmar = window.confirm(
-      `¿Está seguro de completar el pago para ${pago.apellidoEmpleado || pago.apellido || ''} ${pago.nombreEmpleado || pago.nombre || ''} (Legajo: ${pago.legajoEmpleado || pago.legajo})?`
-    );
-
-    if (!confirmar) return;
-
-    try {
-      await api.completarPago(idPago);
-      notify.success('Pago completado exitosamente');
-      // Recargar la lista de pagos
-      loadPagos();
-    } catch (error) {
-      notify.error(error);
-    }
-  };
-
   // Generar HTML del recibo para imprimir/descargar
   const generateReceiptHTML = (payroll, details) => {
     if (!payroll || !details) return '';
@@ -352,28 +321,32 @@ export default function HistorialPagos() {
     const periodo = formatPeriodToMonthYear(payroll.periodoPago || details.periodoPago);
     const remunerationAssigned = details.remuneracionAsignada || payroll.remuneracionAsignada || 0;
     const bank = details.banco || payroll.banco || 'Banco Nación';
-    const cuenta = details.cuenta || payroll.cuenta || '—';
+    const account = details.cuenta || details.cbu || payroll.cbu || '—';
 
-    // Generar filas de conceptos (ordenados: primero remuneraciones, luego descuentos)
-    const conceptosRows = sortConceptos(details.conceptos || [])
-      .map((concepto, index) => {
-        const isRemunerationConcept = isRemuneration(concepto);
-        const isDeductionConcept = isDeduction(concepto);
-        const total = Number(concepto.total || 0);
+    // Generar filas de conceptos
+    const conceptosRows = (details.conceptos || []).map((concepto, index) => {
+      const isRemuneration = 
+        concepto.tipoConcepto === 'CATEGORIA' || 
+        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
+        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
+        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
+        concepto.tipoConcepto === 'CATEGORIA_ZONA';
+      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
+      const total = Number(concepto.total || 0);
 
-        const remuneracion = isRemunerationConcept && total > 0 ? formatCurrencyAR(total) : '';
-        const descuento = isDeductionConcept && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
+      const remuneracion = isRemuneration && total > 0 ? formatCurrencyAR(total) : '';
+      const descuento = isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
 
-        return `
-          <tr>
-            <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
-            <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
-            <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
-            <td class="concept-remuneration">${remuneracion}</td>
-            <td class="concept-deduction">${descuento}</td>
-          </tr>
-        `;
-      }).join('');
+      return `
+        <tr>
+          <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
+          <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
+          <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
+          <td class="concept-remuneration">${remuneracion}</td>
+          <td class="concept-deduction">${descuento}</td>
+        </tr>
+      `;
+    }).join('');
 
     return `
 <!DOCTYPE html>
@@ -772,8 +745,8 @@ export default function HistorialPagos() {
         <span class="value">${bank}</span>
       </div>
       <div class="detail-item">
-        <span class="label">Número de Cuenta</span>
-        <span class="value">${cuenta}</span>
+        <span class="label">Cuenta</span>
+        <span class="value">${account}</span>
       </div>
     </div>
     
@@ -835,28 +808,32 @@ export default function HistorialPagos() {
     const periodo = formatPeriodToMonthYear(payroll.periodoPago || details.periodoPago);
     const remunerationAssigned = details.remuneracionAsignada || payroll.remuneracionAsignada || 0;
     const bank = details.banco || payroll.banco || 'Banco Nación';
-    const cuenta = details.cuenta || payroll.cuenta || '—';
+    const account = details.cuenta || details.cbu || payroll.cbu || '—';
 
-    // Generar filas de conceptos (ordenados: primero remuneraciones, luego descuentos)
-    const conceptosRows = sortConceptos(details.conceptos || [])
-      .map((concepto, index) => {
-        const isRemunerationConcept = isRemuneration(concepto);
-        const isDeductionConcept = isDeduction(concepto);
-        const total = Number(concepto.total || 0);
+    // Generar filas de conceptos
+    const conceptosRows = (details.conceptos || []).map((concepto, index) => {
+      const isRemuneration = 
+        concepto.tipoConcepto === 'CATEGORIA' || 
+        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
+        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
+        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
+        concepto.tipoConcepto === 'CATEGORIA_ZONA';
+      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
+      const total = Number(concepto.total || 0);
 
-        const remuneracion = isRemunerationConcept && total > 0 ? formatCurrencyAR(total) : '';
-        const descuento = isDeductionConcept && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
+      const remuneracion = isRemuneration && total > 0 ? formatCurrencyAR(total) : '';
+      const descuento = isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
 
-        return `
-          <tr>
-            <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
-            <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
-            <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
-            <td class="concept-remuneration">${remuneracion}</td>
-            <td class="concept-deduction">${descuento}</td>
-          </tr>
-        `;
-      }).join('');
+      return `
+        <tr>
+          <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
+          <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
+          <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
+          <td class="concept-remuneration">${remuneracion}</td>
+          <td class="concept-deduction">${descuento}</td>
+        </tr>
+      `;
+    }).join('');
 
     // Retornar solo el contenido del recibo con estilos inline
     return `
@@ -941,8 +918,8 @@ export default function HistorialPagos() {
             <span class="value" style="color: #333; font-size: 12px;">${bank}</span>
           </div>
           <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
-            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Número de Cuenta</span>
-            <span class="value" style="color: #333; font-size: 12px;">${cuenta}</span>
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Cuenta</span>
+            <span class="value" style="color: #333; font-size: 12px;">${account}</span>
           </div>
         </div>
         
@@ -991,6 +968,7 @@ export default function HistorialPagos() {
         }, 250);
       };
     } catch (error) {
+      console.error('Error al imprimir:', error);
       notify.error('Error al generar la impresión. Por favor, intente nuevamente.');
     }
   };
@@ -1043,6 +1021,7 @@ export default function HistorialPagos() {
       
       notify.success('Recibo descargado en PDF correctamente');
     } catch (error) {
+      console.error('Error al generar PDF:', error);
       notify.error('Error al generar el PDF. Por favor, intente nuevamente.');
     }
   };

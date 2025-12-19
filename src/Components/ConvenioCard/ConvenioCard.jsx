@@ -100,22 +100,23 @@ export function ConvenioCard({ convenio, onView, onEdit, onUploadDocument }) {
       )}
 
       {/* --- Acciones --- */}
-      {!isSpecialCard && (
-        <div className="convenio-actions">
-          <div className="action-buttons">
-            <Tooltip content="Ver convenio completo" position="top">
-              <button
-                className="action-btn view"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onView && onView(convenio.controller);
-                }}
-              >
-                <Eye className="action-icon" />
-                <span>Ver convenio</span>
-              </button>
-            </Tooltip>
-          </div>
+      <div className="convenio-actions">
+        <button
+          className="details-toggle"
+          onClick={() => setShowDetails(!showDetails)}
+        >
+          {showDetails ? "Ocultar detalles" : "Ver detalles"}
+        </button>
+
+        <div className="action-buttons">
+          <Tooltip content="Ver convenio completo" position="top">
+            <button
+              className="action-btn view"
+              onClick={() => onView(convenio.controller)}
+            >
+              <Eye className="action-icon" />
+            </button>
+          </Tooltip>
         </div>
       )}
       {isSpecialCard && (
