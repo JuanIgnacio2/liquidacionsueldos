@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, Download } from 'lucide-react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import * as api from '../../services/empleadosAPI';
-import { sortConceptos, isRemuneration, isDeduction } from '../../utils/conceptosUtils';
 import './PayrollDetailModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -43,127 +41,6 @@ const formatPeriodToMonthYear = (period) => {
   return period;
 };
 
-// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
-const calculateAntiguedad = (fechaIngreso) => {
-  if (!fechaIngreso) return '—';
-  
-  try {
-    const fechaIngresoDate = new Date(fechaIngreso);
-    const fechaActual = new Date();
-    
-    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
-    
-    // Calcular diferencia en años y meses
-    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
-    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
-    
-    // Ajustar si el mes actual es menor que el mes de ingreso
-    if (meses < 0) {
-      años--;
-      meses += 12;
-    }
-    
-    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
-    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
-      meses--;
-      if (meses < 0) {
-        años--;
-        meses += 12;
-      }
-    }
-    
-    // Formatear con ceros a la izquierda
-    const añosStr = String(años).padStart(2, '0');
-    const mesesStr = String(meses).padStart(2, '0');
-    
-    return `${añosStr}/${mesesStr}`;
-  } catch (error) {
-    console.error('Error al calcular antigüedad:', error);
-    return '—';
-  }
-};
-
-// Convierte un número a palabras en español
-const numberToWords = (num) => {
-  if (num === 0 || num === null || num === undefined || isNaN(num)) return 'cero';
-  
-  const numStr = Math.abs(num).toFixed(2);
-  const [integerPart, decimalPart] = numStr.split('.');
-  
-  const unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
-  const decenas = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
-  const especiales = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
-  const centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
-  
-  const convertGroup = (group) => {
-    const n = parseInt(group, 10);
-    if (n === 0) return '';
-    if (n < 10) return unidades[n];
-    if (n < 20) return especiales[n - 10];
-    if (n < 100) {
-      const decena = Math.floor(n / 10);
-      const unidad = n % 10;
-      if (unidad === 0) return decenas[decena];
-      if (decena === 1) return 'dieci' + unidades[unidad];
-      if (decena === 2) return 'veinti' + unidades[unidad];
-      return decenas[decena] + ' y ' + unidades[unidad];
-    }
-    if (n === 100) return 'cien';
-    if (n < 1000) {
-      const centena = Math.floor(n / 100);
-      const resto = n % 100;
-      if (resto === 0) return centenas[centena];
-      return centenas[centena] + ' ' + convertGroup(String(resto).padStart(2, '0'));
-    }
-    return '';
-  };
-  
-  const convertInteger = (str) => {
-    const padded = str.padStart(9, '0');
-    const millones = padded.substring(0, 3);
-    const miles = padded.substring(3, 6);
-    const unidades = padded.substring(6, 9);
-    
-    let result = '';
-    
-    if (parseInt(millones, 10) > 0) {
-      if (parseInt(millones, 10) === 1) {
-        result += 'un millón ';
-      } else {
-        result += convertGroup(millones) + ' millones ';
-      }
-    }
-    
-    if (parseInt(miles, 10) > 0) {
-      if (parseInt(miles, 10) === 1) {
-        result += 'mil ';
-      } else {
-        result += convertGroup(miles) + ' mil ';
-      }
-    }
-    
-    if (parseInt(unidades, 10) > 0) {
-      result += convertGroup(unidades);
-    }
-    
-    return result.trim();
-  };
-  
-  let words = convertInteger(integerPart);
-  
-  // Si no hay parte entera, usar "cero"
-  if (!words) words = 'cero';
-  
-  // Convertir centavos
-  const centavos = parseInt(decimalPart, 10);
-  if (centavos > 0) {
-    words += ' con ' + convertGroup(String(centavos).padStart(2, '0')) + ' centavos';
-  }
-  
-  // Capitalizar primera letra
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
-
 export default function PayrollDetailModal({
   isOpen,
   onClose,
@@ -175,61 +52,6 @@ export default function PayrollDetailModal({
   onDownload,
   title = 'Vista Previa del Recibo'
 }) {
-  const [conceptosCatalog, setConceptosCatalog] = useState({
-    bonificacionesLyF: [],
-    bonificacionesUocra: [],
-    descuentos: [],
-    horasExtrasLyF: [],
-    areas: []
-  });
-  const [amountInWords, setAmountInWords] = useState('');
-
-  // Cargar catálogos de conceptos cuando se abre el modal
-  useEffect(() => {
-    const loadCatalogos = async () => {
-      if (!isOpen || !payrollDetails) return;
-      try {
-        // Determinar el gremio del empleado (priorizar selectedEmployee)
-        let gremioNombre = '';
-        if (selectedEmployee) {
-          gremioNombre = selectedEmployee.gremioNombre || 
-                        (selectedEmployee.gremio?.nombre) || 
-                        (typeof selectedEmployee.gremio === 'string' ? selectedEmployee.gremio : '');
-        } else {
-          gremioNombre = payrollDetails.gremioNombre || 
-                        selectedPayroll?.gremioNombre || 
-                        (payrollDetails.gremio?.nombre) ||
-                        (selectedPayroll?.gremio?.nombre) || '';
-        }
-        
-        const gremioUpper = gremioNombre.toUpperCase();
-        const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
-        const isUocra = gremioUpper === 'UOCRA';
-
-        const [bonificacionesLyF, bonificacionesUocra, descuentos, horasExtrasLyF, areas] = await Promise.all([
-          isLuzYFuerza ? api.getConceptosLyF() : Promise.resolve([]),
-          isUocra ? api.getConceptosUocra() : Promise.resolve([]),
-          api.getDescuentos(),
-          isLuzYFuerza ? api.getHorasExtrasLyF() : Promise.resolve([]),
-          api.getAreas()
-        ]);
-
-        const newCatalog = {
-          bonificacionesLyF: bonificacionesLyF || [],
-          bonificacionesUocra: bonificacionesUocra || [],
-          descuentos: descuentos || [],
-          horasExtrasLyF: horasExtrasLyF || [],
-          areas: areas || []
-        };
-        setConceptosCatalog(newCatalog);
-      } catch (error) {
-        console.error('Error al cargar catálogos:', error);
-      }
-    };
-
-    loadCatalogos();
-  }, [isOpen, payrollDetails, selectedPayroll, selectedEmployee]);
-
   // Calcular totales
   const calculateTotals = () => {
     if (!payrollDetails?.conceptos) {
@@ -241,22 +63,13 @@ export default function PayrollDetailModal({
         c.tipoConcepto === 'CATEGORIA' || 
         c.tipoConcepto === 'CONCEPTO_LYF' || 
         c.tipoConcepto === 'CONCEPTO_UOCRA' ||
-        c.tipoConcepto === 'TITULO_LYF' ||
-        c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
         c.tipoConcepto === 'BONIFICACION_AREA' ||
-        c.tipoConcepto === 'CATEGORIA_ZONA' ||
-        c.tipoConcepto === 'HORA_EXTRA_LYF' ||
-        c.tipoConcepto === 'AGUINALDO' ||
-        c.tipoConcepto === 'VACACIONES'
+        c.tipoConcepto === 'CATEGORIA_ZONA'
       )
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
     const deductions = payrollDetails.conceptos
-      .filter(c => 
-        c.tipoConcepto === 'DESCUENTO' || 
-        c.tipoConcepto === 'DESCUENTO_LYF' || 
-        c.tipoConcepto === 'DESCUENTO_UOCRA'
-      )
+      .filter(c => c.tipoConcepto === 'DESCUENTO')
       .reduce((sum, c) => sum + Math.abs(Number(c.total) || 0), 0);
 
     const netAmount = remunerations - deductions;
@@ -266,48 +79,16 @@ export default function PayrollDetailModal({
 
   const { remunerations, deductions, netAmount } = calculateTotals();
 
-  // Calcular remuneración asignada si no viene en los datos
-  const calculateRemunerationAssigned = () => {
-    // Si viene en los datos, usarla directamente
-    if (payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada) {
-      return payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada || 0;
-    }
-    
-    // Si no viene, calcularla: básico + bonos de área
-    if (!payrollDetails?.conceptos) return 0;
-    
-    // Buscar el básico (CATEGORIA o CATEGORIA_ZONA)
-    const basico = payrollDetails.conceptos
-      .filter(c => c.tipoConcepto === 'CATEGORIA' || c.tipoConcepto === 'CATEGORIA_ZONA')
-      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
-    
-    return basico;
-  };
-
-  // Generar automáticamente el monto en palabras cuando cambia el netAmount
-  useEffect(() => {
-    if (isOpen && payrollDetails && netAmount > 0) {
-      const expectedWords = (numberToWords(netAmount) + ' pesos').toUpperCase();
-      setAmountInWords(expectedWords);
-    } else if (!isOpen || !payrollDetails || netAmount <= 0) {
-      setAmountInWords('');
-    }
-  }, [isOpen, payrollDetails, netAmount]);
-
-  // Obtener datos del empleado (formato igual a ProcessPayrollModal)
-  // Priorizar selectedEmployee si está disponible, luego payrollDetails, luego selectedPayroll
-  const employeeName = selectedEmployee 
-    ? `${selectedEmployee.apellido || ''}, ${selectedEmployee.nombre || ''}`.trim() || '—'
-    : `${selectedPayroll?.apellidoEmpleado || payrollDetails?.apellido || ''}, ${selectedPayroll?.nombreEmpleado || payrollDetails?.nombre || ''}`.trim() || '—';
-  const employeeLegajo = selectedEmployee?.legajo || selectedPayroll?.legajoEmpleado || payrollDetails?.legajo || '—';
-  const employeeCuil = selectedEmployee?.cuil || payrollDetails?.cuil || selectedPayroll?.cuil || '—';
-  const employeeCategory = selectedEmployee?.categoria || selectedEmployee?.categoriaNombre || payrollDetails?.categoriaEmpleado || selectedPayroll?.categoria || payrollDetails?.categoria || '—';
-  const employeeIngreso = selectedEmployee?.inicioActividad || payrollDetails?.fechaIngreso || selectedPayroll?.fechaIngreso || payrollDetails?.inicioActividad || null;
-  const employeeAntiguedad = calculateAntiguedad(employeeIngreso);
+  // Obtener datos del empleado
+  const employeeName = `${selectedPayroll?.apellidoEmpleado || ''}, ${selectedPayroll?.nombreEmpleado || ''}`.trim();
+  const employeeLegajo = selectedPayroll?.legajoEmpleado || payrollDetails?.legajo || '—';
+  const employeeCuil = payrollDetails?.cuil || selectedPayroll?.cuil || '—';
+  const employeeCategory = payrollDetails?.categoriaEmpleado || selectedPayroll?.categoria || '—';
+  const employeeIngreso = payrollDetails?.fechaIngreso || selectedPayroll?.fechaIngreso || null;
   const periodo = formatPeriodToMonthYear(selectedPayroll?.periodoPago || payrollDetails?.periodoPago);
-  const remunerationAssigned = calculateRemunerationAssigned();
-  const bank = selectedEmployee?.banco || payrollDetails?.banco || selectedPayroll?.banco || 'Banco Nación';
-  const cuenta = selectedEmployee?.cuenta || payrollDetails?.cuenta || selectedPayroll?.cuenta || '—';
+  const remunerationAssigned = payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada || 0;
+  const bank = payrollDetails?.banco || selectedPayroll?.banco || 'Banco Nación';
+  const account = payrollDetails?.cuenta || payrollDetails?.cbu || selectedPayroll?.cbu || '—';
 
   return (
     <Modal
@@ -348,7 +129,7 @@ export default function PayrollDetailModal({
             <div className="employee-info-section">
               <div className="info-row">
                 <span className="label">Apellido y Nombre</span>
-                <span className="value">{employeeName}</span>
+                <span className="value">{employeeName || '—'}</span>
               </div>
               <div className="info-row">
                 <span className="label">Legajo</span>
@@ -361,10 +142,6 @@ export default function PayrollDetailModal({
               <div className="info-row">
                 <span className="label">Fecha Ingreso</span>
                 <span className="value">{formatDateDDMMYYYY(employeeIngreso)}</span>
-              </div>
-              <div className="info-row">
-                <span className="label">Antigüedad</span>
-                <span className="value">{employeeAntiguedad}</span>
               </div>
               <div className="info-row">
                 <span className="label">Categoría</span>
@@ -385,41 +162,42 @@ export default function PayrollDetailModal({
               <table className="concepts-table">
                 <thead>
                   <tr>
-                    <th style={{ width: 'auto' }}>Concepto</th>
-                    <th style={{ width: '100px', textAlign: 'center' }}>Unidades</th>
-                    <th style={{ width: '150px', textAlign: 'right' }}>Remuneraciones</th>
-                    <th style={{ width: '150px', textAlign: 'right' }}>Descuentos</th>
+                    <th style={{ width: '60px' }}>Código</th>
+                    <th style={{ width: '40%' }}>Concepto</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Unidades</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Remuneraciones</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Descuentos</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortConceptos(
-                    payrollDetails.conceptos.filter(concepto => concepto.tipoConcepto !== 'CATEGORIA_ZONA')
-                  ).map((concepto, index) => {
-                      const isRemunerationConcept = isRemuneration(concepto);
-                      const isDeductionConcept = isDeduction(concepto);
-                      const total = Number(concepto.total || 0);
-                      
-                      // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
-                      const descuentoAmount = isDeductionConcept ? Math.abs(total) : 0;
-                      const remuneracionAmount = isRemunerationConcept && total > 0 ? total : 0;
+                  {payrollDetails.conceptos.map((concepto, index) => {
+                    const isRemuneration = 
+                      concepto.tipoConcepto === 'CATEGORIA' || 
+                      concepto.tipoConcepto === 'CONCEPTO_LYF' || 
+                      concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
+                      concepto.tipoConcepto === 'BONIFICACION_AREA' ||
+                      concepto.tipoConcepto === 'CATEGORIA_ZONA';
+                    const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
+                    const total = Number(concepto.total || 0);
 
-                      return (
-                        <tr key={index}>
-                          <td className="concept-name">{concepto.nombre || concepto.nombreConcepto}</td>
-                          <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
-                          <td className="concept-remuneration">
-                            {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
-                          </td>
-                          <td className="concept-deduction">
-                            {descuentoAmount > 0 ? formatCurrencyAR(descuentoAmount) : ''}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    return (
+                      <tr key={index}>
+                        <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
+                        <td className="concept-name">{concepto.nombre || `Concepto ${index + 1}`}</td>
+                        <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
+                        <td className="concept-remuneration">
+                          {isRemuneration && total > 0 ? formatCurrencyAR(total) : ''}
+                        </td>
+                        <td className="concept-deduction">
+                          {isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : ''}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="receipt-totals-row">
-                    <td colSpan="2" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                    <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
                       TOTALES:
                     </td>
                     <td className="receipt-total-remuneration" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
@@ -430,7 +208,7 @@ export default function PayrollDetailModal({
                     </td>
                   </tr>
                   <tr className="receipt-net-row">
-                    <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
+                    <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
                       TOTAL NETO A COBRAR:
                     </td>
                     <td className="receipt-net-amount" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', fontSize: '1.1rem', color: '#22c55e', borderTop: '2px solid #22c55e' }}>
@@ -445,18 +223,6 @@ export default function PayrollDetailModal({
               </div>
             )}
 
-            {/* LUGAR Y FECHA DE PAGO */}
-            <div className="payment-details">
-              <div className="detail-item">
-                <span className="label">Lugar y fecha de pago</span>
-                <span className="value">
-                  Hasenkamp, {selectedPayroll?.fechaPago || payrollDetails?.fechaPago 
-                    ? formatDateDDMMYYYY(selectedPayroll?.fechaPago || payrollDetails?.fechaPago) 
-                    : '—'}
-                </span>
-              </div>
-            </div>
-
             {/* DETALLES DE PAGO */}
             <div className="payment-details">
               <div className="detail-item">
@@ -464,27 +230,17 @@ export default function PayrollDetailModal({
                 <span className="value">{bank}</span>
               </div>
               <div className="detail-item">
-                <span className="label">Número de Cuenta</span>
-                <span className="value">{cuenta}</span>
+                <span className="label">Cuenta</span>
+                <span className="value">{account}</span>
               </div>
             </div>
 
             {/* SON PESOS */}
             <div className="amount-words-section">
               <label className="amount-words-label">SON PESOS:</label>
-              <input
-                type="text"
-                className="amount-words-input"
-                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
-                onChange={(e) => {
-                  // Solo permite letras, espacios y caracteres especiales comunes en español
-                  const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-                  // Convertir a mayúsculas
-                  setAmountInWords(value.toUpperCase());
-                }}
-                placeholder="Escriba el monto en palabras..."
-                style={{ width: '100%', textTransform: 'uppercase' }}
-              />
+              <div className="amount-words-display">
+                {netAmount.toLocaleString('es-AR')} * * * *
+              </div>
             </div>
 
             {/* PIE DEL RECIBO */}
