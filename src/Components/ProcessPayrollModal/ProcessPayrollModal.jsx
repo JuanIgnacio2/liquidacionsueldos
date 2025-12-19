@@ -702,7 +702,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Filtrar empleados por búsqueda
   const filteredEmployees = employees
-    .filter(emp => {
+     .filter(emp => {
       // Excluir empleados que no estén activos
       const estado = (emp.estado || '').toString().toUpperCase();
       return estado === 'ACTIVO';
