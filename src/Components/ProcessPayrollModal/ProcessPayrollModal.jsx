@@ -4,6 +4,7 @@ import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar,
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
+import html2pdf from 'html2pdf.js';
 import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -46,6 +47,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [periodo, setPeriodo] = useState(
     new Date().toISOString().slice(0,7)
   );
+  const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -514,7 +516,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       try {
         const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
-        const liquidaciones = await api.getPagosByPeriodo(currentPeriod);
+        const liquidaciones = await api.getLiquidacionesByPeriodo(currentPeriod);
+        console.log(liquidaciones);
         // Extraer legajos únicos de las liquidaciones
         const legajosSet = new Set();
         if (Array.isArray(liquidaciones)) {
@@ -555,7 +558,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setBasicSalary(0);
       setDescuentosData([]);
       setProcessedLegajos(new Set());
-      setQuincena(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
@@ -953,15 +955,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-     // Generar filas de conceptos
-     const conceptosRows = conceptos.map(concept => {
-       const remuneracion = (concept.tipo === 'CATEGORIA' ||
-         concept.tipo === 'BONIFICACION_AREA' ||
-         concept.tipo === 'CONCEPTO_LYF' ||
-         concept.tipo === 'CONCEPTO_UOCRA' ||
-         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
-         ? formatCurrencyAR(concept.total)
-         : '';
+    // Generar filas de conceptos
+    const conceptosRows = conceptos.map(concept => {
+      const remuneracion = (concept.tipo === 'CATEGORIA' ||
+        concept.tipo === 'BONIFICACION_AREA' ||
+        concept.tipo === 'CONCEPTO_LYF' ||
+        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
+        ? formatCurrencyAR(concept.total)
+        : '';
       
       const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
         ? formatCurrencyAR(Math.abs(concept.total))
@@ -1387,8 +1388,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         <span class="value">${selectedEmployee?.banco || 'Banco Nación'}</span>
       </div>
       <div class="detail-item">
-        <span class="label">Número de Cuenta</span>
-        <span class="value">${selectedEmployee?.cuenta || '—'}</span>
+        <span class="label">Cuenta</span>
+        <span class="value">${selectedEmployee?.cbu || '—'}</span>
       </div>
     </div>
     
@@ -1456,15 +1457,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-     // Generar filas de conceptos
-     const conceptosRows = conceptos.map(concept => {
-       const remuneracion = (concept.tipo === 'CATEGORIA' ||
-         concept.tipo === 'BONIFICACION_AREA' ||
-         concept.tipo === 'CONCEPTO_LYF' ||
-         concept.tipo === 'CONCEPTO_UOCRA' ||
-         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
-         ? formatCurrencyAR(concept.total)
-         : '';
+    // Generar filas de conceptos
+    const conceptosRows = conceptos.map(concept => {
+      const remuneracion = (concept.tipo === 'CATEGORIA' ||
+        concept.tipo === 'BONIFICACION_AREA' ||
+        concept.tipo === 'CONCEPTO_LYF' ||
+        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
+        ? formatCurrencyAR(concept.total)
+        : '';
       
       const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
         ? formatCurrencyAR(Math.abs(concept.total))
@@ -1578,8 +1578,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.banco || 'Banco Nación'}</span>
           </div>
           <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
-            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Número de Cuenta</span>
-            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.cuenta || '—'}</span>
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Cuenta</span>
+            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.cbu || '—'}</span>
           </div>
         </div>
         
@@ -1770,7 +1770,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           <span className="salary-label status-processed">
                             <CheckCircle className="status-icon" />
                             Procesada
-                        </span>
+                          </span>
                         ) : (
                           <span className="salary-label status-pending">
                             <Clock className="status-icon" />
@@ -2314,11 +2314,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               <input
                 type="text"
                 className="amount-words-input"
-                value={amountInWords}
+                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
                 onChange={(e) => {
                   // Solo permite letras, espacios y caracteres especiales comunes en español
                   const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-                  setAmountInWords(value);
+                  // Convertir a mayúsculas
+                  setAmountInWords(value.toUpperCase());
                 }}
                 placeholder="Escriba el monto en palabras..."
               />
