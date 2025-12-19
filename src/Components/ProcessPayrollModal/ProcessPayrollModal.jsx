@@ -4,6 +4,7 @@ import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar,
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
+import html2pdf from 'html2pdf.js';
 import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -43,6 +44,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [periodo, setPeriodo] = useState(
     new Date().toISOString().slice(0,7)
   );
+  const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -80,6 +82,87 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${year}`;
     }
     return period;
+  };
+
+  // Convierte un número a palabras en español
+  const numberToWords = (num) => {
+    if (num === 0 || num === null || num === undefined || isNaN(num)) return 'cero';
+    
+    const numStr = Math.abs(num).toFixed(2);
+    const [integerPart, decimalPart] = numStr.split('.');
+    
+    const unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+    const decenas = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+    const especiales = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
+    const centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+    
+    const convertGroup = (group) => {
+      const n = parseInt(group, 10);
+      if (n === 0) return '';
+      if (n < 10) return unidades[n];
+      if (n < 20) return especiales[n - 10];
+      if (n < 100) {
+        const decena = Math.floor(n / 10);
+        const unidad = n % 10;
+        if (unidad === 0) return decenas[decena];
+        if (decena === 1) return 'dieci' + unidades[unidad];
+        if (decena === 2) return 'veinti' + unidades[unidad];
+        return decenas[decena] + ' y ' + unidades[unidad];
+      }
+      if (n === 100) return 'cien';
+      if (n < 1000) {
+        const centena = Math.floor(n / 100);
+        const resto = n % 100;
+        if (resto === 0) return centenas[centena];
+        return centenas[centena] + ' ' + convertGroup(String(resto).padStart(2, '0'));
+      }
+      return '';
+    };
+    
+    const convertInteger = (str) => {
+      const padded = str.padStart(9, '0');
+      const millones = padded.substring(0, 3);
+      const miles = padded.substring(3, 6);
+      const unidades = padded.substring(6, 9);
+      
+      let result = '';
+      
+      if (parseInt(millones, 10) > 0) {
+        if (parseInt(millones, 10) === 1) {
+          result += 'un millón ';
+        } else {
+          result += convertGroup(millones) + ' millones ';
+        }
+      }
+      
+      if (parseInt(miles, 10) > 0) {
+        if (parseInt(miles, 10) === 1) {
+          result += 'mil ';
+        } else {
+          result += convertGroup(miles) + ' mil ';
+        }
+      }
+      
+      if (parseInt(unidades, 10) > 0) {
+        result += convertGroup(unidades);
+      }
+      
+      return result.trim();
+    };
+    
+    let words = convertInteger(integerPart);
+    
+    // Si no hay parte entera, usar "cero"
+    if (!words) words = 'cero';
+    
+    // Convertir centavos
+    const centavos = parseInt(decimalPart, 10);
+    if (centavos > 0) {
+      words += ' con ' + convertGroup(String(centavos).padStart(2, '0')) + ' centavos';
+    }
+    
+    // Capitalizar primera letra
+    return words.charAt(0).toUpperCase() + words.slice(1);
   };
 
   const calcTotal = (lista) =>
@@ -355,6 +438,36 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     }
   };
 
+  // Cargar liquidaciones del mes actual para mostrar estado
+  useEffect(() => {
+    const loadCurrentMonthLiquidaciones = async () => {
+      if (!isOpen) return;
+      
+      try {
+        const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
+        const liquidaciones = await api.getLiquidacionesByPeriodo(currentPeriod);
+        console.log(liquidaciones);
+        // Extraer legajos únicos de las liquidaciones
+        const legajosSet = new Set();
+        if (Array.isArray(liquidaciones)) {
+          liquidaciones.forEach(liquidacion => {
+            if (liquidacion.legajo) {
+              legajosSet.add(Number(liquidacion.legajo));
+            }
+          });
+        }
+        
+        setProcessedLegajos(legajosSet);
+      } catch (error) {
+        console.error('Error al cargar liquidaciones del mes actual:', error);
+        // En caso de error, dejar el set vacío
+        setProcessedLegajos(new Set());
+      }
+    };
+
+    loadCurrentMonthLiquidaciones();
+  }, [isOpen]);
+
   // Seleccionar empleado inicial cuando el modal se abre con un empleado preseleccionado
   useEffect(() => {
     if (isOpen && initialEmployee) {
@@ -371,6 +484,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setTotal(0);
       setBasicSalary(0);
       setDescuentosData([]);
+      setProcessedLegajos(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
@@ -600,6 +714,22 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     return { remunerations, deductions, netAmount };
   };
 
+  // Generar automáticamente el monto en palabras cuando cambia el netAmount
+  useEffect(() => {
+    if ((currentStep === 'preview' || currentStep === 'payroll') && selectedEmployee) {
+      const { netAmount } = calculateTotals();
+      if (netAmount > 0) {
+        const expectedWords = (numberToWords(netAmount) + ' pesos').toUpperCase();
+        // Regenerar automáticamente cuando cambian los conceptos
+        // El usuario puede editar manualmente después si lo desea
+        setAmountInWords(expectedWords);
+      } else if (netAmount <= 0) {
+        setAmountInWords('');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conceptos, basicSalary, selectedEmployee, currentStep]);
+
   // LIQUIDAR SUELDO Y GENERAR RECIBO
   const generatePayroll = async () => {
     if (!selectedEmployee) return;
@@ -651,6 +781,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       // Notificación de éxito
       notify.success(`Liquidación realizada exitosamente para el período ${periodo}`);
       
+      // Actualizar el estado de legajos procesados
+      setProcessedLegajos(prev => new Set([...prev, Number(selectedEmployee.legajo)]));
+      
       setCurrentStep('preview');
     } catch (error) {
       notify.error('Error al liquidar sueldo:', error);
@@ -679,17 +812,724 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
 
-  // Imprimir recibo
-  const handlePrint = () => {
-    window.print();
+  // Generar HTML completo del recibo
+  const generateReceiptHTML = () => {
+    const periodoDisplay = formatPeriodToMonthYear(payrollData.periodDisplay || periodo);
+    const fechaActual = new Date().toLocaleDateString('es-AR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+
+    // Calcular totales para el recibo
+    const { remunerations, deductions, netAmount } = calculateTotals();
+    
+    // Generar texto en palabras automáticamente si no está definido
+    const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
+
+    // Generar filas de conceptos
+    const conceptosRows = conceptos.map(concept => {
+      const remuneracion = (concept.tipo === 'CATEGORIA' ||
+        concept.tipo === 'BONIFICACION_AREA' ||
+        concept.tipo === 'CONCEPTO_LYF' ||
+        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
+        ? formatCurrencyAR(concept.total)
+        : '';
+      
+      const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
+        ? formatCurrencyAR(Math.abs(concept.total))
+        : '';
+
+      return `
+        <tr>
+          <td class="concept-code">${concept.id || '—'}</td>
+          <td class="concept-name">${concept.nombre}</td>
+          <td class="concept-units">${concept.cantidad || 1}</td>
+          <td class="concept-remuneration">${remuneracion}</td>
+          <td class="concept-deduction">${descuento}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Agregar básico para UOCRA si corresponde
+    const basicoUocraRow = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') && basicSalary > 0
+      ? `
+        <tr>
+          <td class="concept-code">—</td>
+          <td class="concept-name">Básico</td>
+          <td class="concept-units">1</td>
+          <td class="concept-remuneration">${formatCurrencyAR(basicSalary)}</td>
+          <td class="concept-deduction"></td>
+        </tr>
+      `
+      : '';
+
+    const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recibo de Sueldo - ${selectedEmployee?.nombre} ${selectedEmployee?.apellido}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Arial', 'Helvetica', sans-serif;
+      font-size: 12px;
+      color: #333;
+      background: white;
+      padding: 20px;
+      line-height: 1.4;
+    }
+    
+    .receipt-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+    }
+    
+    .receipt-header-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #333;
+    }
+    
+    .company-logo {
+      width: 100px;
+      height: 100px;
+      border: 2px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      padding: 5px;
+    }
+    
+    .logo-image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    
+    .company-info {
+      flex: 1;
+      margin-left: 15px;
+    }
+    
+    .company-name {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    
+    .company-detail {
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    
+    .company-detail.highlight {
+      font-weight: 600;
+    }
+    
+    .receipt-title {
+      text-align: right;
+      font-weight: bold;
+      font-size: 14px;
+      color: #22c55e;
+    }
+    
+    .title-main {
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .title-number {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      font-weight: normal;
+    }
+    
+    .employee-info-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .info-row {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .info-row .label {
+      font-weight: bold;
+      font-size: 11px;
+    }
+    
+    .info-row .value {
+      font-size: 12px;
+    }
+    
+    .concepts-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 11px;
+    }
+    
+    .concepts-table thead {
+      background: #22c55e;
+      color: white;
+    }
+    
+    .concepts-table th {
+      padding: 10px;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .concepts-table th:last-child {
+      text-align: right;
+    }
+    
+    .concepts-table tbody tr {
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .concepts-table tbody tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    
+    .concepts-table td {
+      padding: 8px 10px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .concept-code {
+      font-weight: 600;
+      text-align: center;
+      width: 60px;
+    }
+    
+    .concept-units {
+      text-align: center;
+      width: 70px;
+    }
+    
+    .concept-remuneration {
+      text-align: right;
+      width: 120px;
+      color: #22c55e;
+      font-weight: 600;
+    }
+    
+    .concept-deduction {
+      text-align: right;
+      width: 120px;
+      color: #ef4444;
+      font-weight: 600;
+    }
+    
+    .receipt-totals-row td {
+      text-align: right;
+      font-weight: bold;
+      padding: 15px 10px;
+    }
+    
+    .receipt-net-row td {
+      text-align: right;
+      font-weight: bold;
+      padding: 15px 10px;
+      border-top: 2px solid #22c55e;
+      font-size: 13px;
+    }
+    
+    .receipt-net-amount {
+      color: #22c55e;
+      font-size: 14px;
+    }
+    
+    .payment-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      font-size: 11px;
+    }
+    
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    .detail-item .label {
+      font-weight: 600;
+      color: #666;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    
+    .detail-item .value {
+      color: #333;
+      font-size: 12px;
+    }
+    
+    .amount-words-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .amount-words-label {
+      font-weight: bold;
+      font-size: 11px;
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .amount-words-input {
+      width: 100%;
+      font-size: 12px;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      background: white;
+    }
+    
+    .receipt-footer {
+      padding-top: 20px;
+      border-top: 2px solid #e5e7eb;
+      text-align: center;
+      font-size: 10px;
+      color: #666;
+    }
+    
+    .footer-text {
+      font-style: italic;
+      margin-bottom: 20px;
+    }
+    
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-top: 30px;
+    }
+    
+    .signature-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .signature-block .line {
+      width: 150px;
+      height: 1px;
+      background: #333;
+      margin-top: 40px;
+    }
+    
+    .signature-block .label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    @media print {
+      body {
+        padding: 0;
+      }
+      
+      .receipt-container {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="receipt-header-wrapper">
+      <div class="company-logo">
+        <img src="/logo192.png" alt="Logo Empresa" class="logo-image" onerror="this.style.display='none'">
+      </div>
+      
+      <div class="company-info">
+        <div class="company-name">COOP. DE SERV. PUB. 25 DE MAYO LTDA</div>
+        <div class="company-detail">Domicilio: Ramirez 367</div>
+        <div class="company-detail highlight">C.U.I.T.: 30-54569238-0</div>
+      </div>
+      
+      <div class="receipt-title">
+        <span class="title-main">RECIBO DE HABERES</span>
+        <span class="title-number">Ley nº 20.744</span>
+      </div>
+    </div>
+    
+    <div class="employee-info-section">
+      <div class="info-row">
+        <span class="label">Apellido y Nombre</span>
+        <span class="value">${selectedEmployee?.apellido || ''}, ${selectedEmployee?.nombre || ''}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Legajo</span>
+        <span class="value">${selectedEmployee?.legajo || '—'}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">C.U.I.L.</span>
+        <span class="value">${selectedEmployee?.cuil || '—'}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Fecha Ingreso</span>
+        <span class="value">${formatDateDDMMYYYY(selectedEmployee?.inicioActividad)}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Categoría</span>
+        <span class="value">${selectedEmployee?.categoria || selectedEmployee?.category || '—'}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Período</span>
+        <span class="value">${periodoDisplay}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Remuneración asignada</span>
+        <span class="value">${formatCurrencyAR(remunerationAssigned)}</span>
+      </div>
+    </div>
+    
+    <table class="concepts-table">
+      <thead>
+        <tr>
+          <th style="width: 60px">Código</th>
+          <th style="width: 40%">Concepto</th>
+          <th style="width: 70px; text-align: center">Unidades</th>
+          <th style="width: 120px; text-align: right">Remuneraciones</th>
+          <th style="width: 120px; text-align: right">Descuentos</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${conceptosRows}
+        ${basicoUocraRow}
+      </tbody>
+      <tfoot>
+        <tr class="receipt-totals-row">
+          <td colspan="3" style="text-align: right; font-weight: bold; padding: 15px 10px">
+            TOTALES:
+          </td>
+          <td class="receipt-total-remuneration" style="text-align: right; font-weight: bold; padding: 15px 10px">
+            ${formatCurrencyAR(remunerations)}
+          </td>
+          <td class="receipt-total-deduction" style="text-align: right; font-weight: bold; padding: 15px 10px">
+            ${formatCurrencyAR(deductions)}
+          </td>
+        </tr>
+        <tr class="receipt-net-row">
+          <td colspan="4" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e">
+            TOTAL NETO A COBRAR:
+          </td>
+          <td class="receipt-net-amount" style="text-align: right; font-weight: bold; padding: 15px 10px; font-size: 14px; color: #22c55e; border-top: 2px solid #22c55e">
+            ${formatCurrencyAR(netAmount)}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+    
+    <div class="payment-details">
+      <div class="detail-item">
+        <span class="label">Banco Acreditación</span>
+        <span class="value">${selectedEmployee?.banco || 'Banco Nación'}</span>
+      </div>
+      <div class="detail-item">
+        <span class="label">Cuenta</span>
+        <span class="value">${selectedEmployee?.cbu || '—'}</span>
+      </div>
+    </div>
+    
+    <div class="amount-words-section">
+      <label class="amount-words-label">SON PESOS:</label>
+      <div style="font-size: 12px; padding: 8px; border: 1px solid #e5e7eb; background: white; min-height: 30px;">
+        ${amountWordsText}
+      </div>
+    </div>
+    
+    <div class="receipt-footer">
+      <p class="footer-text">
+        El presente es duplicado del recibo original que obra en nuestro poder. Firmado por el empleado.
+      </p>
+      <div class="signature-section">
+        <div class="signature-block">
+          <div class="line"></div>
+          <span class="label">Firma del Empleador</span>
+        </div>
+        <div class="signature-block">
+          <div class="line"></div>
+          <span class="label">Firma del Empleado</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return html;
   };
 
-  // Descargar recibo
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = 'data:text/plain;charset=utf-8,Recibo de Sueldo - ' + selectedEmployee?.nombre;
-    link.download = `recibo_${selectedEmployee?.legajo}_${payrollData.period}.txt`;
-    link.click();
+  // Imprimir recibo
+  const handlePrint = () => {
+    // Crear una ventana nueva con el HTML del recibo
+    const printWindow = window.open('', '_blank');
+    const htmlContent = generateReceiptHTML();
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Esperar a que se cargue el contenido y luego imprimir
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        // Cerrar la ventana después de un tiempo (opcional)
+        // setTimeout(() => printWindow.close(), 1000);
+      }, 250);
+    };
+  };
+
+  // Generar HTML del recibo sin el DOCTYPE y etiquetas html/head/body (solo el contenido)
+  const generateReceiptContentHTML = () => {
+    const periodoDisplay = formatPeriodToMonthYear(payrollData.periodDisplay || periodo);
+    const fechaActual = new Date().toLocaleDateString('es-AR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+
+    // Calcular totales para el recibo
+    const { remunerations, deductions, netAmount } = calculateTotals();
+    
+    // Generar texto en palabras automáticamente si no está definido
+    const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
+
+    // Generar filas de conceptos
+    const conceptosRows = conceptos.map(concept => {
+      const remuneracion = (concept.tipo === 'CATEGORIA' ||
+        concept.tipo === 'BONIFICACION_AREA' ||
+        concept.tipo === 'CONCEPTO_LYF' ||
+        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
+        ? formatCurrencyAR(concept.total)
+        : '';
+      
+      const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
+        ? formatCurrencyAR(Math.abs(concept.total))
+        : '';
+
+      return `
+        <tr>
+          <td class="concept-code">${concept.id || '—'}</td>
+          <td class="concept-name">${concept.nombre}</td>
+          <td class="concept-units">${concept.cantidad || 1}</td>
+          <td class="concept-remuneration">${remuneracion}</td>
+          <td class="concept-deduction">${descuento}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Agregar básico para UOCRA si corresponde
+    const basicoUocraRow = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') && basicSalary > 0
+      ? `
+        <tr>
+          <td class="concept-code">—</td>
+          <td class="concept-name">Básico</td>
+          <td class="concept-units">1</td>
+          <td class="concept-remuneration">${formatCurrencyAR(basicSalary)}</td>
+          <td class="concept-deduction"></td>
+        </tr>
+      `
+      : '';
+
+    // Retornar solo el contenido del recibo con estilos inline
+    return `
+      <div class="receipt-container" style="max-width: 800px; margin: 0 auto; background: white; padding: 20px; font-family: 'Arial', 'Helvetica', sans-serif; font-size: 12px; color: #333; line-height: 1.4;">
+        <div class="receipt-header-wrapper" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #333;">
+          <div class="company-logo" style="width: 100px; height: 100px; border: 2px solid #333; display: flex; align-items: center; justify-content: center; background: white; padding: 5px;">
+            <img src="/logo192.png" alt="Logo Empresa" class="logo-image" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.style.display='none'">
+          </div>
+          
+          <div class="company-info" style="flex: 1; margin-left: 15px;">
+            <div class="company-name" style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">COOP. DE SERV. PUB. 25 DE MAYO LTDA</div>
+            <div class="company-detail" style="font-size: 11px; line-height: 1.4;">Domicilio: Ramirez 367</div>
+            <div class="company-detail highlight" style="font-size: 11px; line-height: 1.4; font-weight: 600;">C.U.I.T.: 30-54569238-0</div>
+          </div>
+          
+          <div class="receipt-title" style="text-align: right; font-weight: bold; font-size: 14px; color: #22c55e;">
+            <span class="title-main" style="display: block; margin-bottom: 5px;">RECIBO DE HABERES</span>
+            <span class="title-number" style="display: block; font-size: 12px; color: #666; font-weight: normal;">Ley nº 20.744</span>
+          </div>
+        </div>
+        
+        <div class="employee-info-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb;">
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Apellido y Nombre</span>
+            <span class="value" style="font-size: 12px;">${selectedEmployee?.apellido || ''}, ${selectedEmployee?.nombre || ''}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Legajo</span>
+            <span class="value" style="font-size: 12px;">${selectedEmployee?.legajo || '—'}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">C.U.I.L.</span>
+            <span class="value" style="font-size: 12px;">${selectedEmployee?.cuil || '—'}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Fecha Ingreso</span>
+            <span class="value" style="font-size: 12px;">${formatDateDDMMYYYY(selectedEmployee?.inicioActividad)}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Categoría</span>
+            <span class="value" style="font-size: 12px;">${selectedEmployee?.categoria || selectedEmployee?.category || '—'}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Período</span>
+            <span class="value" style="font-size: 12px;">${periodoDisplay}</span>
+          </div>
+          <div class="info-row" style="display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center;">
+            <span class="label" style="font-weight: bold; font-size: 11px;">Remuneración asignada</span>
+            <span class="value" style="font-size: 12px;">${formatCurrencyAR(remunerationAssigned)}</span>
+          </div>
+        </div>
+        
+        <table class="concepts-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
+          <thead style="background: #22c55e; color: white;">
+            <tr>
+              <th style="width: 60px; padding: 10px; text-align: left; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Código</th>
+              <th style="width: 40%; padding: 10px; text-align: left; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Concepto</th>
+              <th style="width: 70px; padding: 10px; text-align: center; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Unidades</th>
+              <th style="width: 120px; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Remuneraciones</th>
+              <th style="width: 120px; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Descuentos</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${conceptosRows}
+            ${basicoUocraRow}
+          </tbody>
+          <tfoot>
+            <tr class="receipt-totals-row">
+              <td colspan="3" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb;">TOTALES:</td>
+              <td class="receipt-total-remuneration" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb; color: #22c55e;">${formatCurrencyAR(remunerations)}</td>
+              <td class="receipt-total-deduction" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb; color: #ef4444;">${formatCurrencyAR(deductions)}</td>
+            </tr>
+            <tr class="receipt-net-row">
+              <td colspan="4" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e; border: 1px solid #e5e7eb; font-size: 13px;">TOTAL NETO A COBRAR:</td>
+              <td class="receipt-net-amount" style="text-align: right; font-weight: bold; padding: 15px 10px; font-size: 14px; color: #22c55e; border-top: 2px solid #22c55e; border: 1px solid #e5e7eb;">${formatCurrencyAR(netAmount)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        
+        <div class="payment-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb; font-size: 11px;">
+          <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Banco Acreditación</span>
+            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.banco || 'Banco Nación'}</span>
+          </div>
+          <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Cuenta</span>
+            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.cbu || '—'}</span>
+          </div>
+        </div>
+        
+        <div class="amount-words-section" style="margin-bottom: 20px; padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb;">
+          <label class="amount-words-label" style="font-weight: bold; font-size: 11px; display: block; margin-bottom: 5px;">SON PESOS:</label>
+          <div style="font-size: 12px; padding: 8px; border: 1px solid #e5e7eb; background: white; min-height: 30px;">${amountWordsText}</div>
+        </div>
+        
+        <div class="receipt-footer" style="padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; font-size: 10px; color: #666;">
+          <p class="footer-text" style="font-style: italic; margin-bottom: 20px;">
+            El presente es duplicado del recibo original que obra en nuestro poder. Firmado por el empleado.
+          </p>
+          <div class="signature-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+            <div class="signature-block" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+              <div class="line" style="width: 150px; height: 1px; background: #333; margin-top: 40px;"></div>
+              <span class="label" style="font-size: 10px; font-weight: 600; text-transform: uppercase;">Firma del Empleador</span>
+            </div>
+            <div class="signature-block" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+              <div class="line" style="width: 150px; height: 1px; background: #333; margin-top: 40px;"></div>
+              <span class="label" style="font-size: 10px; font-weight: 600; text-transform: uppercase;">Firma del Empleado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // Descargar recibo como PDF
+  const handleDownload = async () => {
+    try {
+      setIsProcessing(true);
+      
+      // Crear un elemento temporal para el contenido HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.width = '800px';
+      tempDiv.style.background = 'white';
+      tempDiv.innerHTML = generateReceiptContentHTML();
+      document.body.appendChild(tempDiv);
+
+      // Configuración para el PDF
+      const periodoDisplay = formatPeriodToMonthYear(payrollData.periodDisplay || periodo);
+      const fileName = `recibo_${selectedEmployee?.legajo}_${periodoDisplay.replace(/\s+/g, '_')}.pdf`;
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait',
+          compress: true
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      // Generar y descargar el PDF
+      await html2pdf().set(opt).from(tempDiv).save();
+      
+      // Limpiar el elemento temporal
+      document.body.removeChild(tempDiv);
+      
+      notify.success('Recibo descargado en PDF correctamente');
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      notify.error('Error al generar el PDF. Por favor, intente nuevamente.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Resetear modal
@@ -761,10 +1601,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </div>
                       </div>
                       <div className="employee-salary">
-                        <span className="salary-label">Sueldo Básico:</span>
-                        <span className="salary-value">
-                          {formatCurrencyAR(employee.basico || employee.sueldoBasico || 0)}
-                        </span>
+                        {processedLegajos.has(Number(employee.legajo)) ? (
+                          <span className="salary-label status-processed">
+                            <CheckCircle className="status-icon" />
+                            Procesada
+                          </span>
+                        ) : (
+                          <span className="salary-label status-pending">
+                            <Clock className="status-icon" />
+                            Pendiente
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1256,11 +2103,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               <input
                 type="text"
                 className="amount-words-input"
-                value={amountInWords}
+                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
                 onChange={(e) => {
                   // Solo permite letras, espacios y caracteres especiales comunes en español
                   const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-                  setAmountInWords(value);
+                  // Convertir a mayúsculas
+                  setAmountInWords(value.toUpperCase());
                 }}
                 placeholder="Escriba el monto en palabras..."
               />

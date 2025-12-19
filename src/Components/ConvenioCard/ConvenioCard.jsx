@@ -95,15 +95,6 @@ export function ConvenioCard({ convenio, onView, onEdit, onUploadDocument }) {
               <Eye className="action-icon" />
             </button>
           </Tooltip>
-
-          <Tooltip content="Editar convenio" position="top">
-            <button
-              className="action-btn edit"
-              onClick={() => onEdit && onEdit(convenio)}
-            >
-              <Edit className="action-icon" />
-            </button>
-          </Tooltip>
         </div>
       </div>
     </div>

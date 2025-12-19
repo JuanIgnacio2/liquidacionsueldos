@@ -75,9 +75,9 @@ export default function Convenios() {
   const totalCategorias = convenios.reduce((total, conv) => total + conv.categories || 0, 0);
 
     const stats = [
-  { icon: FileText, value: convenios.length, label: 'Total Empleados', colorClass: 'success' },
+  { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
   { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
-  { icon: Calculator, value: totalCategorias, label: 'Dados de baja', colorClass: 'warning' },
+  { icon: Calculator, value: totalCategorias, label: 'Total de Categorías', colorClass: 'warning' },
   ];
 
   if (loading) {
@@ -140,7 +140,6 @@ export default function Convenios() {
                 convenio={convenio}
                 onView={handleViewConvenio}
                 onEdit={handleEditConvenio}
-                onUploadDocument={handleUploadDocument}
               />
             ))}
           </div>
