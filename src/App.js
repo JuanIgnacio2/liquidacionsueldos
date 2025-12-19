@@ -15,6 +15,7 @@ import { NotificationSystem } from './Components/NotificationSystem/Notification
 import { ConfirmDialog } from './Components/ConfirmDialog/ConfirmDialog';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './Components/ProtectedRoute';
+import Configuracion from './Pages/Configuracion';
 
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
@@ -57,6 +58,11 @@ function AppRoutes() {
       <Route path="/reportes" element={
         <ProtectedRoute>
           <Reportes />
+        </ProtectedRoute>
+      } />
+      <Route path="/configuracion" element={
+        <ProtectedRoute>
+          <Configuracion />
         </ProtectedRoute>
       } />
       <Route path="*" element={<NotFound />} />
