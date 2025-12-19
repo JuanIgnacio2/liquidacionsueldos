@@ -4,6 +4,7 @@ import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar,
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
+import html2pdf from 'html2pdf.js';
 import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -2736,11 +2737,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               <input
                 type="text"
                 className="amount-words-input"
-                value={amountInWords}
+                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
                 onChange={(e) => {
                   // Solo permite letras, espacios y caracteres especiales comunes en español
                   const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-                  setAmountInWords(value);
+                  // Convertir a mayúsculas
+                  setAmountInWords(value.toUpperCase());
                 }}
                 placeholder="Escriba el monto en palabras..."
               />
