@@ -863,15 +863,19 @@
             .logo-circle {
               width: 3rem;
               height: 3rem;
-              background: linear-gradient(135deg, $color-green-primary, $color-green-dark);
+              background: white;
               border-radius: 50%;
               display: flex;
               align-items: center;
               justify-content: center;
-              color: white;
-              font-size: $font-size-xl;
-              font-weight: bold;
-              box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+              overflow: hidden;
+              border: 1px solid $color-gray-300;
+
+              .logo-image {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+              }
             }
           }
 
@@ -898,7 +902,7 @@
               left: 0;
               width: 60px;
               height: 2px;
-              background: linear-gradient(90deg, $color-green-primary, $color-yellow-primary);
+              background: $color-green-primary;
               border-radius: 1px;
             }
           }
@@ -1202,6 +1206,14 @@
         background: white;
         text-align: center;
         padding: 0.5rem;
+        overflow: hidden;
+
+        .logo-image {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
 
         .logo-text {
           font-weight: bold;
@@ -1298,7 +1310,7 @@
     font-size: 0.85rem;
 
     thead {
-      background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+      background: $color-green-primary;
       color: white;
 
       tr {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -8,9 +8,11 @@ import {
   ChevronLeft, 
   ChevronRight,
   DollarSign,
-  LogOut
+  LogOut,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getUser as getUserAPI } from '../../services/empleadosAPI';
 import '../../styles/components/_sidebar.scss';
 
 const navItems = [
@@ -34,13 +36,39 @@ const navItems = [
     href: '/liquidacion',
     icon: Calculator,
   },
+  {
+    title: 'Configuración',
+    href: '/configuracion',
+    icon: Settings,
+  },
 ];
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [userName, setUserName] = useState('');
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await getUserAPI();
+        // El usuario puede tener username, nombre, o nombreUsuario según la API
+        const name = user?.username || user?.nombre || user?.nombreUsuario || '';
+        setUserName(name);
+      } catch (error) {
+        console.error('Error al obtener el usuario:', error);
+        // Si falla, intentar obtener del contexto de autenticación
+        if (authUser) {
+          const name = authUser.username || authUser.nombre || '';
+          setUserName(name);
+        }
+      }
+    };
+
+    fetchUser();
+  }, [authUser]);
 
   const handleLogout = () => {
     logout();
@@ -118,6 +146,9 @@ export default function Sidebar() {
       <div className={`sidebar-footer ${collapsed ? 'collapsed' : ''}`}>
         {!collapsed ? (
           <div className="footer-content">
+            {userName && (
+              <p className="user-name">{userName}</p>
+            )}
             <p>Gestión de Sueldos</p>
             <p className="version">v1.0.0</p>
           </div>
