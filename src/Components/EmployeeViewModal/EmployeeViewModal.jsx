@@ -31,6 +31,46 @@ const getTipoConceptoLabel = (tipoConcepto) => {
   }
 };
 
+// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
+const calculateAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return '—';
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    // Formatear con ceros a la izquierda
+    const añosStr = String(años).padStart(2, '0');
+    const mesesStr = String(meses).padStart(2, '0');
+    
+    return `${añosStr}/${mesesStr}`;
+  } catch (error) {
+    console.error('Error al calcular antigüedad:', error);
+    return '—';
+  }
+};
+
 export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones, onEditEmployee }) {
   const [conceptosAsignados, setConceptosAsignados] = useState([]);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
@@ -66,6 +106,16 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         const areasData = await api.getAreas();
         
         setAreas(areasData);
+        
+        // Cargar horas extras LYF si es Luz y Fuerza
+        let horasExtrasLyF = [];
+        if (isLuzYFuerza) {
+          try {
+            horasExtrasLyF = await api.getHorasExtrasLyF();
+          } catch (error) {
+            console.error('Error al cargar horas extras LYF:', error);
+          }
+        }
         
         // Cargar zonas para UOCRA
         let zonasData = [];
@@ -121,8 +171,20 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             let tipoConcepto = asignado.tipoConcepto;
             let isDescuento = false;
 
-            // Manejar CONCEPTO_LYF, CONCEPTO_UOCRA
-            if (asignado.tipoConcepto === 'CONCEPTO_LYF' || 
+            // Manejar HORAS_EXTRAS_LYF
+            if (asignado.tipoConcepto === 'HORA_EXTRA_LYF') {
+              const horaExtra = horasExtrasLyF.find(he => 
+                (he.idHoraExtra ?? he.id) === asignado.idReferencia
+              );
+              if (horaExtra) {
+                nombre = horaExtra.descripcion ?? horaExtra.codigo ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles');
+                porcentaje = null; // Las horas extras no usan porcentaje, usan factor
+              } else {
+                // Fallback si no se encuentra en el catálogo
+                nombre = asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles';
+                porcentaje = null;
+              }
+            } else if (asignado.tipoConcepto === 'CONCEPTO_LYF' || 
                 asignado.tipoConcepto === 'CONCEPTO_UOCRA') {
               concepto = bonificacionesFijas.find(b => 
                 (b.idBonificacion ?? b.id) === asignado.idReferencia
@@ -162,15 +224,19 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               porcentaje = null;
             }
 
-            if (!nombre && !concepto && !area) return null;
+            if (!nombre && !concepto && !area && asignado.tipoConcepto !== 'HORA_EXTRA_LYF') return null;
 
             // Calcular total si hay porcentaje y básico
             // Para bonificaciones de área: calcular sobre el básico de categoría 11
             // Para conceptos CONCEPTO_LYF (Luz y Fuerza): calcular sobre el básico de categoría 11
             // Para conceptos CONCEPTO_UOCRA: calcular sobre el salario básico del empleado
+            // Para HORAS_EXTRAS_LYF: se calculará después usando la fórmula especial
             // Para descuentos: se calculará después sobre el total de remuneraciones
             let total = 0;
-            if (porcentaje && !isDescuento) {
+            if (asignado.tipoConcepto === 'HORA_EXTRA_LYF') {
+              // Las horas extras se calcularán después, por ahora dejamos total en 0
+              total = 0;
+            } else if (porcentaje && !isDescuento) {
               let baseCalculo = 0;
               if (asignado.tipoConcepto === 'BONIFICACION_AREA') {
                 // Bonificaciones de área se calculan sobre categoría 11
@@ -204,38 +270,35 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           })
         );
 
-        // --- Ajustar los conceptos especiales de "Horas Extras" para Luz y Fuerza ---
-        // Sólo aplicar esta regla cuando el empleado sea de Luz y Fuerza
+        // --- Calcular horas extras para Luz y Fuerza ---
         if (isLuzYFuerza) {
-          // Recalcular las "Horas Extras Simples" / "Horas Extras Dobles" usando
-          // Total bonificaciones = básico empleado + bonificaciones de área + demás conceptos (no descuentos)
+          // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
           const totalBonificacionesArea = mappedConceptos
             .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalConceptosLyFNonSpecial = mappedConceptos
-            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0 && c.nombre !== 'Horas Extras Simples' && c.nombre !== 'Horas Extras Dobles')
+          const totalConceptosLyF = mappedConceptos
+            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const baseBonificaciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyFNonSpecial;
+          const totalRemunerativo = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
 
-          // Recalcular especiales
+          // Calcular valor hora
+          const valorHora = totalRemunerativo / 156;
+
+          // Recalcular horas extras
           mappedConceptos.forEach((c) => {
-            if (c.tipoConcepto === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
-              const factor = c.nombre === 'Horas Extras Simples' ? 1.5 : 2;
-              const p = Number(c.porcentaje) || 0;
-              if (baseBonificaciones > 0 && p) {
-                const montoUnitario = ((baseBonificaciones / 156) * factor) * (p / 100);
-                c.total = montoUnitario * (Number(c.unidades) || 0);
-              } else {
-                c.total = 0;
-              }
+            if (c.tipoConcepto === 'HORA_EXTRA_LYF') {
+              // Factor: 1.5 para idReferencia 1 (simples), 2 para idReferencia 2 (dobles)
+              const factor = c.idReferencia === 1 ? 1.5 : 2;
+              const montoUnitario = valorHora * factor;
+              c.total = montoUnitario * (Number(c.unidades) || 1);
             }
           });
         }
 
-        // Calcular total de remuneraciones (básico + bonificaciones + áreas)
-        // Incluir bonificaciones de área y conceptos CONCEPTO_LYF que se calculan sobre basicoCat11
+        // Calcular total de remuneraciones (básico + bonificaciones + áreas + horas extras)
+        // Incluir bonificaciones de área, conceptos CONCEPTO_LYF y horas extras
         const totalBonificacionesArea = mappedConceptos
           .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
@@ -244,8 +307,12 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
         
+        const totalHorasExtras = mappedConceptos
+          .filter(c => c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
         // Usar basicoEmpleado (variable local) en lugar del estado
-        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
+        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras;
 
         // Recalcular descuentos sobre el total de remuneraciones
         mappedConceptos.forEach(concepto => {
@@ -355,6 +422,10 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               <div className={'detail-value'}>{employee.inicioActividad}</div>
             </div>
             <div className={'detail-item'}>
+              <div className={'detail-label'}>Antigüedad</div>
+              <div className={'detail-value'}>{calculateAntiguedad(employee.inicioActividad)}</div>
+            </div>
+            <div className={'detail-item'}>
               <div className={'detail-label'}>Estado</div>
               <div className={`${'detail-value'} ${getStatusClass(employee.estado)}`}>
                 {employee.estado === "ACTIVO" ? "Activo" : "Dado de baja"}
@@ -377,6 +448,10 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             <div className={'detail-item'}>
               <div className={'detail-label'}>Banco</div>
               <div className={'detail-value'}>{employee.banco || 'Banco Nación'}</div>
+            </div>
+            <div className={'detail-item'}>
+              <div className={'detail-label'}>Número de Cuenta</div>
+              <div className={'detail-value'}>{employee.cuenta || '—'}</div>
             </div>
             <div className={'detail-item'}>
               <div className={'detail-label'}>CUIL</div>
@@ -416,7 +491,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                         <tr key={concepto.id} className={`selected ${isDescuento ? 'descuento-row' : ''}`}>
                           <td style={{ textAlign: 'left' }}>
                             <span className="concepto-label">
-                              {concepto.nombre}
+                              {concepto.nombre} {concepto.porcentaje ? `(${concepto.porcentaje}%)` : ''}
                             </span>
                           </td>
                           <td className="porcentaje-cell" style={{ textAlign: 'center' }}>

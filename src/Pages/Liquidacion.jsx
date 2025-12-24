@@ -18,6 +18,7 @@ export default function Liquidacion() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
@@ -63,6 +64,11 @@ export default function Liquidacion() {
     setShowDetailModal(true);
     setLoadingDetails(true);
     setPayrollDetails(null);
+    
+    // Buscar el empleado correspondiente por legajo
+    const legajo = liquidacion.legajoEmpleado;
+    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+    setSelectedEmployee(employee || null);
 
     try {
       // Cargar detalles de la liquidación desde la API
@@ -275,8 +281,11 @@ export default function Liquidacion() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedPayroll(null);
+          setSelectedEmployee(null);
           setPayrollDetails(null);
         }}
+        employees={employees}
+        selectedEmployee={selectedEmployee}
         selectedPayroll={selectedPayroll}
         payrollDetails={payrollDetails}
         loadingDetails={loadingDetails}

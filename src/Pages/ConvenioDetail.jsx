@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
+import { ConfirmDialog } from '../Components/ConfirmDialog/ConfirmDialog';
 import '../styles/components/_convenioDetail.scss';
 import * as api from '../services/empleadosAPI'
 
@@ -236,7 +237,8 @@ export default function ConvenioDetail() {
     setIsEditing(true);
   };
 
-  const handleSave = async () => {
+  // Función para guardar el convenio (lógica separada para poder llamarla después de la confirmación)
+  const saveConvenio = async () => {
     try {
       const usuario = localStorage.getItem('usuario') || 'Sistema';
       
@@ -248,63 +250,91 @@ export default function ConvenioDetail() {
         await api.updateBasicoUocra(payload);
       }
       
-      // Registrar actividad de modificación de convenio
-      await api.registrarActividad({
-        usuario,
-        accion: 'ACTUALIZAR',
-        descripcion: `Se actualizó el convenio ${convenio?.name || controller?.toUpperCase()}`,
-        referenciaTipo: 'EDIT_CONVENIO',
-        referenciaId: controller === 'lyf' ? 1 : (controller === 'uocra' ? 2 : 0)
-      });
+      // Registrar actividad de modificación de convenio (opcional, no debe afectar el guardado)
+      try {
+        await api.registrarActividad({
+          usuario,
+          accion: 'ACTUALIZAR',
+          descripcion: `Se actualizó el convenio ${convenio?.name || controller?.toUpperCase()}`,
+          referenciaTipo: 'EDIT_CONVENIO',
+          referenciaId: controller === 'lyf' ? 1 : (controller === 'uocra' ? 2 : 0)
+        });
+      } catch (actividadError) {
+        // Si falla el registro de actividad, solo lo registramos pero no afecta el guardado
+        console.warn('Error al registrar actividad:', actividadError);
+      }
       
-    // Convertir los básicos a número antes de actualizar el estado `convenio`
-    const saved = JSON.parse(JSON.stringify(editableData || {}));
-    if (Array.isArray(saved.salaryTable?.categories)) {
-      saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
-        ...c,
-        basicSalary: parseNumberFromDisplay(c.basicSalary)
-      }));
-    }
-    if (saved.salaryTable?.uocra?.rows) {
-      saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
-        const parsed = { ...r };
-        saved.salaryTable.uocra.headers?.forEach(h => {
-          if (r[h.key] != null) {
-            parsed[h.key] = parseNumberFromDisplay(r[h.key]);
-          }
+      // Convertir los básicos a número antes de actualizar el estado `convenio`
+      const saved = JSON.parse(JSON.stringify(editableData || {}));
+      if (Array.isArray(saved.salaryTable?.categories)) {
+        saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
+          ...c,
+          basicSalary: parseNumberFromDisplay(c.basicSalary)
+        }));
+      }
+      if (saved.salaryTable?.uocra?.rows) {
+        saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
+          const parsed = { ...r };
+          saved.salaryTable.uocra.headers?.forEach(h => {
+            if (r[h.key] != null) {
+              parsed[h.key] = parseNumberFromDisplay(r[h.key]);
+            }
+          });
+          return parsed;
         });
-        return parsed;
-      });
-    }
+      }
 
-    setConvenio(saved);
-    setIsEditing(false);
+      setConvenio(saved);
+      setIsEditing(false);
 
-    // Mantener editableData con formato moneda para seguir editando
-    const editClone = JSON.parse(JSON.stringify(saved));
-    if (Array.isArray(editClone.salaryTable?.categories)) {
-      editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
-        ...c,
-        basicSalary: formatNumberToDisplay(c.basicSalary)
-      }));
-    }
-    if (editClone.salaryTable?.uocra?.rows) {
-      editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
-        const formatted = { ...r };
-        editClone.salaryTable.uocra.headers?.forEach(h => {
-          if (r[h.key] != null) {
-            formatted[h.key] = formatNumberToDisplay(r[h.key]);
-          }
+      // Mantener editableData con formato moneda para seguir editando
+      const editClone = JSON.parse(JSON.stringify(saved));
+      if (Array.isArray(editClone.salaryTable?.categories)) {
+        editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
+          ...c,
+          basicSalary: formatNumberToDisplay(c.basicSalary)
+        }));
+      }
+      if (editClone.salaryTable?.uocra?.rows) {
+        editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
+          const formatted = { ...r };
+          editClone.salaryTable.uocra.headers?.forEach(h => {
+            if (r[h.key] != null) {
+              formatted[h.key] = formatNumberToDisplay(r[h.key]);
+            }
+          });
+          return formatted;
         });
-        return formatted;
-      });
-    }
-    setEditableData(editClone);
-    notify.showNotification('Convenio actualizado exitosamente', 'success');
+      }
+      setEditableData(editClone);
+      notify.success('Convenio actualizado exitosamente');
     } catch (error) {
-      notify.error('Error guardando convenio:', error);
+      console.error('Error guardando convenio:', error);
+      notify.error('Error guardando convenio: ' + (error?.message || error));
     }
-  };;
+  };
+
+  const handleSave = async () => {
+    // Mostrar diálogo de confirmación
+    if (window.showConfirm) {
+      const confirmed = await window.showConfirm({
+        title: 'Guardar cambios',
+        message: '¿Guardar cambios en el convenio?',
+        confirmText: 'Sí, guardar',
+        cancelText: 'Cancelar',
+        type: 'info',
+        confirmButtonVariant: 'primary',
+        cancelButtonVariant: 'secondary'
+      });
+
+      if (!confirmed) {
+        return; // Si el usuario cancela, no hacer nada
+      }
+    }
+
+    // Si confirma, proceder con el guardado
+    await saveConvenio();
+  };
 
   const handleCancel = () => {
     // Restaurar desde `convenio` y convertir a formato moneda
@@ -706,6 +736,7 @@ export default function ConvenioDetail() {
           </div>
         </div>
       </div>
+      <ConfirmDialog />
     </div>
   );
 }

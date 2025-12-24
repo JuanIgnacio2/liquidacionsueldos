@@ -33,6 +33,9 @@ export const getConceptosLyF = () =>
 export const getConceptosUocra = () =>
     axiosClient.get(`/conceptos_uocra`).then((r)=>r.data);
 
+export const getHorasExtrasLyF = () =>
+    axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
+
 export const getDescuentos = () =>
     axiosClient.get(`/descuento`).then((r)=>r.data);
 

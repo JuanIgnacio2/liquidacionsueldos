@@ -3,6 +3,7 @@ import { Modal, ModalFooter } from '../Modal/Modal';
 import { User, Building, X, UserPlus, ListChecks, Trash2 } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
 import { useNotification } from '../../Hooks/useNotification';
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -12,6 +13,46 @@ const formatCurrencyAR = (value) => {
   const parts = absValue.toFixed(2).split('.');
   const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `$${integerPart},${parts[1]}`;
+};
+
+// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
+const calculateAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return '—';
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    // Formatear con ceros a la izquierda
+    const añosStr = String(años).padStart(2, '0');
+    const mesesStr = String(meses).padStart(2, '0');
+    
+    return `${añosStr}/${mesesStr}`;
+  } catch (error) {
+    console.error('Error al calcular antigüedad:', error);
+    return '—';
+  }
 };
 
 export function NewEmployeeModal({ isOpen, onClose, onSave }) {
@@ -39,6 +80,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     idCategoria: null,
     banco: '',
     cuil: '',
+    cuenta: '',
     salary: '',
     bonoArea: 0,
     legajo: '' // Inicializar legajo vacío para que se calcule
@@ -175,6 +217,16 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           bonificacionesData = await api.getConceptosUocra();
         }
         
+        // Cargar horas extras LYF si es Luz y Fuerza
+        let horasExtrasLyF = [];
+        if (formData.gremio === 'LUZ_Y_FUERZA') {
+          try {
+            horasExtrasLyF = await api.getHorasExtrasLyF();
+          } catch (error) {
+            console.error('Error al cargar horas extras LYF:', error);
+          }
+        }
+        
         // Cargar descuentos (sin filtrar por gremio, son generales)
         const descuentosData = await api.getDescuentos();
         
@@ -208,8 +260,23 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           };
         });
         
-        // Combinar bonificaciones y descuentos
-        setConceptos([...mappedBonificaciones, ...mappedDescuentos]);
+        // Mapear horas extras LYF - usar prefijo 'HE_' para evitar conflictos de IDs
+        const mappedHorasExtras = horasExtrasLyF.map((horaExtra) => {
+          const originalId = horaExtra.idHoraExtra ?? horaExtra.id;
+          return {
+            id: `HE_${originalId}`, // Prefijo para horas extras
+            originalId: originalId, // ID original para enviar al backend
+            nombre: horaExtra.descripcion ?? horaExtra.codigo ?? (originalId === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'),
+            unidad: 'factor',
+            porcentaje: null, // Las horas extras no usan porcentaje, usan factor
+            factor: Number(horaExtra.factor) || (originalId === 1 ? 1.5 : 2),
+            tipo: 'HORA_EXTRA_LYF',
+            isDescuento: false
+          };
+        });
+        
+        // Combinar bonificaciones, descuentos y horas extras
+        setConceptos([...mappedBonificaciones, ...mappedDescuentos, ...mappedHorasExtras]);
       } catch (error) {
         notify.error("Error al cargar conceptos");
         setConceptos([]);
@@ -551,27 +618,25 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Maneja el envío del formulario para crear un nuevo empleado
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) return; // valida antes de enviar
-
+  // Función para crear el empleado (lógica separada para poder llamarla después de la confirmación)
+  const createEmployee = async () => {
     setIsLoading(true);
 
     try {
       // Construir conceptosAsignados según el DTO
       const conceptosAsignados = [];
       
-      // 1. Bonificaciones fijas y descuentos (conceptos seleccionados)
+      // 1. Bonificaciones fijas, descuentos y horas extras (conceptos seleccionados)
       Object.keys(conceptosSeleccionados).forEach(conceptId => {
-        // conceptId ahora puede ser 'BON_X' o 'DESC_X'
+        // conceptId ahora puede ser 'BON_X', 'DESC_X' o 'HE_X'
         const concepto = conceptos.find(c => c.id === conceptId);
         const units = conceptosSeleccionados[conceptId]?.units;
         if (concepto && units && units > 0) {
           let tipoConcepto;
           if (concepto.isDescuento || concepto.tipo === 'DESCUENTO') {
             tipoConcepto = 'DESCUENTO';
+          } else if (concepto.tipo === 'HORA_EXTRA_LYF') {
+            tipoConcepto = 'HORA_EXTRA_LYF';
           } else if (concepto.tipo === 'CONCEPTO_UOCRA') {
             tipoConcepto = 'CONCEPTO_UOCRA';
           } else if (concepto.tipo === 'CONCEPTO_LYF') {
@@ -622,6 +687,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         inicioActividad: formData.inicioActividad ? new Date(formData.inicioActividad).toISOString().split('T')[0] : null,
         domicilio: formData.domicilio || null,
         banco: formData.banco || null,
+        cuenta: formData.cuenta || null,
         idCategoria: formData.idCategoria ? Number(formData.idCategoria) : null,
         idAreas: formData.areas && formData.areas.length > 0 ? formData.areas.map(a => Number(a)) : null,
         sexo: formData.sexo || null,
@@ -641,6 +707,33 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Maneja el envío del formulario para crear un nuevo empleado
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) return; // valida antes de enviar
+
+    // Mostrar diálogo de confirmación
+    if (window.showConfirm) {
+      const confirmed = await window.showConfirm({
+        title: 'Registrar empleado',
+        message: '¿Desea registrar empleado?',
+        confirmText: 'Sí, registrar',
+        cancelText: 'Cancelar',
+        type: 'info',
+        confirmButtonVariant: 'primary',
+        cancelButtonVariant: 'secondary'
+      });
+
+      if (!confirmed) {
+        return; // Si el usuario cancela, no hacer nada
+      }
+    }
+
+    // Si confirma, proceder con la creación
+    await createEmployee();
   };
 
   const GREMIOS = {
@@ -687,6 +780,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       idZona: null,
       banco: '',
       cuil: '',
+      cuenta: '',
       sexo: 'M',
       salary: '',
       bonoArea: 0,
@@ -699,31 +793,24 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
-  // Excepción para Luz y Fuerza: "Horas Extras Simples" y "Horas Extras Dobles"
-  //  "Horas Extras Simples" = (((Total bonificaciones)/156)*1.5)*(porcentaje/100)
-  //  "Horas Extras Dobles"  = (((Total bonificaciones)/156)*2)*(porcentaje/100)
-  // Donde Total bonificaciones = básico (categoría) + bono de área + demás bonificaciones (no descuentos)
+  // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
   const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
-    if (!concepto.porcentaje) return 0;
     
-    const porcentaje = Number(concepto.porcentaje) || 0;
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
 
     // Si es descuento, calcular sobre el total de remuneraciones
     if (isDescuento) {
-      if (!totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      if (!concepto.porcentaje || !totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      const porcentaje = Number(concepto.porcentaje) || 0;
       const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
       return -(montoUnitario * unidades);
     }
 
-    // Manejo especial para Horas Extras de Luz y Fuerza
-    const isHorasExtrasSimples = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Simples');
-    const isHorasExtrasDobles = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Dobles');
-
-    if (isHorasExtrasSimples || isHorasExtrasDobles) {
-      // Total bonificaciones = básico + bono de área + suma de otras bonificaciones seleccionadas (excluyendo descuentos)
+    // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
+    if (concepto.tipo === 'HORA_EXTRA_LYF') {
+      // Total bonificaciones = básico + bono de área + suma de otras bonificaciones seleccionadas (excluyendo descuentos y horas extras)
       const salarioBasico = Number(formData.salary) || 0;
       const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
 
@@ -733,26 +820,28 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         if (!c) return sum;
         const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
         if (cIsDescuento) return sum;
+        if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
         const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
         if (!u || u <= 0) return sum;
-
-        // Excluir otras Horas Extras para evitar dependencia circular entre ambas
-        if (c.tipo === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
-          return sum;
-        }
 
         // Para el resto, usar el cálculo estándar
         const total = calculateConceptTotal(c, u);
         return sum + total;
       }, 0);
 
-      const totalBonificaciones = salarioBasico + bonoArea + otherBonificaciones;
-      if (totalBonificaciones <= 0) return 0;
+      const totalRemunerativo = salarioBasico + bonoArea + otherBonificaciones;
+      if (totalRemunerativo <= 0) return 0;
 
-      const factor = isHorasExtrasSimples ? 1.5 : 2;
-      const montoUnitario = ((totalBonificaciones / 156) * factor) * (porcentaje / 100);
+      // Calcular valor hora y usar el factor del catálogo
+      const valorHora = totalRemunerativo / 156;
+      const factor = Number(concepto.factor) || (concepto.originalId === 1 ? 1.5 : 2);
+      const montoUnitario = valorHora * factor;
       return montoUnitario * unidades;
     }
+
+    // Para conceptos con porcentaje (bonificaciones normales)
+    if (!concepto.porcentaje) return 0;
+    const porcentaje = Number(concepto.porcentaje) || 0;
 
     // Si no es Horas Extras, proceder con la lógica anterior
     let baseCalculo = 0;
@@ -957,6 +1046,16 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                 <option value="Banco Macro">Banco Macro</option>
               </select>
             </div>
+            <div className="form-group">
+              <label className="form-label">Número de Cuenta</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.cuenta}
+                onChange={(e) => handleInputChange('cuenta', e.target.value)}
+                placeholder="Ingrese el número de cuenta"
+              />
+            </div>
 
             <div className={'form-group'}>
               <label className={'form-label'}>Categoría *</label>
@@ -1105,6 +1204,18 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
               />
               {errors.inicioActividad && <span className="error-message">{errors.inicioActividad}</span>}
             </div>
+            <div className="form-group">
+              <label className="form-label">Antigüedad</label>
+              <input
+                type="text"
+                className="form-input"
+                value={calculateAntiguedad(formData.inicioActividad)}
+                readOnly
+                disabled
+                placeholder="—"
+                title="Este valor se calcula automáticamente según la fecha de ingreso"
+              />
+            </div>
           </div>
         </div>
         {/* Conceptos Adicionales */}
@@ -1133,7 +1244,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                     {conceptos
                       .filter(c => !conceptosSeleccionados[c.id])
                       .map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre}{c.porcentaje ? ` (${c.porcentaje}%)` : ''}</option>
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                          {c.tipo === 'HORA_EXTRA_LYF' && c.factor ? ` (Factor ${c.factor}x)` : ''}
+                          {c.porcentaje && c.tipo !== 'HORA_EXTRA_LYF' ? ` (${c.porcentaje}%)` : ''}
+                        </option>
                     ))}
                   </select>
 
@@ -1192,7 +1307,12 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                             <td style={{ textAlign: 'left' }}>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
-                            <td style={{ textAlign: 'center' }} className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
+                            <td style={{ textAlign: 'center' }} className="porcentaje-cell">
+                              {concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
+                                ? (concepto.factor ? `Factor ${concepto.factor}x` : '-')
+                                : (concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
+                              }
+                            </td>
                             <td style={{ textAlign: 'center' }}>
                               <input
                                 type="text"
@@ -1255,6 +1375,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           </button>
         </ModalFooter>
       </form>
+      <ConfirmDialog />
     </Modal>
   );
 }
