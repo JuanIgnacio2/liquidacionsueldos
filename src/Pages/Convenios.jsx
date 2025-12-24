@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users, Percent, List, Plus, Edit, Trash2 } from 'lucide-react';
+import { FileText, Users } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
@@ -34,18 +34,34 @@ export default function Convenios() {
       status: 'Activo',
     }));
   
-  useEffect(() => {
-  const loadConvenios = async () => {
-    try {
-      setLoading(true);
-      const response = await api.getConvenios();
-      setConvenios(normalizeConvenios(response));
-    } catch (err) {
-      notify.error("Error cargando convenios:", err);
-    }
-    finally {
-      setLoading(false);
-    }
+  // Normalizar empleados para obtener gremioNombre
+  const normalizeEmployees = (rows) =>
+    rows.map((e) => ({
+      ...e,
+      gremioNombre:
+        e.gremio?.nombre ?? (typeof e.gremio === "string" ? e.gremio : ""),
+    }));
+
+  // Contar empleados activos por gremio
+  const getEmployeeCountByGremio = (employeesList, controller) => {
+    if (!employeesList || employeesList.length === 0) return 0;
+    
+    const controllerUpper = controller?.toUpperCase() ?? '';
+    
+    return employeesList.filter(emp => {
+      if (emp.estado !== 'ACTIVO') return false;
+      
+      const gremioNombre = emp.gremioNombre || emp.gremio?.nombre || '';
+      const gremioUpper = gremioNombre.toUpperCase();
+      
+      if (controllerUpper === 'LYF' || controllerUpper === 'LUZ_Y_FUERZA') {
+        return gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+      } else if (controllerUpper === 'UOCRA') {
+        return gremioUpper === 'UOCRA';
+      }
+      
+      return false;
+    }).length;
   };
 
   useEffect(() => {
@@ -82,7 +98,7 @@ export default function Convenios() {
         
         setConvenios(conveniosWithEmployeeCount);
       } catch (err) {
-        notify.error(err);
+        notify.error("Error cargando datos:", err);
       } finally {
         setLoading(false);
       }
@@ -100,24 +116,11 @@ export default function Convenios() {
     setShowEditModal(true);
   };
 
-  const handleUploadDocument = (convenio) => {
-    setSelectedConvenio(convenio);
-    setShowUploadModal(true);
-  };
-
   const closeModals = () => {
     setShowViewModal(false);
     setShowEditModal(false);
     setShowUploadModal(false);
     setSelectedConvenio(null);
-  };
-
-  const handleViewDescuentos = () => {
-    navigate('/convenios/descuentos');
-  };
-
-  const handleViewConceptosGenerales = () => {
-    navigate('/convenios/conceptos-generales');
   };
 
   // Contar empleados de cada gremio para las estadísticas
@@ -129,28 +132,6 @@ export default function Convenios() {
   { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
   { icon: Users, value: getEmployeeCountByController('LYF'), label: 'Empleados de Luz y Fuerza', colorClass: 'success' },
   { icon: Users, value: getEmployeeCountByController('UOCRA'), label: 'Empleados de UOCRA', colorClass: 'success' },
-  ];
-
-  if (loading) {
-    return (
-      <div className="placeholder-page convenios">
-        <div className="page-header">
-          <div className="header-content">
-            <h1 className="title title-gradient animated-title">
-              Gestión de Convenios
-            </h1>
-            <p className="subtitle">Administra los convenios colectivos de trabajo y sus escalas salariales</p>
-          </div>
-        </div>
-        <LoadingSpinner message="Cargando convenios..." size="lg" className="list-loading" />
-      </div>
-    );
-  }
-
-    const stats = [
-  { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
-  { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
-  { icon: Calculator, value: totalCategorias, label: 'Total de Categorías', colorClass: 'warning' },
   ];
 
   if (loading) {
