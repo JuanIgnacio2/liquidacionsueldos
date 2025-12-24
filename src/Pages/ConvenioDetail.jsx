@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
+import { ConfirmDialog } from '../Components/ConfirmDialog/ConfirmDialog';
 import '../styles/components/_convenioDetail.scss';
 import * as api from '../services/empleadosAPI'
 
@@ -427,52 +428,53 @@ export default function ConvenioDetail() {
         console.warn('Error al registrar actividad:', actividadError);
       }
       
-    // Convertir los básicos a número antes de actualizar el estado `convenio`
-    const saved = JSON.parse(JSON.stringify(editableData || {}));
-    if (Array.isArray(saved.salaryTable?.categories)) {
-      saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
-        ...c,
-        basicSalary: parseNumberFromDisplay(c.basicSalary)
-      }));
-    }
-    if (saved.salaryTable?.uocra?.rows) {
-      saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
-        const parsed = { ...r };
-        saved.salaryTable.uocra.headers?.forEach(h => {
-          if (r[h.key] != null) {
-            parsed[h.key] = parseNumberFromDisplay(r[h.key]);
-          }
+      // Convertir los básicos a número antes de actualizar el estado `convenio`
+      const saved = JSON.parse(JSON.stringify(editableData || {}));
+      if (Array.isArray(saved.salaryTable?.categories)) {
+        saved.salaryTable.categories = saved.salaryTable.categories.map(c => ({
+          ...c,
+          basicSalary: parseNumberFromDisplay(c.basicSalary)
+        }));
+      }
+      if (saved.salaryTable?.uocra?.rows) {
+        saved.salaryTable.uocra.rows = saved.salaryTable.uocra.rows.map(r => {
+          const parsed = { ...r };
+          saved.salaryTable.uocra.headers?.forEach(h => {
+            if (r[h.key] != null) {
+              parsed[h.key] = parseNumberFromDisplay(r[h.key]);
+            }
+          });
+          return parsed;
         });
-        return parsed;
-      });
-    }
+      }
 
       setConvenio(saved);
       setIsEditing(false);
 
-    // Mantener editableData con formato moneda para seguir editando
-    const editClone = JSON.parse(JSON.stringify(saved));
-    if (Array.isArray(editClone.salaryTable?.categories)) {
-      editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
-        ...c,
-        basicSalary: formatNumberToDisplay(c.basicSalary)
-      }));
-    }
-    if (editClone.salaryTable?.uocra?.rows) {
-      editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
-        const formatted = { ...r };
-        editClone.salaryTable.uocra.headers?.forEach(h => {
-          if (r[h.key] != null) {
-            formatted[h.key] = formatNumberToDisplay(r[h.key]);
-          }
+      // Mantener editableData con formato moneda para seguir editando
+      const editClone = JSON.parse(JSON.stringify(saved));
+      if (Array.isArray(editClone.salaryTable?.categories)) {
+        editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
+          ...c,
+          basicSalary: formatNumberToDisplay(c.basicSalary)
+        }));
+      }
+      if (editClone.salaryTable?.uocra?.rows) {
+        editClone.salaryTable.uocra.rows = editClone.salaryTable.uocra.rows.map(r => {
+          const formatted = { ...r };
+          editClone.salaryTable.uocra.headers?.forEach(h => {
+            if (r[h.key] != null) {
+              formatted[h.key] = formatNumberToDisplay(r[h.key]);
+            }
+          });
+          return formatted;
         });
-        return formatted;
-      });
-    }
-    setEditableData(editClone);
-    notify.showNotification('Convenio actualizado exitosamente', 'success');
+      }
+      setEditableData(editClone);
+      notify.success('Convenio actualizado exitosamente');
     } catch (error) {
-      notify.error('Error guardando convenio:', error);
+      console.error('Error guardando convenio:', error);
+      notify.error('Error guardando convenio: ' + (error?.message || error));
     }
   };
 
@@ -1326,61 +1328,7 @@ export default function ConvenioDetail() {
             />
           </div>
         </div>
-        
-        <ModalFooter>
-          <button className="btn btn-secondary" onClick={closeConceptoManualModal}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" onClick={handleSaveConceptoManual}>
-            {selectedConceptoManual ? 'Actualizar' : 'Crear'}
-          </button>
-        </ModalFooter>
-      </Modal>
-
-      <Modal
-        isOpen={showNuevoHistorialModal}
-        onClose={() => setShowNuevoHistorialModal(false)}
-        title="Crear nueva versión del convenio"
-        size="medium"
-      >
-        <div className="concepto-form">
-          <div className="form-group">
-            <label htmlFor="historial-periodo">Período</label>
-            <input
-              id="historial-periodo"
-              type="month"
-              className="form-input"
-              value={nuevoHistorialPeriodo}
-              onChange={(e) => setNuevoHistorialPeriodo(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="historial-descripcion">Descripción</label>
-            <input
-              id="historial-descripcion"
-              type="text"
-              className="form-input"
-              value={nuevoHistorialDescripcion}
-              onChange={(e) => setNuevoHistorialDescripcion(e.target.value)}
-              placeholder="Ej.: Escala salarial marzo 2026"
-            />
-          </div>
-          <p className="historial-form-hint">
-            La nueva versión se copiará desde la escala que está visualizando y luego podrá editar sus básicos.
-          </p>
-        </div>
-
-        <ModalFooter>
-          <button className="btn btn-secondary" onClick={() => setShowNuevoHistorialModal(false)}>
-            Cancelar
-          </button>
-          <button className="btn btn-primary" onClick={handleCrearHistorial}>
-            Crear versión
-          </button>
-        </ModalFooter>
-      </Modal>
-
+      </div>
       <ConfirmDialog />
     </div>
   );
