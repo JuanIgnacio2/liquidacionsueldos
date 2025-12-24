@@ -110,29 +110,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     }
   };
 
-  // Normaliza strings para comparar sin importar mayúsculas, tildes, espacios, etc.
-  const normalize = (s) =>
-    (s || '')
-      .toString()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-
-  // Normaliza el período a formato YYYY-MM (asegura que el mes tenga dos dígitos)
-  const normalizePeriod = (period) => {
-    if (!period) return period;
-    if (typeof period !== 'string') return period;
-    
-    // Si ya tiene formato YYYY-MM-DD, extraer solo YYYY-MM
-    const parts = period.split('-');
-    if (parts.length >= 2) {
-      const year = parts[0];
-      const month = String(parts[1]).padStart(2, '0');
-      return `${year}-${month}`;
-    }
-    return period;
-  };
-
   // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
   // Si tiene formato 'YYYY-MM-DD' y el día es 1 o 16, se considera quincena
   const formatPeriodToMonthYear = (period) => {
@@ -336,6 +313,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setDescuentosData(descuentos); // Guardar descuentos para uso posterior
       setCatalogBonificaciones(bonificacionesFijas || []); // guardar catálogo para el dropdown
 
+      // Cargar horas extras LYF si es Luz y Fuerza
+      let horasExtrasLyF = [];
+      if (isLuzYFuerza) {
+        try {
+          horasExtrasLyF = await api.getHorasExtrasLyF();
+          setHorasExtrasLyFData(horasExtrasLyF || []);
+        } catch (error) {
+          console.error('Error al obtener horas extras LYF:', error);
+          setHorasExtrasLyFData([]);
+        }
+      } else {
+        setHorasExtrasLyFData([]);
+      }
+
       // Obtener básico de categoría 11 para Luz y Fuerza
       let basicoCat11 = 0;
       if (isLuzYFuerza) {
@@ -441,43 +432,67 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         ? [...bonificacionesMapped, ...descuentosMapped]
         : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
 
-      // Aplicar cálculo especial de Horas Extras para Luz y Fuerza
-      const applyHorasExtras = (items) => {
-        if (!isLuzYFuerza) return items;
-        const salarioBasico = basicoValue || 0;
-        const bonoAreaSum = items.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+      // Calcular horas extras DESPUÉS de todas las bonificaciones
+      const calcularHorasExtras = (items) => {
+        if (!isLuzYFuerza || horasExtrasAsignadas.length === 0) return [];
 
-        return items.map(item => {
-          if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
-            const unidades = Number(item.cantidad) || 1;
+        // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
+        const totalRemunerativo = items
+          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF')
+          .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
 
-            // Calcular sumatoria de otras bonificaciones (excluye descuentos, la propia fila y otras Horas Extras)
-            const otherBonificaciones = items.reduce((sum, other) => {
-              if (other === item) return sum;
-              if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
-              // Excluir otras Horas Extras para evitar dependencia circular entre ambas
-              if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
+        // Calcular valor hora
+        const valorHora = totalRemunerativo / 156;
 
-              return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
-            }, 0);
+        // Mapear horas extras asignadas
+        return horasExtrasAsignadas.map((asignado) => {
+          const horaExtra = horasExtrasLyF.find(he => 
+            (he.idHoraExtra ?? he.id) === asignado.idReferencia
+          );
 
-            const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
-            if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
-
-            const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
-            const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
-            return { ...item, montoUnitario, total: montoUnitario * unidades };
+          if (!horaExtra) {
+            // Fallback si no se encuentra en el catálogo - usar datos del asignado y calcular
+            const factor = asignado.idReferencia === 1 ? 1.5 : 2; // 1 = simples (1.5x), 2 = dobles (2x)
+            const montoUnitario = valorHora * factor;
+            const unidades = Number(asignado.unidades) || 1;
+            const total = montoUnitario * unidades;
+            
+            return {
+              uid: uidCounter.current++,
+              id: asignado.idReferencia,
+              tipo: 'HORA_EXTRA_LYF',
+              nombre: asignado.nombre ?? asignado.descripcion ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'),
+              montoUnitario: Number(montoUnitario) || 0,
+              factor: factor,
+              cantidad: unidades,
+              total: Number(total) || 0,
+            };
           }
 
-          return item;
+          const factor = Number(horaExtra.factor) || (asignado.idReferencia === 1 ? 1.5 : 2);
+          const montoUnitario = valorHora * factor;
+          const unidades = Number(asignado.unidades) || 1;
+          const total = montoUnitario * unidades;
+
+          return {
+            uid: uidCounter.current++,
+            id: horaExtra.idHoraExtra ?? horaExtra.id ?? asignado.idReferencia,
+            tipo: 'HORA_EXTRA_LYF',
+            nombre: horaExtra.descripcion ?? horaExtra.codigo ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'),
+            montoUnitario: Number(montoUnitario) || 0,
+            factor: Number(factor),
+            cantidad: unidades,
+            total: Number(total) || 0,
+          };
         });
       };
 
-      const listaConHoras = applyHorasExtras(lista);
+      const horasExtrasMapped = calcularHorasExtras(listaSinHoras);
+      const listaConHoras = [...listaSinHoras, ...horasExtrasMapped];
 
       // Recalcular descuentos DESPUÉS de aplicar Horas Extras con el total correcto de remuneraciones
       const recalcularDescuentos = (items) => {
-        // Calcular total de remuneraciones
+        // Calcular total de remuneraciones (incluyendo horas extras)
         // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
         // Para Luz y Fuerza: el básico está en la lista como 'CATEGORIA', así que solo sumamos de la lista
         let totalRemuneraciones = 0;
@@ -488,7 +503,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
               .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
         } else {
-          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', solo sumar de la lista
+          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', sumar todo excepto descuentos
           totalRemuneraciones = items
             .filter(c => c.tipo !== 'DESCUENTO')
             .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
@@ -589,49 +604,40 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         return cloned;
       }
       // Para los demás, asegurar total consistente (unidad * cantidad) salvo Horas Extras que se recalculan después
-      if (cloned.tipo === 'CONCEPTO_LYF' && (cloned.nombre === 'Horas Extras Simples' || cloned.nombre === 'Horas Extras Dobles')) {
+      if (cloned.tipo === 'HORA_EXTRA_LYF') {
         return cloned; // dejar para recalcular más abajo
       }
       cloned.total = (cloned.montoUnitario || 0) * (cloned.cantidad || 1);
       return cloned;
     });
 
-    // 2) Aplicar recálculo especial de Horas Extras (si corresponde)
-    const applyHorasExtrasNow = (items) => {
+    // 2) Recalcular Horas Extras (si corresponde)
+    const recalcularHorasExtras = (items) => {
       const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
       if (!isLuz) return items;
-      const salarioBasico = basicSalary || 0;
-      const bonoAreaSum = items.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+
+      // Calcular total remunerativo (sin horas extras ni descuentos)
+      const totalRemunerativo = items
+        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
+        .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0) + basicSalary;
+
+      // Calcular valor hora
+      const valorHora = totalRemunerativo / 156;
 
       return items.map(item => {
-        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+        if (item.tipo === 'HORA_EXTRA_LYF') {
           const unidades = Number(item.cantidad) || 1;
-
-          // Sumar otras bonificaciones (excluye descuentos, la propia fila y otras Horas Extras)
-          const otherBonificaciones = items.reduce((sum, other) => {
-            if (other === item) return sum;
-            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
-            // Excluir otras Horas Extras para evitar dependencia circular
-            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
-
-            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
-          }, 0);
-
-          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
-          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
-
-          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
-          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
-          return { ...item, montoUnitario, total: montoUnitario * unidades };
+          const factor = Number(item.factor) || (item.id === 1 ? 1.5 : 2);
+          const montoUnitario = valorHora * factor;
+          return { ...item, montoUnitario: Number(montoUnitario) || 0, total: (Number(montoUnitario) || 0) * unidades };
         }
-
         return item;
       });
     };
 
-    nuevos = applyHorasExtrasNow(nuevos);
+    nuevos = recalcularHorasExtras(nuevos);
 
-    // 3) Recalcular descuentos basados en el nuevo total de remuneraciones
+    // 3) Recalcular descuentos basados en el nuevo total de remuneraciones (incluyendo horas extras)
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     const totalRemuneraciones = basicoEmpleado + nuevos
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA')
@@ -769,28 +775,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return c;
     });
 
-    // Aplicar Horas Extras recalculadas si corresponde
+    // Recalcular Horas Extras si corresponde
     const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
     if (isLuz) {
-      const salarioBasico = basicSalary || 0;
-      const bonoAreaSum = nuevos.filter(i => i.tipo === 'BONIFICACION_AREA').reduce((s, i) => s + (i.total || 0), 0);
+      // Calcular total remunerativo (sin horas extras ni descuentos)
+      const totalRemunerativo = nuevos
+        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
+        .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0) + basicSalary;
+
+      // Calcular valor hora
+      const valorHora = totalRemunerativo / 156;
+
       nuevos = nuevos.map(item => {
-        if (item.tipo === 'CONCEPTO_LYF' && (item.nombre === 'Horas Extras Simples' || item.nombre === 'Horas Extras Dobles')) {
+        if (item.tipo === 'HORA_EXTRA_LYF') {
           const unidades = Number(item.cantidad) || 1;
-          const otherBonificaciones = nuevos.reduce((sum, other) => {
-            if (other === item) return sum;
-            if (other.tipo === 'DESCUENTO' || other.tipo === 'CATEGORIA_ZONA') return sum;
-            // Excluir otras Horas Extras para evitar dependencia circular entre ambas
-            if (other.tipo === 'CONCEPTO_LYF' && (other.nombre === 'Horas Extras Simples' || other.nombre === 'Horas Extras Dobles')) return sum;
-            return sum + (other.total || ((other.montoUnitario || 0) * (other.cantidad || 1)));
-          }, 0);
-
-          const totalBonificaciones = salarioBasico + bonoAreaSum + otherBonificaciones;
-          if (totalBonificaciones <= 0) return { ...item, montoUnitario: 0, total: 0 };
-
-          const factor = item.nombre === 'Horas Extras Simples' ? 1.5 : 2;
-          const montoUnitario = ((totalBonificaciones / 156) * factor) * ((Number(item.porcentaje || 0)) / 100);
-          return { ...item, montoUnitario, total: montoUnitario * unidades };
+          const factor = Number(item.factor) || (item.id === 1 ? 1.5 : 2);
+          const montoUnitario = valorHora * factor;
+          return { ...item, montoUnitario: Number(montoUnitario) || 0, total: (Number(montoUnitario) || 0) * unidades };
         }
         return item;
       });
@@ -819,7 +820,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (result) {
       removeConcept(uid);
       const nuevos = conceptos.filter(c => c.uid !== uid);
-      setTotal(calcTotal(nuevos));
+    setTotal(calcTotal(nuevos));
     }
   };
 
@@ -829,7 +830,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     
     const remunerations = basicoEmpleado + conceptos
-      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF' || c.tipo === 'AGUINALDO')
+      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF')
       .reduce((sum, c) => sum + (c.total || 0), 0);
 
     const deductions = conceptos.filter(c => c.tipo === 'DESCUENTO')
@@ -963,14 +964,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-    // Generar filas de conceptos
-    const conceptosRows = conceptos.map(concept => {
-      const remuneracion = (concept.tipo === 'CATEGORIA' ||
-        concept.tipo === 'BONIFICACION_AREA' ||
-        concept.tipo === 'CONCEPTO_LYF' ||
-        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
-        ? formatCurrencyAR(concept.total)
-        : '';
+     // Generar filas de conceptos
+     const conceptosRows = conceptos.map(concept => {
+       const remuneracion = (concept.tipo === 'CATEGORIA' ||
+         concept.tipo === 'BONIFICACION_AREA' ||
+         concept.tipo === 'CONCEPTO_LYF' ||
+         concept.tipo === 'CONCEPTO_UOCRA' ||
+         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
+         ? formatCurrencyAR(concept.total)
+         : '';
       
       const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
         ? formatCurrencyAR(Math.abs(concept.total))
@@ -1396,8 +1398,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         <span class="value">${selectedEmployee?.banco || 'Banco Nación'}</span>
       </div>
       <div class="detail-item">
-        <span class="label">Cuenta</span>
-        <span class="value">${selectedEmployee?.cbu || '—'}</span>
+        <span class="label">Número de Cuenta</span>
+        <span class="value">${selectedEmployee?.cuenta || '—'}</span>
       </div>
     </div>
     
@@ -1465,14 +1467,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-    // Generar filas de conceptos
-    const conceptosRows = conceptos.map(concept => {
-      const remuneracion = (concept.tipo === 'CATEGORIA' ||
-        concept.tipo === 'BONIFICACION_AREA' ||
-        concept.tipo === 'CONCEPTO_LYF' ||
-        concept.tipo === 'CONCEPTO_UOCRA') && concept.total > 0
-        ? formatCurrencyAR(concept.total)
-        : '';
+     // Generar filas de conceptos
+     const conceptosRows = conceptos.map(concept => {
+       const remuneracion = (concept.tipo === 'CATEGORIA' ||
+         concept.tipo === 'BONIFICACION_AREA' ||
+         concept.tipo === 'CONCEPTO_LYF' ||
+         concept.tipo === 'CONCEPTO_UOCRA' ||
+         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
+         ? formatCurrencyAR(concept.total)
+         : '';
       
       const descuento = concept.tipo === 'DESCUENTO' && concept.total < 0
         ? formatCurrencyAR(Math.abs(concept.total))
@@ -1586,8 +1589,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.banco || 'Banco Nación'}</span>
           </div>
           <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
-            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Cuenta</span>
-            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.cbu || '—'}</span>
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Número de Cuenta</span>
+            <span class="value" style="color: #333; font-size: 12px;">${selectedEmployee?.cuenta || '—'}</span>
           </div>
         </div>
         
@@ -1778,7 +1781,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           <span className="salary-label status-processed">
                             <CheckCircle className="status-icon" />
                             Procesada
-                          </span>
+                        </span>
                         ) : (
                           <span className="salary-label status-pending">
                             <Clock className="status-icon" />
@@ -1922,6 +1925,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     if (exists) return null;
                     return <option key={`DESC_${id}`} value={`DESC_${id}`}>{`${d.nombre ?? d.descripcion} (Desc ${d.porcentaje}%)`}</option>;
                   })}
+
+                  {/* Horas Extras LYF solo para Luz y Fuerza */}
+                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA') && horasExtrasLyFData.map((he) => {
+                    const id = he.idHoraExtra ?? he.id;
+                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'HORA_EXTRA_LYF');
+                    if (exists) return null;
+                    const factor = Number(he.factor) || (id === 1 ? 1.5 : 2);
+                    return <option key={`HE_${id}`} value={`HE_${id}`}>{`${he.descripcion ?? he.codigo ?? (id === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles')} (Factor ${factor}x)`}</option>;
+                  })}
                 </select>
 
                 <button
@@ -1934,7 +1946,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     const idNum = Number(rawId);
 
                     // Evitar duplicados defensivamente
-                    if (conceptos.some(c => c.id === idNum && ((pref === 'BON' && c.tipo !== 'DESCUENTO') || (pref === 'DESC' && c.tipo === 'DESCUENTO')) )) {
+                    if (conceptos.some(c => c.id === idNum && ((pref === 'BON' && c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF') || (pref === 'DESC' && c.tipo === 'DESCUENTO') || (pref === 'HE' && c.tipo === 'HORA_EXTRA_LYF')) )) {
                       notify.error('El concepto ya está agregado');
                       setSelectedCatalogConcept('');
                       return;
@@ -2016,6 +2028,45 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       return;
                     }
 
+                    if (pref === 'HE') {
+                      const raw = horasExtrasLyFData.find(he => (he.idHoraExtra ?? he.id) === idNum);
+                      if (!raw) {
+                        notify.error('Hora extra no encontrada en el catálogo');
+                        setSelectedCatalogConcept('');
+                        return;
+                      }
+
+                      // Calcular total remunerativo actual (sin horas extras ni descuentos)
+                      const totalRemunerativo = basicSalary + conceptos
+                        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
+                        .reduce((s, c) => s + (c.total || 0), 0);
+
+                      // Calcular valor hora
+                      const valorHora = totalRemunerativo / 156;
+
+                      // Calcular monto unitario usando el factor (1 = simples 1.5x, 2 = dobles 2x)
+                      const factor = Number(raw.factor) || (idNum === 1 ? 1.5 : 2);
+                      const montoUnitario = valorHora * factor;
+
+                      const nuevo = {
+                        uid: uidCounter.current++,
+                        id: idNum,
+                        tipo: 'HORA_EXTRA_LYF',
+                        nombre: raw.descripcion ?? raw.codigo ?? (idNum === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'),
+                        montoUnitario: Number(montoUnitario) || 0,
+                        factor: Number(factor),
+                        cantidad: 1,
+                        total: (Number(montoUnitario) || 0) * 1
+                      };
+
+                      const next = [...conceptos, nuevo];
+                      setConceptos(next);
+                      setTotal(calcTotal(next));
+                      setSelectedCatalogConcept('');
+                      notify.success('Hora extra agregada');
+                      return;
+                    }
+
                   }}
                   disabled={!selectedCatalogConcept}
                 >
@@ -2069,7 +2120,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     {(concept.tipo === 'CATEGORIA' ||
                       concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'CONCEPTO_LYF' ||
-                      concept.tipo === 'CONCEPTO_UOCRA') && (
+                       concept.tipo === 'CONCEPTO_UOCRA' ||
+                       concept.tipo === 'HORA_EXTRA_LYF') && (
                       <div className="amount-editable-wrapper">
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
@@ -2153,9 +2205,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </select>
                       )}
 
-                      <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        <button className="remove-btn" onClick={() => confirmDelete(concept.uid)} title="Eliminar concepto">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                     </div>
                   </div>
                 </div>
@@ -2263,8 +2315,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         concept.tipo === 'BONIFICACION_AREA' ||
                         concept.tipo === 'CONCEPTO_LYF' ||
                          concept.tipo === 'CONCEPTO_UOCRA' ||
-                         concept.tipo === 'HORA_EXTRA_LYF' ||
-                         concept.tipo === 'AGUINALDO') && concept.total > 0
+                         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
                         ? formatCurrencyAR(concept.total)
                         : ''}
                     </td>
@@ -2356,7 +2407,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             </div>
           </div>
         </div>
-        )}
+      )}
 
       <ModalFooter>
         {currentStep === 'search' && (
