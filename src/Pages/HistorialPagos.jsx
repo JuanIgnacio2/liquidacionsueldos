@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, DollarSign, Search, Users, ArrowLeft, Eye } from 'lucide-react';
+import { Calendar, DollarSign, Search, ArrowLeft, Eye } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
@@ -51,16 +51,29 @@ export default function HistorialPagos() {
   const notify = useNotification();
   const navigate = useNavigate();
   const [pagos, setPagos] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     loadPagos();
+    loadEmployees();
   }, []);
+
+  const loadEmployees = async () => {
+    try {
+      const data = await api.getEmployees();
+      setEmployees(data || []);
+    } catch (error) {
+      console.error('Error al cargar empleados:', error);
+      setEmployees([]);
+    }
+  };
 
   const loadPagos = async () => {
     try {
@@ -68,7 +81,6 @@ export default function HistorialPagos() {
       const data = await api.getPagos();
       setPagos(data || []);
     } catch (error) {
-      console.error('Error al cargar los pagos:', error);
       setPagos([]);
     } finally {
       setLoading(false);
@@ -117,6 +129,11 @@ export default function HistorialPagos() {
     setShowDetailModal(true);
     setLoadingDetails(true);
     setPayrollDetails(null);
+    
+    // Buscar el empleado correspondiente por legajo
+    const legajo = liquidacion.legajoEmpleado;
+    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+    setSelectedEmployee(employee || null);
   
     try {
       // Cargar detalles de la liquidación desde la API
@@ -160,7 +177,7 @@ export default function HistorialPagos() {
     const periodo = formatPeriodToMonthYear(payroll.periodoPago || details.periodoPago);
     const remunerationAssigned = details.remuneracionAsignada || payroll.remuneracionAsignada || 0;
     const bank = details.banco || payroll.banco || 'Banco Nación';
-    const account = details.cuenta || details.cbu || payroll.cbu || '—';
+    const cuenta = details.cuenta || payroll.cuenta || '—';
 
     // Generar filas de conceptos
     const conceptosRows = (details.conceptos || []).map((concepto, index) => {
@@ -584,8 +601,8 @@ export default function HistorialPagos() {
         <span class="value">${bank}</span>
       </div>
       <div class="detail-item">
-        <span class="label">Cuenta</span>
-        <span class="value">${account}</span>
+        <span class="label">Número de Cuenta</span>
+        <span class="value">${cuenta}</span>
       </div>
     </div>
     
@@ -647,7 +664,7 @@ export default function HistorialPagos() {
     const periodo = formatPeriodToMonthYear(payroll.periodoPago || details.periodoPago);
     const remunerationAssigned = details.remuneracionAsignada || payroll.remuneracionAsignada || 0;
     const bank = details.banco || payroll.banco || 'Banco Nación';
-    const account = details.cuenta || details.cbu || payroll.cbu || '—';
+    const cuenta = details.cuenta || payroll.cuenta || '—';
 
     // Generar filas de conceptos
     const conceptosRows = (details.conceptos || []).map((concepto, index) => {
@@ -757,8 +774,8 @@ export default function HistorialPagos() {
             <span class="value" style="color: #333; font-size: 12px;">${bank}</span>
           </div>
           <div class="detail-item" style="display: flex; flex-direction: column; gap: 5px;">
-            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Cuenta</span>
-            <span class="value" style="color: #333; font-size: 12px;">${account}</span>
+            <span class="label" style="font-weight: 600; color: #666; font-size: 10px; text-transform: uppercase;">Número de Cuenta</span>
+            <span class="value" style="color: #333; font-size: 12px;">${cuenta}</span>
           </div>
         </div>
         
@@ -807,7 +824,6 @@ export default function HistorialPagos() {
         }, 250);
       };
     } catch (error) {
-      console.error('Error al imprimir:', error);
       notify.error('Error al generar la impresión. Por favor, intente nuevamente.');
     }
   };
@@ -860,7 +876,6 @@ export default function HistorialPagos() {
       
       notify.success('Recibo descargado en PDF correctamente');
     } catch (error) {
-      console.error('Error al generar PDF:', error);
       notify.error('Error al generar el PDF. Por favor, intente nuevamente.');
     }
   };
@@ -1002,8 +1017,11 @@ export default function HistorialPagos() {
         onClose={() => {
           setShowDetailModal(false);
           setSelectedPayroll(null);
+          setSelectedEmployee(null);
           setPayrollDetails(null);
         }}
+        employees={employees}
+        selectedEmployee={selectedEmployee}
         selectedPayroll={selectedPayroll}
         payrollDetails={payrollDetails}
         loadingDetails={loadingDetails}

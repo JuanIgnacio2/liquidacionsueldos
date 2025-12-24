@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users, Calculator, Upload } from 'lucide-react';
+import { FileText, Users } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
@@ -13,6 +13,7 @@ export default function Convenios() {
   const navigate = useNavigate();
   const notify = useNotification();
   const [convenios, setConvenios] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -33,22 +34,78 @@ export default function Convenios() {
       status: 'Activo',
     }));
   
-  useEffect(() => {
-  const loadConvenios = async () => {
-    try {
-      setLoading(true);
-      const response = await api.getConvenios();
-      setConvenios(normalizeConvenios(response));
-    } catch (err) {
-      notify.error("Error cargando convenios:", err);
-    }
-    finally {
-      setLoading(false);
-    }
+  // Normalizar empleados para obtener gremioNombre
+  const normalizeEmployees = (rows) =>
+    rows.map((e) => ({
+      ...e,
+      gremioNombre:
+        e.gremio?.nombre ?? (typeof e.gremio === "string" ? e.gremio : ""),
+    }));
+
+  // Contar empleados activos por gremio
+  const getEmployeeCountByGremio = (employeesList, controller) => {
+    if (!employeesList || employeesList.length === 0) return 0;
+    
+    const controllerUpper = controller?.toUpperCase() ?? '';
+    
+    return employeesList.filter(emp => {
+      if (emp.estado !== 'ACTIVO') return false;
+      
+      const gremioNombre = emp.gremioNombre || emp.gremio?.nombre || '';
+      const gremioUpper = gremioNombre.toUpperCase();
+      
+      if (controllerUpper === 'LYF' || controllerUpper === 'LUZ_Y_FUERZA') {
+        return gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+      } else if (controllerUpper === 'UOCRA') {
+        return gremioUpper === 'UOCRA';
+      }
+      
+      return false;
+    }).length;
   };
 
-  loadConvenios();
-}, []);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Cargar convenios y empleados en paralelo
+        const [conveniosResponse, employeesResponse] = await Promise.all([
+          api.getConvenios(),
+          api.getEmployees()
+        ]);
+        
+        const normalizedEmployees = normalizeEmployees(employeesResponse);
+        setEmployees(normalizedEmployees);
+        
+        // Normalizar convenios y actualizar con conteo real de empleados
+        const normalizedConvenios = normalizeConvenios(conveniosResponse);
+        
+        // Actualizar employeeCount con el conteo real por gremio
+        const conveniosWithEmployeeCount = normalizedConvenios.map(conv => {
+          let employeeCount = 0;
+          if (conv.controller === 'lyf') {
+            employeeCount = getEmployeeCountByGremio(normalizedEmployees, 'LYF');
+          } else if (conv.controller === 'uocra') {
+            employeeCount = getEmployeeCountByGremio(normalizedEmployees, 'UOCRA');
+          }
+          
+          return {
+            ...conv,
+            employeeCount: employeeCount
+          };
+        });
+        
+        setConvenios(conveniosWithEmployeeCount);
+      } catch (err) {
+        notify.error("Error cargando datos:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const handleViewConvenio = (controller) => {
     navigate(`/convenios/${controller}`);
@@ -59,11 +116,6 @@ export default function Convenios() {
     setShowEditModal(true);
   };
 
-  const handleUploadDocument = (convenio) => {
-    setSelectedConvenio(convenio);
-    setShowUploadModal(true);
-  };
-
   const closeModals = () => {
     setShowViewModal(false);
     setShowEditModal(false);
@@ -71,13 +123,15 @@ export default function Convenios() {
     setSelectedConvenio(null);
   };
 
-  const totalEmpleados = convenios.reduce((total, conv) => total + conv.employeeCount || 0, 0);
-  const totalCategorias = convenios.reduce((total, conv) => total + conv.categories || 0, 0);
+  // Contar empleados de cada gremio para las estadísticas
+  const getEmployeeCountByController = (controller) => {
+    return getEmployeeCountByGremio(employees, controller);
+  };
 
     const stats = [
   { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
-  { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
-  { icon: Calculator, value: totalCategorias, label: 'Total de Categorías', colorClass: 'warning' },
+  { icon: Users, value: getEmployeeCountByController('LYF'), label: 'Empleados de Luz y Fuerza', colorClass: 'success' },
+  { icon: Users, value: getEmployeeCountByController('UOCRA'), label: 'Empleados de UOCRA', colorClass: 'success' },
   ];
 
   if (loading) {
