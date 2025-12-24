@@ -32,6 +32,46 @@ const getTipoConceptoLabel = (tipoConcepto) => {
   }
 };
 
+// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
+const calculateAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return '—';
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    // Formatear con ceros a la izquierda
+    const añosStr = String(años).padStart(2, '0');
+    const mesesStr = String(meses).padStart(2, '0');
+    
+    return `${añosStr}/${mesesStr}`;
+  } catch (error) {
+    console.error('Error al calcular antigüedad:', error);
+    return '—';
+  }
+};
+
 export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones, onEditEmployee }) {
   const [conceptosAsignados, setConceptosAsignados] = useState([]);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
@@ -237,38 +277,35 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           })
         );
 
-        // --- Ajustar los conceptos especiales de "Horas Extras" para Luz y Fuerza ---
-        // Sólo aplicar esta regla cuando el empleado sea de Luz y Fuerza
+        // --- Calcular horas extras para Luz y Fuerza ---
         if (isLuzYFuerza) {
-          // Recalcular las "Horas Extras Simples" / "Horas Extras Dobles" usando
-          // Total bonificaciones = básico empleado + bonificaciones de área + demás conceptos (no descuentos)
+          // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
           const totalBonificacionesArea = mappedConceptos
             .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const totalConceptosLyFNonSpecial = mappedConceptos
-            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0 && c.nombre !== 'Horas Extras Simples' && c.nombre !== 'Horas Extras Dobles')
+          const totalConceptosLyF = mappedConceptos
+            .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
 
-          const baseBonificaciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyFNonSpecial;
+          const totalRemunerativo = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
 
-          // Recalcular especiales
+          // Calcular valor hora
+          const valorHora = totalRemunerativo / 156;
+
+          // Recalcular horas extras
           mappedConceptos.forEach((c) => {
-            if (c.tipoConcepto === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
-              const factor = c.nombre === 'Horas Extras Simples' ? 1.5 : 2;
-              const p = Number(c.porcentaje) || 0;
-              if (baseBonificaciones > 0 && p) {
-                const montoUnitario = ((baseBonificaciones / 156) * factor) * (p / 100);
-                c.total = montoUnitario * (Number(c.unidades) || 0);
-              } else {
-                c.total = 0;
-              }
+            if (c.tipoConcepto === 'HORA_EXTRA_LYF') {
+              // Factor: 1.5 para idReferencia 1 (simples), 2 para idReferencia 2 (dobles)
+              const factor = c.idReferencia === 1 ? 1.5 : 2;
+              const montoUnitario = valorHora * factor;
+              c.total = montoUnitario * (Number(c.unidades) || 1);
             }
           });
         }
 
-        // Calcular total de remuneraciones (básico + bonificaciones + áreas)
-        // Incluir bonificaciones de área y conceptos CONCEPTO_LYF que se calculan sobre basicoCat11
+        // Calcular total de remuneraciones (básico + bonificaciones + áreas + horas extras)
+        // Incluir bonificaciones de área, conceptos CONCEPTO_LYF y horas extras
         const totalBonificacionesArea = mappedConceptos
           .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
@@ -277,8 +314,12 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
         
+        const totalHorasExtras = mappedConceptos
+          .filter(c => c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
         // Usar basicoEmpleado (variable local) en lugar del estado
-        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF;
+        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras;
 
         // Recalcular descuentos sobre el total de remuneraciones
         mappedConceptos.forEach(concepto => {
