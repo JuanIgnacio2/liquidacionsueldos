@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, Download } from 'lucide-react';
 import { Modal, ModalFooter } from '../Modal/Modal';
+import * as api from '../../services/empleadosAPI';
 import './PayrollDetailModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -41,6 +42,46 @@ const formatPeriodToMonthYear = (period) => {
   return period;
 };
 
+// Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
+const calculateAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return '—';
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return '—';
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    // Formatear con ceros a la izquierda
+    const añosStr = String(años).padStart(2, '0');
+    const mesesStr = String(meses).padStart(2, '0');
+    
+    return `${añosStr}/${mesesStr}`;
+  } catch (error) {
+    console.error('Error al calcular antigüedad:', error);
+    return '—';
+  }
+};
+
 export default function PayrollDetailModal({
   isOpen,
   onClose,
@@ -52,6 +93,128 @@ export default function PayrollDetailModal({
   onDownload,
   title = 'Vista Previa del Recibo'
 }) {
+  const [conceptosCatalog, setConceptosCatalog] = useState({
+    bonificacionesLyF: [],
+    bonificacionesUocra: [],
+    descuentos: [],
+    horasExtrasLyF: [],
+    areas: []
+  });
+
+  // Cargar catálogos de conceptos cuando se abre el modal
+  useEffect(() => {
+    const loadCatalogos = async () => {
+      if (!isOpen || !payrollDetails) return;
+      
+      try {
+        // Determinar el gremio del empleado (priorizar selectedEmployee)
+        let gremioNombre = '';
+        if (selectedEmployee) {
+          gremioNombre = selectedEmployee.gremioNombre || 
+                        (selectedEmployee.gremio?.nombre) || 
+                        (typeof selectedEmployee.gremio === 'string' ? selectedEmployee.gremio : '');
+        } else {
+          gremioNombre = payrollDetails.gremioNombre || 
+                        selectedPayroll?.gremioNombre || 
+                        (payrollDetails.gremio?.nombre) ||
+                        (selectedPayroll?.gremio?.nombre) || '';
+        }
+        
+        const gremioUpper = gremioNombre.toUpperCase();
+        const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+        const isUocra = gremioUpper === 'UOCRA';
+
+        const [bonificacionesLyF, bonificacionesUocra, descuentos, horasExtrasLyF, areas] = await Promise.all([
+          isLuzYFuerza ? api.getConceptosLyF() : Promise.resolve([]),
+          isUocra ? api.getConceptosUocra() : Promise.resolve([]),
+          api.getDescuentos(),
+          isLuzYFuerza ? api.getHorasExtrasLyF() : Promise.resolve([]),
+          api.getAreas()
+        ]);
+
+        const newCatalog = {
+          bonificacionesLyF: bonificacionesLyF || [],
+          bonificacionesUocra: bonificacionesUocra || [],
+          descuentos: descuentos || [],
+          horasExtrasLyF: horasExtrasLyF || [],
+          areas: areas || []
+        };
+        setConceptosCatalog(newCatalog);
+      } catch (error) {
+        console.error('Error al cargar catálogos:', error);
+      }
+    };
+
+    loadCatalogos();
+  }, [isOpen, payrollDetails, selectedPayroll, selectedEmployee]);
+
+
+  // Función para obtener el nombre del concepto basado en tipoConcepto e idReferencia
+  const getConceptoNombre = (concepto, index = 0) => {
+    // Si ya tiene nombre, usarlo directamente
+    if (concepto.nombre) {
+      return concepto.nombre;
+    }
+    
+    // Si tiene descripcion, usarla como fallback
+    if (concepto.descripcion) {
+      return concepto.descripcion;
+    }
+
+    const idRef = concepto.idReferencia;
+    if (!idRef && !concepto.id) {
+      return `Concepto ${index + 1}`;
+    }
+
+    const idToSearch = idRef ?? concepto.id;
+    const tipoConcepto = concepto.tipoConcepto;
+
+    switch (tipoConcepto) {
+      case 'CONCEPTO_LYF': {
+        const bonif = conceptosCatalog.bonificacionesLyF.find(b => {
+          const bonifId = b.idBonificacion ?? b.id;
+          return bonifId === idToSearch || Number(bonifId) === Number(idToSearch);
+        });
+        return bonif?.nombre ?? bonif?.descripcion ?? `Concepto LyF ${idToSearch}`;
+      }
+      case 'CONCEPTO_UOCRA': {
+        const bonif = conceptosCatalog.bonificacionesUocra.find(b => {
+          const bonifId = b.idBonificacion ?? b.id;
+          return bonifId === idToSearch || Number(bonifId) === Number(idToSearch);
+        });
+        return bonif?.nombre ?? bonif?.descripcion ?? `Concepto UOCRA ${idToSearch}`;
+      }
+      case 'DESCUENTO': {
+        const desc = conceptosCatalog.descuentos.find(d => {
+          const descId = d.idDescuento ?? d.id;
+          return descId === idToSearch || Number(descId) === Number(idToSearch);
+        });
+        return desc?.nombre ?? desc?.descripcion ?? `Descuento ${idToSearch}`;
+      }
+      case 'BONIFICACION_AREA': {
+        const area = conceptosCatalog.areas.find(a => {
+          const areaId = a.idArea ?? a.id;
+          return areaId === idToSearch || Number(areaId) === Number(idToSearch);
+        });
+        return area?.nombre ?? `Área ${idToSearch}`;
+      }
+      case 'HORAS_EXTRAS_LYF':
+      case 'HORA_EXTRA_LYF': {
+        const he = conceptosCatalog.horasExtrasLyF.find(h => {
+          const heId = h.idHoraExtra ?? h.id;
+          return heId === idToSearch || Number(heId) === Number(idToSearch);
+        });
+        return he?.descripcion ?? he?.codigo ?? (idToSearch === 1 || idToSearch === '1' ? 'Horas Extras Simples' : idToSearch === 2 || idToSearch === '2' ? 'Horas Extras Dobles' : `Hora Extra ${idToSearch}`);
+      }
+      case 'CATEGORIA':
+        return 'Básico';
+      case 'CATEGORIA_ZONA':
+        return 'Básico';
+      default:
+        return `Concepto ${idToSearch}`;
+    }
+  };
+
   // Calcular totales
   const calculateTotals = () => {
     if (!payrollDetails?.conceptos) {
@@ -64,7 +227,9 @@ export default function PayrollDetailModal({
         c.tipoConcepto === 'CONCEPTO_LYF' || 
         c.tipoConcepto === 'CONCEPTO_UOCRA' ||
         c.tipoConcepto === 'BONIFICACION_AREA' ||
-        c.tipoConcepto === 'CATEGORIA_ZONA'
+        c.tipoConcepto === 'CATEGORIA_ZONA' ||
+        c.tipoConcepto === 'HORAS_EXTRAS_LYF' ||
+        c.tipoConcepto === 'HORA_EXTRA_LYF'
       )
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
@@ -79,16 +244,20 @@ export default function PayrollDetailModal({
 
   const { remunerations, deductions, netAmount } = calculateTotals();
 
-  // Obtener datos del empleado
-  const employeeName = `${selectedPayroll?.apellidoEmpleado || ''}, ${selectedPayroll?.nombreEmpleado || ''}`.trim();
-  const employeeLegajo = selectedPayroll?.legajoEmpleado || payrollDetails?.legajo || '—';
-  const employeeCuil = payrollDetails?.cuil || selectedPayroll?.cuil || '—';
-  const employeeCategory = payrollDetails?.categoriaEmpleado || selectedPayroll?.categoria || '—';
-  const employeeIngreso = payrollDetails?.fechaIngreso || selectedPayroll?.fechaIngreso || null;
+  // Obtener datos del empleado (formato igual a ProcessPayrollModal)
+  // Priorizar selectedEmployee si está disponible, luego payrollDetails, luego selectedPayroll
+  const employeeName = selectedEmployee 
+    ? `${selectedEmployee.apellido || ''}, ${selectedEmployee.nombre || ''}`.trim() || '—'
+    : `${selectedPayroll?.apellidoEmpleado || payrollDetails?.apellido || ''}, ${selectedPayroll?.nombreEmpleado || payrollDetails?.nombre || ''}`.trim() || '—';
+  const employeeLegajo = selectedEmployee?.legajo || selectedPayroll?.legajoEmpleado || payrollDetails?.legajo || '—';
+  const employeeCuil = selectedEmployee?.cuil || payrollDetails?.cuil || selectedPayroll?.cuil || '—';
+  const employeeCategory = selectedEmployee?.categoria || selectedEmployee?.categoriaNombre || payrollDetails?.categoriaEmpleado || selectedPayroll?.categoria || payrollDetails?.categoria || '—';
+  const employeeIngreso = selectedEmployee?.inicioActividad || payrollDetails?.fechaIngreso || selectedPayroll?.fechaIngreso || payrollDetails?.inicioActividad || null;
+  const employeeAntiguedad = calculateAntiguedad(employeeIngreso);
   const periodo = formatPeriodToMonthYear(selectedPayroll?.periodoPago || payrollDetails?.periodoPago);
   const remunerationAssigned = payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada || 0;
-  const bank = payrollDetails?.banco || selectedPayroll?.banco || 'Banco Nación';
-  const account = payrollDetails?.cuenta || payrollDetails?.cbu || selectedPayroll?.cbu || '—';
+  const bank = selectedEmployee?.banco || payrollDetails?.banco || selectedPayroll?.banco || 'Banco Nación';
+  const cuenta = selectedEmployee?.cuenta || payrollDetails?.cuenta || selectedPayroll?.cuenta || '—';
 
   return (
     <Modal
@@ -129,7 +298,7 @@ export default function PayrollDetailModal({
             <div className="employee-info-section">
               <div className="info-row">
                 <span className="label">Apellido y Nombre</span>
-                <span className="value">{employeeName || '—'}</span>
+                <span className="value">{employeeName}</span>
               </div>
               <div className="info-row">
                 <span className="label">Legajo</span>
@@ -142,6 +311,10 @@ export default function PayrollDetailModal({
               <div className="info-row">
                 <span className="label">Fecha Ingreso</span>
                 <span className="value">{formatDateDDMMYYYY(employeeIngreso)}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Antigüedad</span>
+                <span className="value">{employeeAntiguedad}</span>
               </div>
               <div className="info-row">
                 <span className="label">Categoría</span>
@@ -176,20 +349,26 @@ export default function PayrollDetailModal({
                       concepto.tipoConcepto === 'CONCEPTO_LYF' || 
                       concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
                       concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-                      concepto.tipoConcepto === 'CATEGORIA_ZONA';
+                      concepto.tipoConcepto === 'CATEGORIA_ZONA' ||
+                      concepto.tipoConcepto === 'HORA_EXTRA_LYF';
                     const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
                     const total = Number(concepto.total || 0);
+                    const conceptoNombre = getConceptoNombre(concepto, index);
+                    
+                    // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
+                    const descuentoAmount = isDeduction ? Math.abs(total) : 0;
+                    const remuneracionAmount = isRemuneration && total > 0 ? total : 0;
 
                     return (
                       <tr key={index}>
                         <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
-                        <td className="concept-name">{concepto.nombre || `Concepto ${index + 1}`}</td>
+                        <td className="concept-name">{conceptoNombre}</td>
                         <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
                         <td className="concept-remuneration">
-                          {isRemuneration && total > 0 ? formatCurrencyAR(total) : ''}
+                          {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
                         </td>
                         <td className="concept-deduction">
-                          {isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : ''}
+                          {descuentoAmount > 0 ? formatCurrencyAR(descuentoAmount) : ''}
                         </td>
                       </tr>
                     );
@@ -230,8 +409,8 @@ export default function PayrollDetailModal({
                 <span className="value">{bank}</span>
               </div>
               <div className="detail-item">
-                <span className="label">Cuenta</span>
-                <span className="value">{account}</span>
+                <span className="label">Número de Cuenta</span>
+                <span className="value">{cuenta}</span>
               </div>
             </div>
 
