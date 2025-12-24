@@ -130,8 +130,8 @@ export default function Convenios() {
 
     const stats = [
   { icon: FileText, value: convenios.length, label: 'Convenios Activos', colorClass: 'success' },
-  { icon: Users, value: totalEmpleados, label: 'Empleados Activos', colorClass: 'success' },
-  { icon: Calculator, value: totalCategorias, label: 'Total de Categorías', colorClass: 'warning' },
+  { icon: Users, value: getEmployeeCountByController('LYF'), label: 'Empleados de Luz y Fuerza', colorClass: 'success' },
+  { icon: Users, value: getEmployeeCountByController('UOCRA'), label: 'Empleados de UOCRA', colorClass: 'success' },
   ];
 
   if (loading) {
