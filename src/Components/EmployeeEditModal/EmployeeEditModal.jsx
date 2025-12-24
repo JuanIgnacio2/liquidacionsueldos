@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { User, Building, DollarSign, Save, X, ListChecks, Trash2 } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
-import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -52,42 +51,6 @@ const calculateAntiguedad = (fechaIngreso) => {
   } catch (error) {
     console.error('Error al calcular antigüedad:', error);
     return '—';
-  }
-};
-
-// Calcula solo los años de antigüedad (número entero)
-const calculateAniosAntiguedad = (fechaIngreso) => {
-  if (!fechaIngreso) return 0;
-  
-  try {
-    const fechaIngresoDate = new Date(fechaIngreso);
-    const fechaActual = new Date();
-    
-    if (Number.isNaN(fechaIngresoDate.getTime())) return 0;
-    
-    // Calcular diferencia en años y meses
-    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
-    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
-    
-    // Ajustar si el mes actual es menor que el mes de ingreso
-    if (meses < 0) {
-      años--;
-      meses += 12;
-    }
-    
-    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
-    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
-      meses--;
-      if (meses < 0) {
-        años--;
-        meses += 12;
-      }
-    }
-    
-    return Math.max(0, años); // Retornar solo los años, mínimo 0
-  } catch (error) {
-    console.error('Error al calcular años de antigüedad:', error);
-    return 0;
   }
 };
 
@@ -366,19 +329,24 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           ];
 
         } else if (formData.gremio === 'UOCRA') {
-          // Para UOCRA: cargar conceptos requeridos
-          const [
-            conceptosUocra,
-            descuentos,
-            descuentosUocra
-          ] = await Promise.all([
-            api.getConceptosUocra().catch(() => []),
-            api.getDescuentos().catch(() => []),
-            api.getDescuentosUocra().catch(() => [])
-          ]);
-
-          // Mapear Conceptos UOCRA
-          const mappedConceptosUocra = (conceptosUocra || []).map((concepto) => {
+          bonificacionesData = await api.getConceptosUocra();
+        }
+        
+        // Cargar horas extras LYF si es Luz y Fuerza
+        let horasExtrasLyF = [];
+        if (formData.gremio === 'LUZ_Y_FUERZA') {
+          try {
+            horasExtrasLyF = await api.getHorasExtrasLyF();
+          } catch (error) {
+            console.error('Error al cargar horas extras LYF:', error);
+          }
+        }
+        
+        // Cargar descuentos (sin filtrar por gremio, son generales)
+        const descuentosData = await api.getDescuentos();
+        
+        // Mapear bonificaciones - usar prefijo 'BON_' para evitar conflictos de IDs
+        const mappedBonificaciones = bonificacionesData.map((concepto) => {
           const originalId = concepto.idBonificacion ?? concepto.id;
           return {
               id: `BON_${originalId}`,
@@ -407,33 +375,23 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
           };
         });
         
-          // Mapear Descuentos UOCRA
-          const mappedDescuentosUocra = (descuentosUocra || []).map((descuento) => {
-            const originalId = descuento.idDescuentoUocra ?? descuento.idDescuento ?? descuento.id;
-            const baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
-            const usaBaseCalculo = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto' || 
-                                  baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            return {
-              id: `DESC_UOCRA_${originalId}`,
-              originalId: originalId,
-              nombre: descuento.nombre ?? descuento.descripcion,
-              unidad: usaBaseCalculo ? '% (cantidad)' : (descuento.porcentaje ? '%' : 'monto'),
-              porcentaje: usaBaseCalculo ? null : (descuento.porcentaje ?? null),
-              montoUnitario: descuento.montoUnitario ?? descuento.monto ?? null,
-              tipo: 'DESCUENTO_UOCRA',
-              isDescuento: true,
-              baseCalculo: baseCalculoDescuento || null
-            };
-          });
-
-          allConceptos = [
-            ...mappedConceptosUocra,
-            ...mappedDescuentos,
-            ...mappedDescuentosUocra
-          ];
-        }
-
-        setConceptos(allConceptos);
+        // Mapear horas extras LYF - usar prefijo 'HE_' para evitar conflictos de IDs
+        const mappedHorasExtras = horasExtrasLyF.map((horaExtra) => {
+          const originalId = horaExtra.idHoraExtra ?? horaExtra.id;
+          return {
+            id: `HE_${originalId}`, // Prefijo para horas extras
+            originalId: originalId, // ID original para enviar al backend
+            nombre: horaExtra.descripcion ?? horaExtra.codigo ?? (originalId === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'),
+            unidad: 'factor',
+            porcentaje: null, // Las horas extras no usan porcentaje, usan factor
+            factor: Number(horaExtra.factor) || (originalId === 1 ? 1.5 : 2),
+            tipo: 'HORA_EXTRA_LYF',
+            isDescuento: false
+          };
+        });
+        
+        // Combinar bonificaciones, descuentos y horas extras
+        setConceptos([...mappedBonificaciones, ...mappedDescuentos, ...mappedHorasExtras]);
       } catch (error) {
         console.error('Error al cargar conceptos:', error);
         setConceptos([]);
@@ -961,35 +919,20 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
         let descuentosLyF = [];
         let descuentosUocra = [];
         
+        // Cargar catálogos necesarios para mapear correctamente
+        let bonificacionesFijas = [];
+        let descuentosData = [];
+        let horasExtrasLyF = [];
+        
         if (formData.gremio === 'LUZ_Y_FUERZA') {
-          [
-            conceptosLyF,
-            titulosLyF,
-            conceptosManualesLyF,
-            horasExtrasLyF,
-            descuentosData,
-            descuentosLyF
-          ] = await Promise.all([
-            api.getConceptosLyF().catch(() => []),
-            api.getTitulosLyF().catch(() => []),
-            api.getConceptosManualesLyF().catch(() => []),
-            api.getHorasExtrasLyF().catch(() => []),
-            api.getDescuentos().catch(() => []),
-            api.getDescuentosLyF().catch(() => [])
-          ]);
+          bonificacionesFijas = await api.getConceptosLyF();
+          horasExtrasLyF = await api.getHorasExtrasLyF();
         } else if (formData.gremio === 'UOCRA') {
-          [
-            conceptosUocra,
-            descuentosData,
-            descuentosUocra
-          ] = await Promise.all([
-            api.getConceptosUocra().catch(() => []),
-            api.getDescuentos().catch(() => []),
-            api.getDescuentosUocra().catch(() => [])
-          ]);
+          bonificacionesFijas = await api.getConceptosUocra();
         }
-
-        // Filtrar conceptos asignados según el tipo
+        descuentosData = await api.getDescuentos();
+        
+        // Filtrar bonificaciones fijas, descuentos y horas extras (incluyendo CONCEPTO_LYF, CONCEPTO_UOCRA, HORA_EXTRA_LYF y HORA_EXTRA_LYF)
         const conceptosAsignados = asignados.filter(
           asignado => asignado.tipoConcepto === 'CONCEPTO_LYF' || 
                       asignado.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
@@ -997,11 +940,10 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                       asignado.tipoConcepto === 'HORA_EXTRA_LYF' ||
                       asignado.tipoConcepto === 'CONCEPTO_UOCRA' || 
                       asignado.tipoConcepto === 'DESCUENTO' ||
-                      asignado.tipoConcepto === 'DESCUENTO_LYF' ||
-                      asignado.tipoConcepto === 'DESCUENTO_UOCRA'
+                      asignado.tipoConcepto === 'HORA_EXTRA_LYF'
         );
         // Mapear a formato de conceptosSeleccionados: { conceptId: { units: 'X' } }
-        // Usar prefijos según el tipo de concepto
+        // Usar prefijos 'BON_', 'DESC_' o 'HE_' para que coincidan con los IDs únicos
         const conceptosPrecargados = {};
         conceptosAsignados.forEach(asignado => {
           const originalId = Number(asignado.idReferencia);
@@ -1009,34 +951,9 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
             // Determinar el prefijo según el tipo de concepto
             let prefijo = 'BON_';
             if (asignado.tipoConcepto === 'DESCUENTO') {
-              // Si es exactamente DESCUENTO (genérico), usar prefijo DESC_
               prefijo = 'DESC_';
-            } else if (asignado.tipoConcepto === 'DESCUENTO_LYF') {
-              prefijo = 'DESC_LYF_';
-            } else if (asignado.tipoConcepto === 'DESCUENTO_UOCRA') {
-              prefijo = 'DESC_UOCRA_';
-            } else if (asignado.tipoConcepto && asignado.tipoConcepto.includes('DESCUENTO')) {
-              // Fallback: si contiene DESCUENTO pero no es exactamente uno de los tipos específicos,
-              // verificar en los catálogos para determinar el prefijo
-              const esDescuentoLyF = descuentosLyF.some(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === originalId);
-              const esDescuentoUocra = descuentosUocra.some(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === originalId);
-              if (esDescuentoLyF) {
-                prefijo = 'DESC_LYF_';
-              } else if (esDescuentoUocra) {
-                prefijo = 'DESC_UOCRA_';
-              } else {
-                prefijo = 'DESC_';
-              }
             } else if (asignado.tipoConcepto === 'HORA_EXTRA_LYF') {
               prefijo = 'HE_';
-            } else if (asignado.tipoConcepto === 'CONCEPTO_MANUAL_LYF') {
-              prefijo = 'MAN_';
-            } else if (asignado.tipoConcepto === 'TITULO_LYF') {
-              // Si el backend indica que es TITULO_LYF, usar prefijo TIT_
-              prefijo = 'TIT_';
-            } else if (asignado.tipoConcepto === 'CONCEPTO_LYF') {
-              // Si el backend indica que es CONCEPTO_LYF, usar prefijo BON_ (no verificar si es título)
-              prefijo = 'BON_';
             }
             const conceptId = `${prefijo}${originalId}`;
             
@@ -1045,38 +962,16 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
             if (prefijo === 'HE_') {
               conceptoExiste = horasExtrasLyF.some(he => (he.idHoraExtra ?? he.id) === originalId);
             } else if (prefijo === 'DESC_') {
-              conceptoExiste = descuentosData.some(d => {
-                const idDescuento = d.idDescuento ?? d.id;
-                return idDescuento === originalId;
-              });
-            } else if (prefijo === 'DESC_LYF_') {
-              conceptoExiste = descuentosLyF.some(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === originalId);
-            } else if (prefijo === 'DESC_UOCRA_') {
-              conceptoExiste = descuentosUocra.some(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === originalId);
-            } else if (prefijo === 'MAN_') {
-              conceptoExiste = conceptosManualesLyF.some(cm => (cm.idConceptosManualesLyF ?? cm.id) === originalId);
-            } else if (prefijo === 'TIT_') {
-              conceptoExiste = titulosLyF.some(t => (t.idTituloLyF ?? t.id) === originalId);
-            } else if (prefijo === 'BON_') {
-              // Para conceptos LYF (prefijo BON_), buscar en conceptosLyF o conceptosUocra según el gremio
-              if (formData.gremio === 'LUZ_Y_FUERZA') {
-                conceptoExiste = conceptosLyF.some(c => (c.idConceptoLyF ?? c.idBonificacion ?? c.id) === originalId);
-              } else if (formData.gremio === 'UOCRA') {
-                conceptoExiste = conceptosUocra.some(c => (c.idBonificacion ?? c.id) === originalId);
-              }
-            } else if (formData.gremio === 'LUZ_Y_FUERZA') {
-              // Fallback para otros tipos
-              conceptoExiste = conceptosLyF.some(c => (c.idConceptoLyF ?? c.idBonificacion ?? c.id) === originalId);
-            } else if (formData.gremio === 'UOCRA') {
-              conceptoExiste = conceptosUocra.some(c => (c.idBonificacion ?? c.id) === originalId);
+              conceptoExiste = descuentosData.some(d => (d.idDescuento ?? d.id) === originalId);
+            } else {
+              conceptoExiste = bonificacionesFijas.some(b => (b.idBonificacion ?? b.id) === originalId);
             }
             
             // Solo agregar si el concepto existe en el catálogo actual
             if (conceptoExiste) {
-              const conceptoData = {
-              units: String(asignado.unidades || 1)
-            };
-              conceptosPrecargados[conceptId] = conceptoData;
+              conceptosPrecargados[conceptId] = {
+                units: String(asignado.unidades || 1)
+              };
             }
           }
         });
@@ -1130,44 +1025,18 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     try {
       // Construir conceptosAsignados según el DTO
       const conceptosAsignados = [];
-      // 1. Conceptos seleccionados (bonificaciones, descuentos, horas extras, títulos, conceptos manuales)
+      
+      // 1. Bonificaciones fijas, descuentos y horas extras (conceptos seleccionados)
       Object.keys(conceptosSeleccionados).forEach(conceptId => {
-        // conceptId puede ser 'BON_X', 'DESC_X', 'HE_X', 'TIT_X', 'MAN_X', 'DESC_LYF_X', 'DESC_UOCRA_X'
+        // conceptId ahora puede ser 'BON_X', 'DESC_X' o 'HE_X'
         const concepto = conceptos.find(c => c.id === conceptId);
         const units = conceptosSeleccionados[conceptId]?.units;
         if (concepto && units && units > 0) {
           let tipoConcepto;
-          
-          // Determinar el tipo basándose primero en el tipo del concepto (más confiable)
-          // y luego en el prefijo del conceptId como fallback
-          if (concepto.tipo === 'DESCUENTO_LYF') {
-            tipoConcepto = concepto.tipo; // Usar el tipo específico (DESCUENTO_LYF)
-          } else if (concepto.tipo === 'DESCUENTO_UOCRA') {
-            tipoConcepto = concepto.tipo; // Usar el tipo específico (DESCUENTO_UOCRA)
-          } else if (concepto.isDescuento || concepto.tipo === 'DESCUENTO') {
+          if (concepto.isDescuento || concepto.tipo === 'DESCUENTO') {
             tipoConcepto = 'DESCUENTO';
-          } else if (conceptId.startsWith('DESC_LYF_')) {
-            tipoConcepto = 'DESCUENTO';
-          } else if (conceptId.startsWith('DESC_UOCRA_')) {
-            tipoConcepto = 'DESCUENTO';
-          } else if (conceptId.startsWith('DESC_')) {
-            tipoConcepto = 'DESCUENTO';
-          } else if (conceptId.startsWith('HE_')) {
-            tipoConcepto = 'HORA_EXTRA_LYF';
-          } else if (conceptId.startsWith('MAN_')) {
-            tipoConcepto = 'CONCEPTO_MANUAL_LYF';
-          } else if (conceptId.startsWith('TIT_')) {
-            tipoConcepto = 'TITULO_LYF';
           } else if (concepto.tipo === 'HORA_EXTRA_LYF') {
             tipoConcepto = 'HORA_EXTRA_LYF';
-          } else if (concepto.tipo === 'CONCEPTO_MANUAL_LYF') {
-            tipoConcepto = 'CONCEPTO_MANUAL_LYF';
-          } else if (concepto.tipo === 'CONCEPTO_UOCRA') {
-            tipoConcepto = 'CONCEPTO_UOCRA';
-          } else if (concepto.tipo === 'TITULO_LYF') {
-            tipoConcepto = 'TITULO_LYF';
-          } else if (concepto.tipo === 'CONCEPTO_LYF') {
-            tipoConcepto = 'CONCEPTO_LYF';
           } else {
             tipoConcepto = getTipoConcepto(formData.gremio);
           }
@@ -1352,52 +1221,53 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
 
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
-  // Excepción para Luz y Fuerza: "Horas Extras Simples" y "Horas Extras Dobles"
+  // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
   const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
     
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
-
-    // Si es CONCEPTO_MANUAL_LYF, usar monto del concepto (montoUnitario)
-    if (concepto.tipo === 'CONCEPTO_MANUAL_LYF') {
-      const montoManual = Number(concepto.montoUnitario) || 0;
-      return montoManual * unidades; // Siempre cantidad 1, pero por si acaso
+    
+    // Si es descuento, calcular sobre el total de remuneraciones
+    if (isDescuento) {
+      if (!concepto.porcentaje || !totalRemuneraciones || totalRemuneraciones <= 0) return 0;
+      const porcentaje = Number(concepto.porcentaje) || 0;
+      const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
+      return -(montoUnitario * unidades);
     }
 
-    // Manejo especial para Horas Extras de Luz y Fuerza
-    const isHorasExtrasSimples = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Simples');
-    const isHorasExtrasDobles = formData.gremio === 'LUZ_Y_FUERZA' && concepto.tipo === 'CONCEPTO_LYF' && (concepto.nombre === 'Horas Extras Dobles');
-
-    if (isHorasExtrasSimples || isHorasExtrasDobles) {
+    // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
+    if (concepto.tipo === 'HORA_EXTRA_LYF') {
       const salarioBasico = Number(formData.salary) || 0;
       const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
 
+      // Calcular total remunerativo (básico + bono área + otras bonificaciones, sin horas extras ni descuentos)
       const otherBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
-        if (String(conceptId) === String(concepto.id)) return sum;
+        if (String(conceptId) === String(concepto.id)) return sum; // excluir el propio concepto
         const c = conceptos.find(c => String(c.id) === String(conceptId));
         if (!c) return sum;
         const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
         if (cIsDescuento) return sum;
+        if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
         const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
         if (!u || u <= 0) return sum;
-
-        if (c.tipo === 'CONCEPTO_LYF' && (c.nombre === 'Horas Extras Simples' || c.nombre === 'Horas Extras Dobles')) {
-          // Excluir otras Horas Extras para evitar dependencia circular entre ambas
-          return sum;
-        }
-
         const total = calculateConceptTotal(c, u);
         return sum + total;
       }, 0);
 
-      const totalBonificaciones = salarioBasico + bonoArea + otherBonificaciones;
-      if (totalBonificaciones <= 0) return 0;
+      const totalRemunerativo = salarioBasico + bonoArea + otherBonificaciones;
+      if (totalRemunerativo <= 0) return 0;
 
-      const factor = isHorasExtrasSimples ? 1.5 : 2;
-      const montoUnitario = ((totalBonificaciones / 156) * factor) * (porcentaje / 100);
+      // Calcular valor hora y usar el factor del catálogo
+      const valorHora = totalRemunerativo / 156;
+      const factor = Number(concepto.factor) || (concepto.originalId === 1 ? 1.5 : 2);
+      const montoUnitario = valorHora * factor;
       return montoUnitario * unidades;
     }
+
+    // Para conceptos con porcentaje (bonificaciones normales)
+    if (!concepto.porcentaje) return 0;
+    const porcentaje = Number(concepto.porcentaje) || 0;
 
     // Lógica por defecto
     let baseCalculo = 0;
@@ -1896,7 +1766,11 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                     {conceptos
                       .filter(c => !conceptosSeleccionados[c.id])
                       .map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre}{c.porcentaje ? ` (${c.porcentaje}%)` : ''}</option>
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                          {c.tipo === 'HORA_EXTRA_LYF' && c.factor ? ` (Factor ${c.factor}x)` : ''}
+                          {c.porcentaje && c.tipo !== 'HORA_EXTRA_LYF' ? ` (${c.porcentaje}%)` : ''}
+                        </option>
                     ))}
                   </select>
 
@@ -1954,7 +1828,12 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                             <td>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
-                            <td className="porcentaje-cell">{concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}</td>
+                            <td className="porcentaje-cell">
+                              {concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
+                                ? (concepto.factor ? `Factor ${concepto.factor}x` : '-')
+                                : (concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
+                              }
+                            </td>
                             <td>
                               <input
                                 type="text"
