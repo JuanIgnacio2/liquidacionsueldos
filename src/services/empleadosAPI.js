@@ -28,7 +28,7 @@ export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
 export const getConceptosLyF = () =>
-    axiosClient.get(`/lyf/conceptos`).then((r)=>r.data);
+    axiosClient.get(`/luzfuerza/conceptos`).then((r)=>r.data);
 
 export const getConceptosUocra = () =>
     axiosClient.get(`/uocra/conceptos`).then((r)=>r.data);
