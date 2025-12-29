@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { Search, Users, Download, Printer, Plus, X, CheckCircle, User, Calendar, Badge, Clock, Star, Edit, Trash2 } from 'lucide-react';
+import { Search, Users, Download, Printer, X, CheckCircle, User, Calendar, Badge, Clock, Edit, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
@@ -22,13 +22,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const confirmAction = useConfirm();
   const [currentStep, setCurrentStep] = useState('search');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterGremio, setFilterGremio] = useState('');
+  const [filterEstado, setFilterEstado] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollData, setPayrollData] = useState({});
   const [concepts, setConcepts] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [conceptos, setConceptos] = useState([]);
   const [total, setTotal] = useState(0);
-  const [modalOpen, setModalOpen] = useState(false);
   // Catalogs / dropdown state
   const [catalogBonificaciones, setCatalogBonificaciones] = useState([]);
   const [selectedCatalogConcept, setSelectedCatalogConcept] = useState('');
@@ -42,9 +43,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
   const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
-  const [periodo, setPeriodo] = useState(
-    new Date().toISOString().slice(0,7)
-  );
+  // Normalizar el período inicial a formato YYYY-MM
+  const getInitialPeriod = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
+
+  const [periodo, setPeriodo] = useState(getInitialPeriod());
+  const [quincena, setQuincena] = useState(1); // 1 = primera quincena, 2 = segunda quincena
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
 
   // Función para formatear el nombre del gremio
@@ -108,7 +116,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     }
   };
 
+  // Normaliza el período a formato YYYY-MM (asegura que el mes tenga dos dígitos)
+  const normalizePeriod = (period) => {
+    if (!period) return period;
+    if (typeof period !== 'string') return period;
+    
+    // Si ya tiene formato YYYY-MM-DD, extraer solo YYYY-MM
+    const parts = period.split('-');
+    if (parts.length >= 2) {
+      const year = parts[0];
+      const month = String(parts[1]).padStart(2, '0');
+      return `${year}-${month}`;
+    }
+    return period;
+  };
+
   // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
+  // Si tiene formato 'YYYY-MM-DD' y el día es 1 o 16, se considera quincena
   const formatPeriodToMonthYear = (period) => {
     if (!period) return '—';
     // Si ya contiene letras, devolver tal cual
@@ -118,8 +142,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (parts.length >= 2) {
       const year = parts[0];
       const month = Number(parts[1]);
+      const day = parts.length >= 3 ? Number(parts[2]) : null;
       const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
       const mName = months[Math.max(0, Math.min(11, month - 1))] || parts[1];
+      
+      // Si tiene día y es 1 o 16, mostrar quincena
+      if (day !== null && (day === 1 || day === 16)) {
+        const quincenaText = day === 1 ? 'Primera quincena' : 'Segunda quincena';
+        return `${quincenaText} de ${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${year}`;
+      }
+      
       return `${mName.charAt(0).toUpperCase() + mName.slice(1)} de ${year}`;
     }
     return period;
@@ -513,8 +545,48 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       const listaFinal = recalcularDescuentos(listaConHoras);
 
-      setTotal(calcTotal(listaFinal));
-      setConceptos(listaFinal);
+      // Calcular asistencia inicial si es UOCRA
+      let listaConAsistencia = listaFinal;
+      const gremioNombre = employee.gremio?.nombre?.toUpperCase() || '';
+      if (gremioNombre === 'UOCRA') {
+        // Buscar conceptos de horas y asistencia
+        const horasNormales = listaFinal.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('Hs.Normales') || nombreUpper.includes('HORAS NORMALES');
+        });
+        
+        const horasExtras = listaFinal.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
+        });
+        
+        const horasExtrasDobles = listaFinal.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('HORAS EXTRAS DOBLES');
+        });
+        
+        const asistencia = listaFinal.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('ASISTENCIA');
+        });
+        
+        if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
+          const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
+          const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
+          const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
+          const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
+          
+          listaConAsistencia = listaFinal.map(c => {
+            if (c.uid === asistencia.uid) {
+              return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
+            }
+            return c;
+          });
+        }
+      }
+
+      setTotal(calcTotal(listaConAsistencia));
+      setConceptos(listaConAsistencia);
       setCurrentStep('payroll');
     } catch (error) {
       notify.error('No se pudo obtener el sueldo básico del empleado. Por favor, intente nuevamente.');
@@ -529,7 +601,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       try {
         const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
         const liquidaciones = await api.getLiquidacionesByPeriodo(currentPeriod);
-        console.log(liquidaciones);
         // Extraer legajos únicos de las liquidaciones
         const legajosSet = new Set();
         if (Array.isArray(liquidaciones)) {
@@ -562,15 +633,103 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       // Reset cuando el modal se cierra
       setCurrentStep('search');
       setSearchTerm('');
+      setFilterGremio('');
+      setFilterEstado('');
       setSelectedEmployee(null);
       setConceptos([]);
       setTotal(0);
       setBasicSalary(0);
       setDescuentosData([]);
       setProcessedLegajos(new Set());
+      setQuincena(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
+
+  // Determinar si un concepto puede tener cantidad editable
+  const canEditQuantity = (concept) => {
+    const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+    const isLuzYFuerza = gremioNombre.includes('LUZ') && gremioNombre.includes('FUERZA');
+    const isUocra = gremioNombre === 'UOCRA';
+    
+    // Para Luz y Fuerza: solo HORA_EXTRA_LYF con id 1 (simples) o 2 (dobles)
+    if (isLuzYFuerza) {
+      if (concept.tipo === 'HORA_EXTRA_LYF' && (concept.id === 1 || concept.id === 2)) {
+        return true;
+      }
+      return false;
+    }
+    
+    // Para UOCRA: Hs. Normales, Horas Extras, Horas Extras Dobles (asistencia se calcula automáticamente)
+    if (isUocra) {
+      const nombreUpper = (concept.nombre || '').toUpperCase();
+      // Identificar conceptos de horas por nombre
+      if (nombreUpper.includes('HS.NORMALES') || 
+          nombreUpper.includes('HORAS NORMALES') ||
+          nombreUpper.includes('HORAS EXTRAS DOBLES') ||
+          nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES')) {
+        return true;
+      }
+      // Asistencia NO es editable (se calcula automáticamente)
+      if (nombreUpper.includes('ASISTENCIA')) {
+        return false;
+      }
+      return false;
+    }
+    
+    // Para otros gremios: no editable
+    return false;
+  };
+
+  // Calcular asistencia automáticamente para UOCRA
+  const calculateAsistencia = () => {
+    const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+    const isUocra = gremioNombre === 'UOCRA';
+    
+    if (!isUocra) return;
+    
+    // Buscar conceptos de horas
+    const horasNormales = conceptos.find(c => {
+      const nombreUpper = (c.nombre || '').toUpperCase();
+      return nombreUpper.includes('HS.NORMALES') || nombreUpper.includes('HORAS NORMALES');
+    });
+    
+    const horasExtras = conceptos.find(c => {
+      const nombreUpper = (c.nombre || '').toUpperCase();
+      return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
+    });
+    
+    const horasExtrasDobles = conceptos.find(c => {
+      const nombreUpper = (c.nombre || '').toUpperCase();
+      return nombreUpper.includes('HORAS EXTRAS DOBLES');
+    });
+    
+    // Buscar concepto de asistencia
+    const asistencia = conceptos.find(c => {
+      const nombreUpper = (c.nombre || '').toUpperCase();
+      return nombreUpper.includes('ASISTENCIA');
+    });
+    
+    if (asistencia) {
+      // Calcular suma de las tres horas
+      const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
+      const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
+      const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
+      const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
+      
+      // Actualizar cantidad de asistencia
+      if (asistencia.cantidad !== sumaAsistencia) {
+        const nuevos = conceptos.map(c => {
+          if (c.uid === asistencia.uid) {
+            return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
+          }
+          return c;
+        });
+        setConceptos(nuevos);
+        setTotal(calcTotal(nuevos));
+      }
+    }
+  };
 
   // Actualizar cantidad de un concepto
   const handleQtyChange = (conceptUid, nuevaCantidad) => {
@@ -645,30 +804,128 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
     setConceptos(nuevosConDescuentos);
     setTotal(calcTotal(nuevosConDescuentos));
-  };
-  const handleAddConcepto = () => {
-    setModalOpen(true);
+    
+    // Recalcular asistencia si es UOCRA (usar setTimeout para asegurar que el estado se actualice)
+    setTimeout(() => {
+      const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+      if (gremioNombre === 'UOCRA') {
+        const horasNormales = nuevosConDescuentos.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('HS.NORMALES') || nombreUpper.includes('HORAS NORMALES');
+        });
+        
+        const horasExtras = nuevosConDescuentos.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
+        });
+        
+        const horasExtrasDobles = nuevosConDescuentos.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('HORAS EXTRAS DOBLES');
+        });
+        
+        const asistencia = nuevosConDescuentos.find(c => {
+          const nombreUpper = (c.nombre || '').toUpperCase();
+          return nombreUpper.includes('ASISTENCIA');
+        });
+        
+        if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
+          const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
+          const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
+          const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
+          const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
+          
+          if (asistencia.cantidad !== sumaAsistencia) {
+            const listaConAsistencia = nuevosConDescuentos.map(c => {
+              if (c.uid === asistencia.uid) {
+                return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
+              }
+              return c;
+            });
+            
+            setConceptos(listaConAsistencia);
+            setTotal(calcTotal(listaConAsistencia));
+          }
+        }
+      }
+    }, 0);
   };
 
-  const handleConfirmConeptos = (nuevos) => {
-    const withUids = nuevos.map(n => n.uid ? n : { ...n, uid: uidCounter.current++ });
-    const lista = [...conceptos, ...withUids];
-    setConceptos(lista);
-    setTotal(calcTotal(lista));
+  // Obtener gremios únicos de los empleados
+  const gremiosDisponibles = useMemo(() => {
+    const gremiosSet = new Set();
+    employees.forEach(emp => {
+      const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
+      if (gremio) {
+        const gremioUpper = gremio.toUpperCase();
+        if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
+          gremiosSet.add('LUZ_Y_FUERZA');
+        } else if (gremioUpper === 'UOCRA') {
+          gremiosSet.add('UOCRA');
+        } else {
+          gremiosSet.add('Convenio General');
+        }
+      }
+    });
+    return Array.from(gremiosSet).sort();
+  }, [employees]);
+
+  // Función para obtener el gremio normalizado de un empleado
+  const getGremioFromEmployee = (emp) => {
+    const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
+    if (!gremio) return '';
+    
+    const gremioUpper = gremio.toUpperCase();
+    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
+      return 'LUZ_Y_FUERZA';
+    } else if (gremioUpper === 'UOCRA') {
+      return 'UOCRA';
+    }
+    return 'Convenio General';
   };
 
-  // Filtrar empleados por búsqueda
-  const filteredEmployees = employees
-    .filter(emp => {
-      // Excluir empleados que no estén activos
+  // Función para obtener el estado de procesamiento de un empleado
+  const getEstadoProcesamiento = (emp) => {
+    return processedLegajos.has(Number(emp.legajo)) ? 'Procesada' : 'Pendiente';
+  };
+
+  // Filtrar empleados por búsqueda, gremio y estado
+  const filteredEmployees = useMemo(() => {
+    let filtered = employees;
+
+    // Filtrar por estado de empleado (solo activos)
+    filtered = filtered.filter(emp => {
       const estado = (emp.estado || '').toString().toUpperCase();
       return estado === 'ACTIVO';
-    })
-    .filter(emp =>
-      emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.legajo.toString().includes(searchTerm) ||
-      emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    });
+
+    // Filtrar por búsqueda de texto
+    if (searchTerm) {
+      filtered = filtered.filter(emp =>
+        emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.legajo.toString().includes(searchTerm) ||
+        emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filtrar por gremio
+    if (filterGremio) {
+      filtered = filtered.filter(emp => {
+        const empGremio = getGremioFromEmployee(emp);
+        return empGremio === filterGremio;
+      });
+    }
+
+    // Filtrar por estado de procesamiento
+    if (filterEstado) {
+      filtered = filtered.filter(emp => {
+        const estadoProcesamiento = getEstadoProcesamiento(emp);
+        return estadoProcesamiento === filterEstado;
+      });
+    }
+
+    return filtered;
+  }, [employees, searchTerm, filterGremio, filterEstado, processedLegajos]);
 
   // Actualizar concepto
   const updateConcept = (uid, field, value) => {
@@ -803,10 +1060,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const generatePayroll = async () => {
     if (!selectedEmployee) return;
     
+    // Formatear período para el mensaje de confirmación y para enviar
+    // Normalizar el período a formato YYYY-MM
+    const periodoFormateado = normalizePeriod(periodo);
+    
+    let periodoDisplay = periodoFormateado;
+    if (selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA')) {
+      const day = quincena === 1 ? '01' : '16';
+      periodoDisplay = `${periodoFormateado}-${day}`;
+    }
+
     // Confirmar antes de generar la liquidación
     const result = await confirmAction({
       title: 'Generar Liquidación',
-      message: `¿Está seguro de generar la liquidación para ${selectedEmployee.nombre} ${selectedEmployee.apellido} del período ${formatPeriodToMonthYear(periodo)}?`,
+      message: `¿Está seguro de generar la liquidación para ${selectedEmployee.nombre} ${selectedEmployee.apellido} del período ${formatPeriodToMonthYear(periodoDisplay)}?`,
       confirmText: 'Generar Recibo',
       cancelText: 'Cancelar',
       type: 'warning',
@@ -818,9 +1085,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     
     setIsProcessing(true);
 
+    // Usar el período ya formateado para construir el payload
+    
+    let periodoPago = periodoFormateado;
+    if (selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA')) {
+      // Para UOCRA: formato YYYY-MM-DD donde DD es 01 (primera quincena) o 16 (segunda quincena)
+      const day = quincena === 1 ? '01' : '16';
+      periodoPago = `${periodoFormateado}-${day}`;
+    }
+
     const payload = {
       legajo: selectedEmployee.legajo,
-      periodoPago: periodo,
+      periodoPago: periodoPago,
       conceptos: conceptos.map((c) => ({
         tipoConcepto: c.tipo,
         idReferencia: c.id,
@@ -830,6 +1106,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
     try {
       const result = await api.guardarLiquidacion(payload);
+      console.log("result", result);
       const usuario = localStorage.getItem('usuario') || 'Sistema';
       
       setPayrollData({
@@ -844,7 +1121,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         accion: 'LIQUIDAR',
         descripcion: `Se liquidó el sueldo del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido} para el período ${periodo}`,
         referenciaTipo: 'PAGO',
-        referenciaId: result.id || result.idLiquidacion || selectedEmployee.legajo
+        referenciaId: result.idPago || result.id || result.idLiquidacion || selectedEmployee.legajo
       });
 
       // Notificación de éxito
@@ -869,7 +1146,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         notify.error(errorMessage, 7000);
       } else if (error.response?.status >= 500) {
         // Error del servidor
-        notify.error('Error del servidor al procesar la liquidación. Por favor, intente nuevamente más tarde.', 7000);
+        notify.error('Error del servidor al procesar la liquidación. Por favor, intente nuevamente más tarde.', 10000);
       } else {
         // Otros errores
         const errorMessage = error.response?.data?.message || 'Hubo un error al procesar la liquidación.';
@@ -1607,6 +1884,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const resetModal = () => {
     setCurrentStep('search');
     setSearchTerm('');
+    setFilterGremio('');
+    setFilterEstado('');
     setSelectedEmployee(null);
     setPayrollData({});
     setConcepts([]);
@@ -1632,23 +1911,58 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {currentStep === 'search' && (
         <div className="employee-search">
           <div className="search-section">
-            <div className="search-container">
-              <div className="search-input-container">
-                <Search className="search-icon" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre o legajo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input"
-                />
-                {searchTerm && (
-                  <div className="search-badge">
-                    <Badge className="badge-icon" />
-                    <span>{filteredEmployees.length} resultado(s)</span>
-                  </div>
-                )}
+            <div className="search-filters-container">
+              <div className="search-field-wrapper">
+                <label htmlFor="employee-search">Buscar empleado</label>
+                <div className="search-input-container">
+                  <Search className="search-icon" />
+                  <input
+                    id="employee-search"
+                    type="text"
+                    placeholder="Buscar por nombre o legajo..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-input"
+                  />
+                </div>
               </div>
+
+              <div className="filter-field-wrapper">
+                <label htmlFor="filter-gremio-modal">Filtrar por gremio</label>
+                <select
+                  id="filter-gremio-modal"
+                  className="filter-select"
+                  value={filterGremio}
+                  onChange={(e) => setFilterGremio(e.target.value)}
+                >
+                  <option value="">Todos los gremios</option>
+                  {gremiosDisponibles.map((gremio) => (
+                    <option key={gremio} value={gremio}>
+                      {gremio === 'LUZ_Y_FUERZA' ? 'Luz y Fuerza' : gremio}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-field-wrapper">
+                <label htmlFor="filter-estado-modal">Filtrar por estado</label>
+                <select
+                  id="filter-estado-modal"
+                  className="filter-select"
+                  value={filterEstado}
+                  onChange={(e) => setFilterEstado(e.target.value)}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="Procesada">Procesada</option>
+                  <option value="Pendiente">Pendiente</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="search-results-info">
+              <span className="results-count">
+                {filteredEmployees.length} empleado{filteredEmployees.length !== 1 ? 's' : ''} encontrado{filteredEmployees.length !== 1 ? 's' : ''}
+              </span>
             </div>
 
             <div className="employees-list">
@@ -1727,17 +2041,58 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               <Calendar className="period-icon" />
               <div className="period-details">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <input
-                    type="month"
-                    value={periodo}
-                    onChange={(e) => setPeriodo(e.target.value)}
-                    style={{
-                      padding: '4px 8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
-                  />
+                  {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="month"
+                        value={normalizePeriod(periodo)}
+                        onChange={(e) => {
+                          const normalized = normalizePeriod(e.target.value);
+                          setPeriodo(normalized);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '0.9rem',
+                          flex: 1
+                        }}
+                      />
+                      <select
+                        value={quincena}
+                        onChange={(e) => setQuincena(Number(e.target.value))}
+                        style={{
+                          padding: '4px 8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '0.9rem',
+                          backgroundColor: '#fff',
+                          cursor: 'pointer',
+                          appearance: 'auto',
+                          WebkitAppearance: 'menulist',
+                          MozAppearance: 'menulist'
+                        }}
+                      >
+                        <option value={1}>Primera quincena</option>
+                        <option value={2}>Segunda quincena</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <input
+                      type="month"
+                      value={normalizePeriod(periodo)}
+                      onChange={(e) => {
+                        const normalized = normalizePeriod(e.target.value);
+                        setPeriodo(normalized);
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  )}
                   <span className="period-status">En proceso</span>
                 </div>
               </div>
@@ -1759,6 +2114,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   className="form-select concept-select"
                   value={selectedCatalogConcept}
                   onChange={(e) => setSelectedCatalogConcept(e.target.value)}
+                  style={{
+                    appearance: 'auto',
+                    WebkitAppearance: 'menulist',
+                    MozAppearance: 'menulist',
+                    backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundSize: '1em 1em',
+                    paddingRight: '2rem'
+                  }}
                 >
                   <option value="">Agregar desde catálogo...</option>
                   {catalogBonificaciones.map((c) => {
@@ -1952,19 +2317,25 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </div>
 
                   <div className="concept-cell">
-                    <input
-                      type="text"
-                      value={concept.cantidad}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // Permitir números con decimales (0.1, 0.01, etc.)
-                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                          handleQtyChange(concept.uid, parseFloat(value) || 0);
-                        }
-                      }}
-                      className="concept-input small"
-                      placeholder="0"
-                    />
+                    {canEditQuantity(concept) ? (
+                      <input
+                        type="text"
+                        value={concept.cantidad}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Permitir números con decimales (0.1, 0.01, etc.)
+                          if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                            handleQtyChange(concept.uid, parseFloat(value) || 0);
+                          }
+                        }}
+                        className="concept-input small"
+                        placeholder="0"
+                      />
+                    ) : (
+                      <span className="concept-quantity-disabled" title="La cantidad no es editable para este concepto">
+                        {concept.cantidad || 1}
+                      </span>
+                    )}
                   </div>
 
                   <div className="concept-cell">

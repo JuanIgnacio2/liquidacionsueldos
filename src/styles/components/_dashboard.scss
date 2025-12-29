@@ -189,6 +189,9 @@
           }
 
           .activity-details {
+            display: flex;
+            align-items: center;
+            gap: $spacing-2;
             text-align: right;
 
             .activity-amount {
@@ -200,6 +203,28 @@
             .activity-time {
               font-size: $font-size-xs;
               color: $color-gray-500;
+            }
+
+            .activity-view-btn {
+              padding: $spacing-1;
+              background: transparent;
+              border: none;
+              cursor: pointer;
+              color: $color-green-primary;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border-radius: $border-radius;
+              transition: all 0.2s ease;
+
+              &:hover {
+                background-color: rgba(34, 197, 94, 0.1);
+                color: darken($color-green-primary, 10%);
+              }
+
+              &:active {
+                transform: scale(0.95);
+              }
             }
           }
         }

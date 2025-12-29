@@ -53,6 +53,8 @@ export default function HistorialPagos() {
   const [pagos, setPagos] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState('');
+  const [filterGremio, setFilterGremio] = useState('');
+  const [filterEstado, setFilterEstado] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -89,23 +91,112 @@ export default function HistorialPagos() {
 
   const normalizedQuery = query.trim().toLowerCase();
 
+  // Obtener gremios únicos de los empleados
+  const gremiosDisponibles = useMemo(() => {
+    const gremiosSet = new Set();
+    employees.forEach(emp => {
+      const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
+      if (gremio) {
+        const gremioUpper = gremio.toUpperCase();
+        if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
+          gremiosSet.add('LUZ_Y_FUERZA');
+        } else if (gremioUpper === 'UOCRA') {
+          gremiosSet.add('UOCRA');
+        } else {
+          gremiosSet.add('Convenio General');
+        }
+      }
+    });
+    return Array.from(gremiosSet).sort();
+  }, [employees]);
+
+  // Función para obtener el gremio de un pago basado en el empleado
+  const getGremioFromPago = (pago) => {
+    const legajo = pago.legajoEmpleado;
+    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+    if (!employee) return '';
+    
+    const gremio = employee.gremioNombre || employee.gremio?.nombre || (typeof employee.gremio === 'string' ? employee.gremio : '');
+    if (!gremio) return '';
+    
+    const gremioUpper = gremio.toUpperCase();
+    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
+      return 'LUZ_Y_FUERZA';
+    } else if (gremioUpper === 'UOCRA') {
+      return 'UOCRA';
+    }
+    return 'Convenio General';
+  };
+
   const filteredPagos = useMemo(() => {
-    if (!normalizedQuery) {
-      return pagos;
+    let filtered = pagos;
+
+    // Filtrar por búsqueda de texto
+    if (normalizedQuery) {
+      filtered = filtered.filter((pago) => {
+        return [
+          pago.nombreEmpleado,
+          pago.apellidoEmpleado,
+          pago.legajoEmpleado,
+          pago.cuil,
+          pago.periodoPago
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedQuery));
+      });
     }
 
-    return pagos.filter((pago) => {
-      return [
-        pago.nombreEmpleado,
-        pago.apellidoEmpleado,
-        pago.legajoEmpleado,
-        pago.cuil,
-        pago.periodoPago
-      ]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(normalizedQuery));
+    // Filtrar por gremio
+    if (filterGremio) {
+      filtered = filtered.filter((pago) => {
+        const pagoGremio = getGremioFromPago(pago);
+        return pagoGremio === filterGremio;
+      });
+    }
+
+    // Filtrar por estado
+    if (filterEstado) {
+      filtered = filtered.filter((pago) => {
+        const estado = pago.estado || 'Completada';
+        const estadoNormalizado = estado.toLowerCase();
+        if (filterEstado === 'Completada') {
+          return estadoNormalizado === 'completada' || estadoNormalizado === 'completa';
+        } else if (filterEstado === 'Pendiente') {
+          return estadoNormalizado === 'pendiente' || estadoNormalizado === 'pendiente';
+        }
+        return true;
+      });
+    }
+
+    // Ordenar por fecha más reciente (fechaPago, periodoPago o id descendente)
+    filtered = filtered.sort((a, b) => {
+      // Intentar usar fechaPago primero
+      let fechaA = a.fechaPago ? new Date(a.fechaPago).getTime() : null;
+      let fechaB = b.fechaPago ? new Date(b.fechaPago).getTime() : null;
+      
+      // Si no hay fechaPago, intentar usar periodoPago (formato YYYY-MM)
+      if (!fechaA && a.periodoPago) {
+        const periodoA = String(a.periodoPago).split('-');
+        if (periodoA.length >= 2) {
+          fechaA = new Date(parseInt(periodoA[0]), parseInt(periodoA[1]) - 1).getTime();
+        }
+      }
+      if (!fechaB && b.periodoPago) {
+        const periodoB = String(b.periodoPago).split('-');
+        if (periodoB.length >= 2) {
+          fechaB = new Date(parseInt(periodoB[0]), parseInt(periodoB[1]) - 1).getTime();
+        }
+      }
+      
+      // Si aún no hay fecha, usar id como fallback
+      if (!fechaA) fechaA = a.id || 0;
+      if (!fechaB) fechaB = b.id || 0;
+      
+      return fechaB - fechaA; // Más reciente primero
     });
-  }, [pagos, normalizedQuery]);
+
+    return filtered;
+  }, [pagos, normalizedQuery, filterGremio, filterEstado, employees]);
 
   const totals = useMemo(() => {
     const totalPagos = pagos.length;
@@ -934,22 +1025,60 @@ export default function HistorialPagos() {
           </div>
           <div className="card-content list-content">
             {/* Search Section */}
-            <div className="search-section" style={{ marginBottom: '1.5rem' }}>
-              <label htmlFor="pago-search">Buscar pago</label>
-              <div className="search-field">
-                <Search className="search-icon" />
-                <input
-                  id="pago-search"
-                  type="search"
-                  placeholder="Ingresá nombre, legajo o período"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
+            <div className="search-section">
+              <div className="search-filters-row">
+                <div className="search-field-wrapper">
+                  <label htmlFor="pago-search">Buscar pago</label>
+                  <div className="search-field">
+                    <Search className="search-icon" />
+                    <input
+                      id="pago-search"
+                      type="search"
+                      placeholder="Ingresá nombre, legajo o período"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </div>
+                </div>
+                
+                <div className="filter-field-wrapper">
+                  <label htmlFor="filter-gremio">Filtrar por gremio</label>
+                  <select
+                    id="filter-gremio"
+                    className="filter-select"
+                    value={filterGremio}
+                    onChange={(e) => setFilterGremio(e.target.value)}
+                  >
+                    <option value="">Todos los gremios</option>
+                    {gremiosDisponibles.map((gremio) => (
+                      <option key={gremio} value={gremio}>
+                        {gremio === 'LUZ_Y_FUERZA' ? 'Luz y Fuerza' : gremio}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-field-wrapper">
+                  <label htmlFor="filter-estado">Filtrar por estado</label>
+                  <select
+                    id="filter-estado"
+                    className="filter-select"
+                    value={filterEstado}
+                    onChange={(e) => setFilterEstado(e.target.value)}
+                  >
+                    <option value="">Todos los estados</option>
+                    <option value="Completada">Completada</option>
+                    <option value="Pendiente">Pendiente</option>
+                  </select>
+                </div>
               </div>
-              <span className="results-count">
-                Mostrando {filteredTotals.totalPagos} de {totals.totalPagos} liquidaciones — Neto{' '}
-                {formatCurrency(filteredTotals.totalNeto)}
-              </span>
+              
+              <div className="search-results-info">
+                <span className="results-count">
+                  Mostrando {filteredTotals.totalPagos} de {totals.totalPagos} liquidación{filteredTotals.totalPagos !== 1 ? 'es' : ''} — Neto{' '}
+                  {formatCurrency(filteredTotals.totalNeto)}
+                </span>
+              </div>
             </div>
 
             {/* Content */}
