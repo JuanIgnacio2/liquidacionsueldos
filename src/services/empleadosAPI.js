@@ -36,16 +36,10 @@ export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
 export const getConceptosLyF = () =>
-    axiosClient.get(`/conceptos/lyf`).then((r)=>r.data);
-
-export const getTitulosLyF = () =>
-    axiosClient.get(`/titulos/lyf`).then((r)=>r.data);
+    axiosClient.get(`/conceptos/energia`).then((r)=>r.data);
 
 export const getConceptosUocra = () =>
     axiosClient.get(`/uocra/conceptos`).then((r)=>r.data);
-
-export const getHorasExtrasLyF = () =>
-    axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
 
 export const getHorasExtrasLyF = () =>
     axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
@@ -83,40 +77,17 @@ export const updateConceptoManualLyF = (id, dto) =>
 export const guardarLiquidacion = (dto) =>
     axiosClient.post('/pagos', dto).then((r) => r.data);
 
-export const completarPago = (idPago) =>
-    axiosClient.patch(`/pagos/${idPago}/completar`).then((r) => r.data);
-
-export const completarPagoMasivo = (periodo, fechaPago) =>
-    axiosClient.patch(`/pagos/completar-masivo`, { periodo, fechaPago: fechaPago ?? null }).then((r)=>r.data);
-
-export const liquidarPagosMasivos = (dto) =>
-    axiosClient.post('/pagos/liquidar-masivo', dto, { timeout: 120000 }).then((r) => r.data);
-
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
 
 export const getPagos = () =>
     axiosClient.get(`/pagos`).then((r)=>r.data);
 
-export const getPagosPaginated = (page = 0, size = 10, gremio = null, periodoDesde = null, periodoHasta = null) => {
-    const params = { page, size };
-    if (gremio) params.gremio = gremio;
-    if (periodoDesde) params.periodoDesde = periodoDesde;
-    if (periodoHasta) params.periodoHasta = periodoHasta;
-    return axiosClient.get('/pagos/paginado', { params }).then((r) => r.data);
-};
-
-export const getPagosByEmpleado = (legajo) =>
-    axiosClient.get(`/pagos/empleado/${legajo}`).then((r)=>r.data);
-
 export const getUltimosPagos = () =>
     axiosClient.get(`/pagos/ultimos`).then((r)=>r.data);
 
 export const getDetallePago = (idPago) =>
     axiosClient.get(`/pagos/${idPago}`).then((r)=>r.data);
-
-export const pagoTurismoSocial = (dto) =>
-    axiosClient.post(`/pagos/turismo-social`, dto).then((r)=>r.data);
 
 export const getConvenios = () =>
     axiosClient.get(`/convenios`).then((r)=>r.data);
@@ -148,20 +119,11 @@ export const getPagosByPeriodo = (periodo) =>
 export const getDashboardStats = () =>
     axiosClient.get(`/pagos/dashboard/mes-actual`).then((r)=>r.data);
 
-export const getResumenConceptosFiltrado = (gremio = null, anio = null, mes = null) => {
-    const params = {};
-    if (gremio) params.gremio = gremio;
-    if (anio) params.anio = anio;
-    if (mes) params.mes = mes;
-    return axiosClient.get('/pagos/resumen-conceptos/filtrado', { params }).then((r)=>r.data);
-};
+export const getResumeMonth = () =>
+    axiosClient.get(`/pagos/resumen-conceptos/mes-actual`).then((r)=>r.data);
 
-export const getResumenEmpleado = (legajo, anio = null, mes = null) => {
-    const params = {};
-    if (anio) params.anio = anio;
-    if (mes) params.mes = mes;
-    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
-};
+export const getResumeCustomMonth = (periodo) =>
+    axiosClient.get(`/pagos/resumen-conceptos/${periodo}`).then((r)=>r.data);
 
 export const registrarActividad = (dto) =>
     axiosClient.post(`/actividad`, dto).then((r)=>r.data);
