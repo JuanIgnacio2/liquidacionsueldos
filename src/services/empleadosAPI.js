@@ -28,10 +28,10 @@ export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
 export const getConceptosLyF = () =>
-    axiosClient.get(`/conceptos_lyf`).then((r)=>r.data);
+    axiosClient.get(`/conceptos/energia`).then((r)=>r.data);
 
 export const getConceptosUocra = () =>
-    axiosClient.get(`/conceptos_uocra`).then((r)=>r.data);
+    axiosClient.get(`/uocra/conceptos`).then((r)=>r.data);
 
 export const getHorasExtrasLyF = () =>
     axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
@@ -40,19 +40,19 @@ export const getDescuentos = () =>
     axiosClient.get(`/descuento`).then((r)=>r.data);
 
 export const guardarLiquidacion = (dto) =>
-    axiosClient.post('/liquidaciones', dto).then((r) => r.data);
+    axiosClient.post('/pagos', dto).then((r) => r.data);
 
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
 
 export const getPagos = () =>
-    axiosClient.get(`/liquidaciones`).then((r)=>r.data);
+    axiosClient.get(`/pagos`).then((r)=>r.data);
 
 export const getUltimosPagos = () =>
-    axiosClient.get(`/liquidaciones/ultimos`).then((r)=>r.data);
+    axiosClient.get(`/pagos/ultimos`).then((r)=>r.data);
 
 export const getDetallePago = (idPago) =>
-    axiosClient.get(`/liquidaciones/${idPago}`).then((r)=>r.data);
+    axiosClient.get(`/pagos/${idPago}`).then((r)=>r.data);
 
 export const getConvenios = () =>
     axiosClient.get(`/convenios`).then((r)=>r.data);
@@ -78,17 +78,17 @@ export const getZonas = () =>
 export const getBasicoByCatAndZona = (idCategoria, idZona) =>
     axiosClient.get(`/categorias-zonas-uocra/categoria/${idCategoria}/zona/${idZona}`).then((r)=>r.data);
 
-export const getLiquidacionesByPeriodo = (periodo) =>
-    axiosClient.get(`/liquidaciones/periodo/${periodo}`).then((r)=>r.data);
+export const getPagosByPeriodo = (periodo) =>
+    axiosClient.get(`/pagos/periodo/${periodo}`).then((r)=>r.data);
 
 export const getDashboardStats = () =>
-    axiosClient.get(`/liquidaciones/dashboard/mes-actual`).then((r)=>r.data);
+    axiosClient.get(`/pagos/dashboard/mes-actual`).then((r)=>r.data);
 
 export const getResumeMonth = () =>
-    axiosClient.get(`/liquidaciones/resumen-conceptos/mes-actual`).then((r)=>r.data);
+    axiosClient.get(`/pagos/resumen-conceptos/mes-actual`).then((r)=>r.data);
 
 export const getResumeCustomMonth = (periodo) =>
-    axiosClient.get(`/liquidaciones/resumen-conceptos/${periodo}`).then((r)=>r.data);
+    axiosClient.get(`/pagos/resumen-conceptos/${periodo}`).then((r)=>r.data);
 
 export const registrarActividad = (dto) =>
     axiosClient.post(`/actividad`, dto).then((r)=>r.data);
