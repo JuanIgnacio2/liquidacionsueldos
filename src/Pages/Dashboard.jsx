@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp } from "lucide-react";
 import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
 import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal";
+import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal";
+import PayrollDetailModal from "../Components/PayrollDetailModal/PayrollDetailModal";
 import { Modal, ModalFooter } from "../Components/Modal/Modal";
 import {useNotification} from '../Hooks/useNotification';
 import { LoadingSpinner } from "../Components/ui/LoadingSpinner";
@@ -23,6 +25,14 @@ export default function Dashboard() {
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Estados para modales de detalles
+  const [showEmployeeViewModal, setShowEmployeeViewModal] = useState(false);
+  const [showPayrollDetailModal, setShowPayrollDetailModal] = useState(false);
+  const [selectedEmployeeForView, setSelectedEmployeeForView] = useState(null);
+  const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const [selectedEmployeeForPayroll, setSelectedEmployeeForPayroll] = useState(null);
+  const [payrollDetails, setPayrollDetails] = useState(null);
+  const [loadingPayrollDetails, setLoadingPayrollDetails] = useState(false);
 
   const countActiveEmployees = async () => {
     try {
@@ -123,6 +133,103 @@ export default function Dashboard() {
     if (dias < 7) return `hace ${dias} día${dias !== 1 ? "s" : ""}`;
 
     return date.toLocaleDateString("es-AR");
+  };
+
+  // Manejar clic en detalles de actividad
+  const handleViewActivityDetails = async (activity) => {
+    const { referenciaTipo, referenciaId } = activity;
+
+    // Cerrar el modal de actividades si está abierto
+    setShowActivitiesModal(false);
+
+    try {
+      switch (referenciaTipo) {
+        case 'ALTA_EMPLEADO':
+        case 'BAJA_EMPLEADO':
+        case 'EDIT_EMPLEADO': {
+          // referenciaId es el legajo del empleado
+          const legajo = referenciaId;
+          const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+          
+          if (employee) {
+            setSelectedEmployeeForView(employee);
+            setShowEmployeeViewModal(true);
+          } else {
+            // Si no está en la lista, obtenerlo de la API
+            try {
+              const employeeData = await api.getEmpleadoByLegajo(legajo);
+              setSelectedEmployeeForView(employeeData);
+              setShowEmployeeViewModal(true);
+            } catch (error) {
+              notify.error('No se pudo cargar la información del empleado');
+            }
+          }
+          break;
+        }
+        case 'PAGO': {
+          // referenciaId es el ID del pago
+          setShowPayrollDetailModal(true);
+          setLoadingPayrollDetails(true);
+          setPayrollDetails(null);
+          setSelectedPayroll(null);
+          setSelectedEmployeeForPayroll(null);
+
+          try {
+            // Obtener detalles del pago
+            const detalle = await api.getDetallePago(referenciaId);
+            setPayrollDetails(detalle);
+            
+            // Buscar el empleado correspondiente por legajo
+            const legajo = detalle.legajo || detalle.legajoEmpleado;
+            if (legajo) {
+              const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+              if (employee) {
+                setSelectedEmployeeForPayroll(employee);
+              } else {
+                // Si no está en la lista, obtenerlo de la API
+                try {
+                  const employeeData = await api.getEmpleadoByLegajo(legajo);
+                  setSelectedEmployeeForPayroll(employeeData);
+                } catch (error) {
+                  console.error('Error al obtener empleado:', error);
+                }
+              }
+            }
+            
+            // Crear objeto selectedPayroll con la información disponible
+            setSelectedPayroll({
+              id: referenciaId,
+              legajoEmpleado: detalle.legajo || detalle.legajoEmpleado,
+              nombreEmpleado: detalle.nombre,
+              apellidoEmpleado: detalle.apellido,
+              periodoPago: detalle.periodoPago,
+              total_neto: detalle.total_neto || detalle.totalNeto
+            });
+          } catch (error) {
+            notify.error('No se pudo cargar la información de la liquidación');
+          } finally {
+            setLoadingPayrollDetails(false);
+          }
+          break;
+        }
+        case 'EDIT_CONVENIO': {
+          // referenciaId puede ser un número (1 = lyf, 2 = uocra) o el controller string
+          // Mapear número a controller si es necesario
+          let controller = referenciaId;
+          if (typeof referenciaId === 'number' || (typeof referenciaId === 'string' && /^\d+$/.test(referenciaId))) {
+            const numId = Number(referenciaId);
+            controller = numId === 1 ? 'lyf' : (numId === 2 ? 'uocra' : referenciaId);
+          }
+          // Navegar a la página de detalle del convenio
+          navigate(`/convenios/${controller}`);
+          break;
+        }
+        default:
+          notify.log('Tipo de actividad no soportado para ver detalles');
+      }
+    } catch (error) {
+      notify.error('Error al cargar los detalles de la actividad');
+    }
   };
 
   const handleProcessPayroll = (result) => {
@@ -263,15 +370,46 @@ export default function Dashboard() {
                           {getReferenciaLabel(activity.referenciaTipo)}
                         </p>
                         <p className="activity-employee">
-                          {activity.descripcion ||
-                            activity.usuario ||
-                            "Sin descripción"}
+                          {activity.descripcion || "Sin descripción"}
                         </p>
+                        {activity.usuario && (
+                          <p className="activity-user" style={{
+                            fontSize: '0.75rem',
+                            color: '#6b7280',
+                            marginTop: '0.25rem'
+                          }}>
+                            Realizado por: {activity.usuario}
+                          </p>
+                        )}
                       </div>
                       <div className="activity-details">
                         <p className="activity-time">
                           {formatFecha(activity.fecha)}
                         </p>
+                        {(activity.referenciaTipo === 'ALTA_EMPLEADO' || 
+                          activity.referenciaTipo === 'BAJA_EMPLEADO' || 
+                          activity.referenciaTipo === 'EDIT_EMPLEADO' ||
+                          activity.referenciaTipo === 'PAGO' ||
+                          activity.referenciaTipo === 'EDIT_CONVENIO') && (
+                          <button
+                            className="activity-view-btn"
+                            onClick={() => handleViewActivityDetails(activity)}
+                            title="Ver detalles"
+                            style={{
+                              marginLeft: '0.5rem',
+                              padding: '0.25rem',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: '#22c55e',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -356,14 +494,60 @@ export default function Dashboard() {
       {/* Modales */}
       <ProcessPayrollModal
         isOpen={showProcessModal}
-        onClose={() => setShowProcessModal(false)}
+        onClose={() => {
+          setShowProcessModal(false);
+          setSelectedEmployeeForView(null);
+        }}
         onProcess={handleProcessPayroll}
         employees={employees}
+        initialEmployee={selectedEmployeeForView}
       />
       <NewEmployeeModal
         isOpen={showNewEmployeeModal}
         onClose={() => setShowNewEmployeeModal(false)}
         onSave={handleSaveEmployee}
+      />
+
+      {/* Modal de Vista de Empleado */}
+      <EmployeeViewModal
+        isOpen={showEmployeeViewModal}
+        onClose={() => {
+          setShowEmployeeViewModal(false);
+          setSelectedEmployeeForView(null);
+        }}
+        employee={selectedEmployeeForView}
+        onEditEmployee={(employee) => {
+          // Navegar a la página de empleados para editar
+          navigate('/empleados');
+        }}
+        onLiquidarSueldo={(employee) => {
+          setSelectedEmployeeForView(employee);
+          setShowEmployeeViewModal(false);
+          setShowProcessModal(true);
+        }}
+      />
+
+      {/* Modal de Detalle de Liquidación */}
+      <PayrollDetailModal
+        isOpen={showPayrollDetailModal}
+        onClose={() => {
+          setShowPayrollDetailModal(false);
+          setSelectedPayroll(null);
+          setSelectedEmployeeForPayroll(null);
+          setPayrollDetails(null);
+        }}
+        selectedPayroll={selectedPayroll}
+        selectedEmployee={selectedEmployeeForPayroll}
+        payrollDetails={payrollDetails}
+        loadingDetails={loadingPayrollDetails}
+        onPrint={() => {
+          // Implementar impresión si es necesario
+          notify.log('Función de impresión no implementada');
+        }}
+        onDownload={() => {
+          // Implementar descarga si es necesario
+          notify.log('Función de descarga no implementada');
+        }}
       />
 
       {/* Modal Actividades Completas */}
@@ -427,6 +611,29 @@ export default function Dashboard() {
                       {formatFecha(activity.fecha)}
                     </p>
                   </div>
+                  {(activity.referenciaTipo === 'ALTA_EMPLEADO' || 
+                    activity.referenciaTipo === 'BAJA_EMPLEADO' || 
+                    activity.referenciaTipo === 'EDIT_EMPLEADO' ||
+                    activity.referenciaTipo === 'PAGO' ||
+                    activity.referenciaTipo === 'EDIT_CONVENIO') && (
+                    <button
+                      onClick={() => handleViewActivityDetails(activity)}
+                      title="Ver detalles"
+                      style={{
+                        padding: "0.5rem",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#22c55e",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginLeft: "1rem"
+                      }}
+                    >
+                      <Eye size={18} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

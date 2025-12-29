@@ -89,8 +89,13 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         const asignados = await api.getConceptosAsignados(employee.legajo);
         
         // Determinar el gremio del empleado
-        const gremioNombre = employee.gremioNombre || employee.gremio || '';
-        const gremioUpper = gremioNombre.toUpperCase();
+        let gremioNombre = '';
+        if (employee.gremioNombre) {
+          gremioNombre = employee.gremioNombre;
+        } else if (employee.gremio) {
+          gremioNombre = typeof employee.gremio === 'string' ? employee.gremio : (employee.gremio.nombre || '');
+        }
+        const gremioUpper = String(gremioNombre || '').toUpperCase();
         const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
         const isUocra = gremioUpper === 'UOCRA';
         
@@ -343,8 +348,13 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   if (!employee) return null;
 
   // Determinar el gremio del empleado para usar en el render
-  const gremioNombre = employee.gremioNombre || employee.gremio || '';
-  const gremioUpper = gremioNombre.toUpperCase();
+  let gremioNombre = '';
+  if (employee.gremioNombre) {
+    gremioNombre = employee.gremioNombre;
+  } else if (employee.gremio) {
+    gremioNombre = typeof employee.gremio === 'string' ? employee.gremio : (employee.gremio.nombre || '');
+  }
+  const gremioUpper = String(gremioNombre || '').toUpperCase();
   const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
   const isUocra = gremioUpper === 'UOCRA';
 
@@ -433,7 +443,11 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             </div>
             <div className={'detail-item'}>
               <div className={'detail-label'}>Convenio</div>
-              <div className={'detail-value'}>{employee.gremioNombre === "LUZ_Y_FUERZA" ? "Luz y Fuerza" : employee.gremioNombre}</div>
+              <div className={'detail-value'}>
+                {gremioUpper === "LUZ_Y_FUERZA" || (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) 
+                  ? "Luz y Fuerza" 
+                  : gremioNombre || '-'}
+              </div>
             </div>
             <div className={'detail-item'}>
               <div className={'detail-label'}>Categoría</div>
@@ -461,7 +475,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         </div>
 
         {/* Conceptos Asignados */}
-        {employee.gremioNombre && employee.gremioNombre !== "Convenio General" && (
+        {gremioNombre && gremioNombre !== "Convenio General" && (
           <div className="form-section conceptos-section">
             <h3 className="section-title">
               <ListChecks className="title-icon" />
