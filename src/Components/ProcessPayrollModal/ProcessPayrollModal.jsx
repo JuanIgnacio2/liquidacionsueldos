@@ -600,7 +600,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       try {
         const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
-        const liquidaciones = await api.getLiquidacionesByPeriodo(currentPeriod);
+        const liquidaciones = await api.getPagosByPeriodo(currentPeriod);
         // Extraer legajos únicos de las liquidaciones
         const legajosSet = new Set();
         if (Array.isArray(liquidaciones)) {
