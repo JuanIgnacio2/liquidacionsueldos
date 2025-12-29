@@ -28,10 +28,10 @@ export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
 export const getConceptosLyF = () =>
-    axiosClient.get(`/conceptos_lyf`).then((r)=>r.data);
+    axiosClient.get(`/lyf/conceptos`).then((r)=>r.data);
 
 export const getConceptosUocra = () =>
-    axiosClient.get(`/conceptos_uocra`).then((r)=>r.data);
+    axiosClient.get(`/uocra/conceptos`).then((r)=>r.data);
 
 export const getHorasExtrasLyF = () =>
     axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
