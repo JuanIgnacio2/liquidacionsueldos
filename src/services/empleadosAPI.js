@@ -44,9 +44,6 @@ export const getConceptosUocra = () =>
 export const getHorasExtrasLyF = () =>
     axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
 
-export const getHorasExtrasLyF = () =>
-    axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
-
 export const getDescuentos = () =>
     axiosClient.get(`/descuento`).then((r)=>r.data);
 
@@ -65,25 +62,11 @@ export const updateConceptoGeneral = (id, dto) =>
 export const guardarLiquidacion = (dto) =>
     axiosClient.post('/pagos', dto).then((r) => r.data);
 
-export const completarPago = (idPago) =>
-    axiosClient.patch(`/pagos/${idPago}/completar`).then((r) => r.data);
-
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
 
 export const getPagos = () =>
     axiosClient.get(`/pagos`).then((r)=>r.data);
-
-export const getPagosPaginated = (page = 0, size = 10, gremio = null, periodoDesde = null, periodoHasta = null) => {
-    const params = { page, size };
-    if (gremio) params.gremio = gremio;
-    if (periodoDesde) params.periodoDesde = periodoDesde;
-    if (periodoHasta) params.periodoHasta = periodoHasta;
-    return axiosClient.get('/pagos/paginado', { params }).then((r) => r.data);
-};
-
-export const getPagosByEmpleado = (legajo) =>
-    axiosClient.get(`/pagos/empleado/${legajo}`).then((r)=>r.data);
 
 export const getUltimosPagos = () =>
     axiosClient.get(`/pagos/ultimos`).then((r)=>r.data);
