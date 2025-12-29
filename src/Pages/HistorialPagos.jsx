@@ -57,8 +57,6 @@ export default function HistorialPagos() {
   const [query, setQuery] = useState('');
   const [filterGremio, setFilterGremio] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
-  const [periodoDesde, setPeriodoDesde] = useState('');
-  const [periodoHasta, setPeriodoHasta] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -184,24 +182,93 @@ export default function HistorialPagos() {
     return Array.from(gremiosSet).sort();
   }, [employees]);
 
-  // Filtrado solo para búsqueda de texto y estado (gremio, periodo y fechas se filtran en el backend)
+  // Función para obtener el gremio de un pago basado en el empleado
+  const getGremioFromPago = (pago) => {
+    const legajo = pago.legajoEmpleado;
+    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
+    if (!employee) return '';
+    
+    const gremio = employee.gremioNombre || employee.gremio?.nombre || (typeof employee.gremio === 'string' ? employee.gremio : '');
+    if (!gremio) return '';
+    
+    const gremioUpper = gremio.toUpperCase();
+    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
+      return 'LUZ_Y_FUERZA';
+    } else if (gremioUpper === 'UOCRA') {
+      return 'UOCRA';
+    }
+    return 'Convenio General';
+  };
+
   const filteredPagos = useMemo(() => {
     let filtered = pagos;
 
-    // Filtrar por búsqueda de texto (normalizado, sin acentos)
+    // Filtrar por búsqueda de texto
     if (normalizedQuery) {
       filtered = filtered.filter((pago) => {
-      return [
-        pago.nombreEmpleado,
-        pago.apellidoEmpleado,
-        pago.legajoEmpleado,
-        pago.cuil,
-        pago.periodoPago
-      ]
-        .filter(Boolean)
-          .some((field) => normalize(String(field)).includes(normalizedQuery));
+        return [
+          pago.nombreEmpleado,
+          pago.apellidoEmpleado,
+          pago.legajoEmpleado,
+          pago.cuil,
+          pago.periodoPago
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedQuery));
       });
     }
+
+    // Filtrar por gremio
+    if (filterGremio) {
+      filtered = filtered.filter((pago) => {
+        const pagoGremio = getGremioFromPago(pago);
+        return pagoGremio === filterGremio;
+      });
+    }
+
+    // Filtrar por estado
+    if (filterEstado) {
+      filtered = filtered.filter((pago) => {
+        const estado = pago.estado || 'Completada';
+        const estadoNormalizado = estado.toLowerCase();
+        if (filterEstado === 'Completada') {
+          return estadoNormalizado === 'completada' || estadoNormalizado === 'completa';
+        } else if (filterEstado === 'Pendiente') {
+          return estadoNormalizado === 'pendiente' || estadoNormalizado === 'pendiente';
+        }
+        return true;
+      });
+    }
+
+    // Ordenar por fecha más reciente (fechaPago, periodoPago o id descendente)
+    filtered = filtered.sort((a, b) => {
+      // Intentar usar fechaPago primero
+      let fechaA = a.fechaPago ? new Date(a.fechaPago).getTime() : null;
+      let fechaB = b.fechaPago ? new Date(b.fechaPago).getTime() : null;
+      
+      // Si no hay fechaPago, intentar usar periodoPago (formato YYYY-MM)
+      if (!fechaA && a.periodoPago) {
+        const periodoA = String(a.periodoPago).split('-');
+        if (periodoA.length >= 2) {
+          fechaA = new Date(parseInt(periodoA[0]), parseInt(periodoA[1]) - 1).getTime();
+        }
+      }
+      if (!fechaB && b.periodoPago) {
+        const periodoB = String(b.periodoPago).split('-');
+        if (periodoB.length >= 2) {
+          fechaB = new Date(parseInt(periodoB[0]), parseInt(periodoB[1]) - 1).getTime();
+        }
+      }
+      
+      // Si aún no hay fecha, usar id como fallback
+      if (!fechaA) fechaA = a.id || 0;
+      if (!fechaB) fechaB = b.id || 0;
+      
+      return fechaB - fechaA; // Más reciente primero
+    });
+
+    return filtered;
+  }, [pagos, normalizedQuery, filterGremio, filterEstado, employees]);
 
     // Filtrar por estado (solo en frontend ya que no está en el backend)
     if (filterEstado) {
@@ -1061,17 +1128,17 @@ export default function HistorialPagos() {
             <div className="search-section">
               <div className="search-filters-row">
                 <div className="search-field-wrapper">
-              <label htmlFor="pago-search">Buscar pago</label>
-              <div className="search-field">
-                <Search className="search-icon" />
-                <input
-                  id="pago-search"
-                  type="search"
-                  placeholder="Ingresá nombre, legajo o período"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </div>
+                  <label htmlFor="pago-search">Buscar pago</label>
+                  <div className="search-field">
+                    <Search className="search-icon" />
+                    <input
+                      id="pago-search"
+                      type="search"
+                      placeholder="Ingresá nombre, legajo o período"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </div>
                 </div>
                 
                 <div className="filter-field-wrapper">
@@ -1106,77 +1173,11 @@ export default function HistorialPagos() {
                 </div>
               </div>
               
-              <div className="search-filters-row">
-                <div className="filter-field-wrapper">
-                  <label htmlFor="periodo-desde">Período desde (YYYY-MM)</label>
-                  <input
-                    id="periodo-desde"
-                    type="month"
-                    className="filter-select"
-                    value={periodoDesde}
-                    onChange={(e) => setPeriodoDesde(e.target.value)}
-                  />
-                </div>
-
-                <div className="filter-field-wrapper">
-                  <label htmlFor="periodo-hasta">Período hasta (YYYY-MM)</label>
-                  <input
-                    id="periodo-hasta"
-                    type="month"
-                    className="filter-select"
-                    value={periodoHasta}
-                    onChange={(e) => setPeriodoHasta(e.target.value)}
-                  />
-                </div>
-
-                {(filterGremio || periodoDesde || periodoHasta) && (
-                  <div className="filter-field-wrapper" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                    <button
-                      className="clear-filters-btn"
-                      onClick={() => {
-                        setFilterGremio('');
-                        setPeriodoDesde('');
-                        setPeriodoHasta('');
-                      }}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        background: '#fff',
-                        color: '#374151',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.background = '#f3f4f6';
-                        e.target.style.borderColor = '#9ca3af';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.background = '#fff';
-                        e.target.style.borderColor = '#d1d5db';
-                      }}
-                    >
-                      Limpiar filtros
-                    </button>
-                  </div>
-                )}
-              </div>
-              
               <div className="search-results-info">
-              <span className="results-count">
-                  Mostrando {filteredPagos.length} de {totalElements} liquidación{totalElements !== 1 ? 'es' : ''} en esta página
-                  {filteredPagos.length > 0 && ` — Neto ${formatCurrency(filteredTotals.totalNeto)}`}
-              </span>
-                <button 
-                  className="completar-pagos-masivo-btn"
-                  onClick={() => setShowCompletarPagosModal(true)}
-                  title="Completar pagos masivo"
-                >
-                  <Users className="btn-icon" />
-                  <span>Completar Pagos Masivo</span>
-                </button>
+                <span className="results-count">
+                  Mostrando {filteredTotals.totalPagos} de {totals.totalPagos} liquidación{filteredTotals.totalPagos !== 1 ? 'es' : ''} — Neto{' '}
+                  {formatCurrency(filteredTotals.totalNeto)}
+                </span>
               </div>
             </div>
 
