@@ -82,6 +82,87 @@ const calculateAntiguedad = (fechaIngreso) => {
   }
 };
 
+// Convierte un número a palabras en español
+const numberToWords = (num) => {
+  if (num === 0 || num === null || num === undefined || isNaN(num)) return 'cero';
+  
+  const numStr = Math.abs(num).toFixed(2);
+  const [integerPart, decimalPart] = numStr.split('.');
+  
+  const unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+  const decenas = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+  const especiales = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve'];
+  const centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+  
+  const convertGroup = (group) => {
+    const n = parseInt(group, 10);
+    if (n === 0) return '';
+    if (n < 10) return unidades[n];
+    if (n < 20) return especiales[n - 10];
+    if (n < 100) {
+      const decena = Math.floor(n / 10);
+      const unidad = n % 10;
+      if (unidad === 0) return decenas[decena];
+      if (decena === 1) return 'dieci' + unidades[unidad];
+      if (decena === 2) return 'veinti' + unidades[unidad];
+      return decenas[decena] + ' y ' + unidades[unidad];
+    }
+    if (n === 100) return 'cien';
+    if (n < 1000) {
+      const centena = Math.floor(n / 100);
+      const resto = n % 100;
+      if (resto === 0) return centenas[centena];
+      return centenas[centena] + ' ' + convertGroup(String(resto).padStart(2, '0'));
+    }
+    return '';
+  };
+  
+  const convertInteger = (str) => {
+    const padded = str.padStart(9, '0');
+    const millones = padded.substring(0, 3);
+    const miles = padded.substring(3, 6);
+    const unidades = padded.substring(6, 9);
+    
+    let result = '';
+    
+    if (parseInt(millones, 10) > 0) {
+      if (parseInt(millones, 10) === 1) {
+        result += 'un millón ';
+      } else {
+        result += convertGroup(millones) + ' millones ';
+      }
+    }
+    
+    if (parseInt(miles, 10) > 0) {
+      if (parseInt(miles, 10) === 1) {
+        result += 'mil ';
+      } else {
+        result += convertGroup(miles) + ' mil ';
+      }
+    }
+    
+    if (parseInt(unidades, 10) > 0) {
+      result += convertGroup(unidades);
+    }
+    
+    return result.trim();
+  };
+  
+  let words = convertInteger(integerPart);
+  
+  // Si no hay parte entera, usar "cero"
+  if (!words) words = 'cero';
+  
+  // Convertir centavos
+  const centavos = parseInt(decimalPart, 10);
+  if (centavos > 0) {
+    words += ' con ' + convertGroup(String(centavos).padStart(2, '0')) + ' centavos';
+  }
+  
+  // Capitalizar primera letra
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 export default function PayrollDetailModal({
   isOpen,
   onClose,
@@ -100,6 +181,7 @@ export default function PayrollDetailModal({
     horasExtrasLyF: [],
     areas: []
   });
+  const [amountInWords, setAmountInWords] = useState('');
 
   // Cargar catálogos de conceptos cuando se abre el modal
   useEffect(() => {
@@ -148,73 +230,6 @@ export default function PayrollDetailModal({
     loadCatalogos();
   }, [isOpen, payrollDetails, selectedPayroll, selectedEmployee]);
 
-
-  // Función para obtener el nombre del concepto basado en tipoConcepto e idReferencia
-  const getConceptoNombre = (concepto, index = 0) => {
-    // Si ya tiene nombre, usarlo directamente
-    if (concepto.nombre) {
-      return concepto.nombre;
-    }
-    
-    // Si tiene descripcion, usarla como fallback
-    if (concepto.descripcion) {
-      return concepto.descripcion;
-    }
-
-    const idRef = concepto.idReferencia;
-    if (!idRef && !concepto.id) {
-      return `Concepto ${index + 1}`;
-    }
-
-    const idToSearch = idRef ?? concepto.id;
-    const tipoConcepto = concepto.tipoConcepto;
-
-    switch (tipoConcepto) {
-      case 'CONCEPTO_LYF': {
-        const bonif = conceptosCatalog.bonificacionesLyF.find(b => {
-          const bonifId = b.idBonificacion ?? b.id;
-          return bonifId === idToSearch || Number(bonifId) === Number(idToSearch);
-        });
-        return bonif?.nombre ?? bonif?.descripcion ?? `Concepto LyF ${idToSearch}`;
-      }
-      case 'CONCEPTO_UOCRA': {
-        const bonif = conceptosCatalog.bonificacionesUocra.find(b => {
-          const bonifId = b.idBonificacion ?? b.id;
-          return bonifId === idToSearch || Number(bonifId) === Number(idToSearch);
-        });
-        return bonif?.nombre ?? bonif?.descripcion ?? `Concepto UOCRA ${idToSearch}`;
-      }
-      case 'DESCUENTO': {
-        const desc = conceptosCatalog.descuentos.find(d => {
-          const descId = d.idDescuento ?? d.id;
-          return descId === idToSearch || Number(descId) === Number(idToSearch);
-        });
-        return desc?.nombre ?? desc?.descripcion ?? `Descuento ${idToSearch}`;
-      }
-      case 'BONIFICACION_AREA': {
-        const area = conceptosCatalog.areas.find(a => {
-          const areaId = a.idArea ?? a.id;
-          return areaId === idToSearch || Number(areaId) === Number(idToSearch);
-        });
-        return area?.nombre ?? `Área ${idToSearch}`;
-      }
-      case 'HORAS_EXTRAS_LYF':
-      case 'HORA_EXTRA_LYF': {
-        const he = conceptosCatalog.horasExtrasLyF.find(h => {
-          const heId = h.idHoraExtra ?? h.id;
-          return heId === idToSearch || Number(heId) === Number(idToSearch);
-        });
-        return he?.descripcion ?? he?.codigo ?? (idToSearch === 1 || idToSearch === '1' ? 'Horas Extras Simples' : idToSearch === 2 || idToSearch === '2' ? 'Horas Extras Dobles' : `Hora Extra ${idToSearch}`);
-      }
-      case 'CATEGORIA':
-        return 'Básico';
-      case 'CATEGORIA_ZONA':
-        return 'Básico';
-      default:
-        return `Concepto ${idToSearch}`;
-    }
-  };
-
   // Calcular totales
   const calculateTotals = () => {
     if (!payrollDetails?.conceptos) {
@@ -228,7 +243,6 @@ export default function PayrollDetailModal({
         c.tipoConcepto === 'CONCEPTO_UOCRA' ||
         c.tipoConcepto === 'BONIFICACION_AREA' ||
         c.tipoConcepto === 'CATEGORIA_ZONA' ||
-        c.tipoConcepto === 'HORAS_EXTRAS_LYF' ||
         c.tipoConcepto === 'HORA_EXTRA_LYF'
       )
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
@@ -244,6 +258,39 @@ export default function PayrollDetailModal({
 
   const { remunerations, deductions, netAmount } = calculateTotals();
 
+  // Calcular remuneración asignada si no viene en los datos
+  const calculateRemunerationAssigned = () => {
+    // Si viene en los datos, usarla directamente
+    if (payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada) {
+      return payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada || 0;
+    }
+    
+    // Si no viene, calcularla: básico + bonos de área
+    if (!payrollDetails?.conceptos) return 0;
+    
+    // Buscar el básico (CATEGORIA o CATEGORIA_ZONA)
+    const basico = payrollDetails.conceptos
+      .filter(c => c.tipoConcepto === 'CATEGORIA' || c.tipoConcepto === 'CATEGORIA_ZONA')
+      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
+    
+    // Sumar bonos de área
+    const bonosArea = payrollDetails.conceptos
+      .filter(c => c.tipoConcepto === 'BONIFICACION_AREA')
+      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
+    
+    return basico + bonosArea;
+  };
+
+  // Generar automáticamente el monto en palabras cuando cambia el netAmount
+  useEffect(() => {
+    if (isOpen && payrollDetails && netAmount > 0) {
+      const expectedWords = (numberToWords(netAmount) + ' pesos').toUpperCase();
+      setAmountInWords(expectedWords);
+    } else if (!isOpen || !payrollDetails || netAmount <= 0) {
+      setAmountInWords('');
+    }
+  }, [isOpen, payrollDetails, netAmount]);
+
   // Obtener datos del empleado (formato igual a ProcessPayrollModal)
   // Priorizar selectedEmployee si está disponible, luego payrollDetails, luego selectedPayroll
   const employeeName = selectedEmployee 
@@ -255,7 +302,7 @@ export default function PayrollDetailModal({
   const employeeIngreso = selectedEmployee?.inicioActividad || payrollDetails?.fechaIngreso || selectedPayroll?.fechaIngreso || payrollDetails?.inicioActividad || null;
   const employeeAntiguedad = calculateAntiguedad(employeeIngreso);
   const periodo = formatPeriodToMonthYear(selectedPayroll?.periodoPago || payrollDetails?.periodoPago);
-  const remunerationAssigned = payrollDetails?.remuneracionAsignada || selectedPayroll?.remuneracionAsignada || 0;
+  const remunerationAssigned = calculateRemunerationAssigned();
   const bank = selectedEmployee?.banco || payrollDetails?.banco || selectedPayroll?.banco || 'Banco Nación';
   const cuenta = selectedEmployee?.cuenta || payrollDetails?.cuenta || selectedPayroll?.cuenta || '—';
 
@@ -350,10 +397,9 @@ export default function PayrollDetailModal({
                       concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
                       concepto.tipoConcepto === 'BONIFICACION_AREA' ||
                       concepto.tipoConcepto === 'CATEGORIA_ZONA' ||
-                      concepto.tipoConcepto === 'HORA_EXTRA_LYF';
+                      concepto.tipoConcepto === 'HORA_EXTRA_LYF'
                     const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
                     const total = Number(concepto.total || 0);
-                    const conceptoNombre = getConceptoNombre(concepto, index);
                     
                     // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
                     const descuentoAmount = isDeduction ? Math.abs(total) : 0;
@@ -362,7 +408,7 @@ export default function PayrollDetailModal({
                     return (
                       <tr key={index}>
                         <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
-                        <td className="concept-name">{conceptoNombre}</td>
+                        <td className="concept-name">{concepto.nombreConcepto}</td>
                         <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
                         <td className="concept-remuneration">
                           {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
@@ -417,9 +463,19 @@ export default function PayrollDetailModal({
             {/* SON PESOS */}
             <div className="amount-words-section">
               <label className="amount-words-label">SON PESOS:</label>
-              <div className="amount-words-display">
-                {netAmount.toLocaleString('es-AR')} * * * *
-              </div>
+              <input
+                type="text"
+                className="amount-words-input"
+                value={amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '')}
+                onChange={(e) => {
+                  // Solo permite letras, espacios y caracteres especiales comunes en español
+                  const value = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+                  // Convertir a mayúsculas
+                  setAmountInWords(value.toUpperCase());
+                }}
+                placeholder="Escriba el monto en palabras..."
+                style={{ width: '100%', textTransform: 'uppercase' }}
+              />
             </div>
 
             {/* PIE DEL RECIBO */}
