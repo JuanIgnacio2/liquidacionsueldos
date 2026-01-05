@@ -187,7 +187,6 @@ export default function PayrollDetailModal({
   useEffect(() => {
     const loadCatalogos = async () => {
       if (!isOpen || !payrollDetails) return;
-      
       try {
         // Determinar el gremio del empleado (priorizar selectedEmployee)
         let gremioNombre = '';
@@ -243,7 +242,8 @@ export default function PayrollDetailModal({
         c.tipoConcepto === 'CONCEPTO_UOCRA' ||
         c.tipoConcepto === 'BONIFICACION_AREA' ||
         c.tipoConcepto === 'CATEGORIA_ZONA' ||
-        c.tipoConcepto === 'HORA_EXTRA_LYF'
+        c.tipoConcepto === 'HORA_EXTRA_LYF' ||
+        c.tipoConcepto === 'CONCEPTO_GENERAL'
       )
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
@@ -273,12 +273,7 @@ export default function PayrollDetailModal({
       .filter(c => c.tipoConcepto === 'CATEGORIA' || c.tipoConcepto === 'CATEGORIA_ZONA')
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
     
-    // Sumar bonos de área
-    const bonosArea = payrollDetails.conceptos
-      .filter(c => c.tipoConcepto === 'BONIFICACION_AREA')
-      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
-    
-    return basico + bonosArea;
+    return basico;
   };
 
   // Generar automáticamente el monto en palabras cuando cambia el netAmount
@@ -390,35 +385,36 @@ export default function PayrollDetailModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {payrollDetails.conceptos.map((concepto, index) => {
-                    const isRemuneration = 
-                      concepto.tipoConcepto === 'CATEGORIA' || 
-                      concepto.tipoConcepto === 'CONCEPTO_LYF' || 
-                      concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
-                      concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-                      concepto.tipoConcepto === 'CATEGORIA_ZONA' ||
-                      concepto.tipoConcepto === 'HORA_EXTRA_LYF'
-                    const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
-                    const total = Number(concepto.total || 0);
-                    
-                    // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
-                    const descuentoAmount = isDeduction ? Math.abs(total) : 0;
-                    const remuneracionAmount = isRemuneration && total > 0 ? total : 0;
+                  {payrollDetails.conceptos
+                    .filter(concepto => concepto.tipoConcepto !== 'CATEGORIA_ZONA')
+                    .map((concepto, index) => {
+                      const isRemuneration = 
+                        concepto.tipoConcepto === 'CATEGORIA' || 
+                        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
+                        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
+                        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
+                        concepto.tipoConcepto === 'HORA_EXTRA_LYF'
+                      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
+                      const total = Number(concepto.total || 0);
+                      
+                      // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
+                      const descuentoAmount = isDeduction ? Math.abs(total) : 0;
+                      const remuneracionAmount = isRemuneration && total > 0 ? total : 0;
 
-                    return (
-                      <tr key={index}>
-                        <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
-                        <td className="concept-name">{concepto.nombreConcepto}</td>
-                        <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
-                        <td className="concept-remuneration">
-                          {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
-                        </td>
-                        <td className="concept-deduction">
-                          {descuentoAmount > 0 ? formatCurrencyAR(descuentoAmount) : ''}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr key={index}>
+                          <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
+                          <td className="concept-name">{concepto.nombreConcepto}</td>
+                          <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
+                          <td className="concept-remuneration">
+                            {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
+                          </td>
+                          <td className="concept-deduction">
+                            {descuentoAmount > 0 ? formatCurrencyAR(descuentoAmount) : ''}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
                 <tfoot>
                   <tr className="receipt-totals-row">
