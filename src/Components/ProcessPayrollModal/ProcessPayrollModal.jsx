@@ -54,6 +54,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [periodo, setPeriodo] = useState(getInitialPeriod());
   const [quincena, setQuincena] = useState(1); // 1 = primera quincena, 2 = segunda quincena
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
+  // Estados para aguinaldo
+  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal' o 'aguinaldo'
+  const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
+  const [aguinaldoAnio, setAguinaldoAnio] = useState(new Date().getFullYear());
+  const [aguinaldoCalculo, setAguinaldoCalculo] = useState(null);
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -115,6 +120,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return '—';
     }
   };
+
+  // Normaliza strings para comparar sin importar mayúsculas, tildes, espacios, etc.
+  const normalize = (s) =>
+    (s || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
 
   // Normaliza el período a formato YYYY-MM (asegura que el mes tenga dos dígitos)
   const normalizePeriod = (period) => {
@@ -373,6 +386,51 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           const concepto = bonificacionesFijas.find(b => 
             (b.idBonificacion ?? b.id) === asignado.idReferencia
           );
+
+          // Detectar si es "Bonif Antigüedad" por nombre
+          const nombreConcepto = concepto?.nombre ?? concepto?.descripcion ?? asignado.nombre ?? asignado.descripcion ?? 'Concepto';
+          const nombreNormalizado = normalize(nombreConcepto);
+          const isBonifAntiguedad = (nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad')) 
+            && isLuzYFuerza;
+
+          // Si es Bonif Antigüedad, usar fórmula especial: (básico cat 11 + SUMA FIJA) * porcentaje * unidades
+          if (isBonifAntiguedad && basicoCat11 > 0) {
+            // Buscar el concepto "SUMA FIJA" en el catálogo
+            const conceptoSumaFija = bonificacionesFijas.find(b => {
+              const nombreSumaFija = normalize(b.nombre ?? b.descripcion ?? '');
+              return nombreSumaFija.includes('suma fija');
+            });
+            
+            let sumaFija = 0;
+            if (conceptoSumaFija) {
+              // Si SUMA FIJA tiene montoUnitario, usarlo directamente
+              if (conceptoSumaFija.montoUnitario || conceptoSumaFija.monto) {
+                sumaFija = Number(conceptoSumaFija.montoUnitario ?? conceptoSumaFija.monto ?? 0);
+              } else if (conceptoSumaFija.porcentaje && basicoCat11 > 0) {
+                // Si tiene porcentaje, calcular sobre básico cat 11
+                sumaFija = (basicoCat11 * Number(conceptoSumaFija.porcentaje)) / 100;
+              }
+            }
+            
+            const baseCalculo = basicoCat11 + sumaFija;
+            const porcentaje = concepto?.porcentaje ?? asignado.porcentaje ?? asignado.porcentajeBonificacion ?? 0;
+            const unidades = Number(asignado.unidades) || 1;
+            
+            // Fórmula: (básico cat 11 + SUMA FIJA) * porcentaje / 100 * unidades
+            const montoUnitario = (baseCalculo * Number(porcentaje)) / 100;
+            const total = montoUnitario * unidades;
+
+            return {
+              uid: uidCounter.current++,
+              id: asignado.idReferencia,
+              tipo: asignado.tipoConcepto,
+              nombre: nombreConcepto,
+              montoUnitario: Number(montoUnitario) || 0,
+              porcentaje: Number(porcentaje) || null,
+              cantidad: unidades,
+              total: Number(total) || 0,
+            };
+          }
 
           // Para Luz y Fuerza (CONCEPTO_LYF): calcular sobre categoría 11
           // Para UOCRA (CONCEPTO_UOCRA): calcular sobre el básico del empleado
@@ -642,12 +700,21 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setDescuentosData([]);
       setProcessedLegajos(new Set());
       setQuincena(1);
+      setLiquidacionType('normal');
+      setAguinaldoNumero(1);
+      setAguinaldoAnio(new Date().getFullYear());
+      setAguinaldoCalculo(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
 
   // Determinar si un concepto puede tener cantidad editable
   const canEditQuantity = (concept) => {
+    // Aguinaldo no es editable
+    if (concept.tipo === 'AGUINALDO') {
+      return false;
+    }
+    
     const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
     const isLuzYFuerza = gremioNombre.includes('LUZ') && gremioNombre.includes('FUERZA');
     const isUocra = gremioNombre === 'UOCRA';
@@ -1029,7 +1096,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     
     const remunerations = basicoEmpleado + conceptos
-      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF')
+      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF' || c.tipo === 'AGUINALDO')
       .reduce((sum, c) => sum + (c.total || 0), 0);
 
     const deductions = conceptos.filter(c => c.tipo === 'DESCUENTO')
@@ -1056,10 +1123,106 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conceptos, basicSalary, selectedEmployee, currentStep]);
 
+  // Calcular aguinaldo (preview antes de liquidar)
+  const calcularAguinaldo = async () => {
+    if (!selectedEmployee) return;
+    
+    setIsProcessing(true);
+    try {
+      const calculo = await api.calcularAguinaldo(selectedEmployee.legajo, aguinaldoNumero, aguinaldoAnio);
+      setAguinaldoCalculo(calculo);
+      
+      // Crear un solo concepto "Sueldo Anual Complementario (aguinaldo)" con el monto de aguinaldo
+      const montoAguinaldo = calculo.aguinaldo || 0;
+      
+      // Concepto único de aguinaldo (remuneración) - solo el SAC
+      const conceptoAguinaldo = {
+        uid: uidCounter.current++,
+        id: 'AGUINALDO',
+        tipo: 'AGUINALDO',
+        nombre: 'Sueldo Anual Complementario (aguinaldo)',
+        montoUnitario: montoAguinaldo,
+        cantidad: 1,
+        total: montoAguinaldo,
+      };
+      
+      // Solo el concepto de SAC, sin descuentos ni otros conceptos
+      setConceptos([conceptoAguinaldo]);
+      setTotal(montoAguinaldo);
+      notify.success('Cálculo de aguinaldo realizado correctamente');
+    } catch (error) {
+      notify.error('Error al calcular aguinaldo:', error);
+      const errorMessage = error.response?.data?.message || 'Hubo un error al calcular el aguinaldo.';
+      notify.error(errorMessage, 6000);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // LIQUIDAR SUELDO Y GENERAR RECIBO
   const generatePayroll = async () => {
     if (!selectedEmployee) return;
     
+    // Si es aguinaldo, usar la lógica de aguinaldo
+    if (liquidacionType === 'aguinaldo') {
+      if (!aguinaldoCalculo) {
+        notify.error('Debe calcular el aguinaldo primero');
+        return;
+      }
+      
+      // Confirmar antes de liquidar aguinaldo
+      const result = await confirmAction({
+        title: 'Liquidar Aguinaldo',
+        message: `¿Está seguro de liquidar el aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} para ${selectedEmployee.nombre} ${selectedEmployee.apellido}?`,
+        confirmText: 'Liquidar Aguinaldo',
+        cancelText: 'Cancelar',
+        type: 'warning',
+        confirmButtonVariant: 'primary',
+        cancelButtonVariant: 'secondary'
+      });
+
+      if (!result) return;
+      
+      setIsProcessing(true);
+
+      try {
+        const payload = {
+          legajo: selectedEmployee.legajo,
+          aguinaldoNumero: aguinaldoNumero,
+          anio: aguinaldoAnio,
+        };
+
+        const result = await api.liquidarAguinaldo(payload);
+        const usuario = localStorage.getItem('usuario') || 'Sistema';
+        
+        setPayrollData({
+          ...payrollData,
+          periodDisplay: `Aguinaldo ${aguinaldoNumero} - ${aguinaldoAnio}`,
+          totalNeto: result.total_neto || aguinaldoCalculo.totalNeto
+        });
+
+        // Registrar actividad de liquidación
+        await api.registrarActividad({
+          usuario,
+          accion: 'LIQUIDAR',
+          descripcion: `Se liquidó el aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
+          referenciaTipo: 'PAGO',
+          referenciaId: result.idPago || result.id || result.idLiquidacion || selectedEmployee.legajo
+        });
+
+        notify.success(`Aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} liquidado exitosamente`);
+        setCurrentStep('preview');
+      } catch (error) {
+        notify.error('Error al liquidar aguinaldo:', error);
+        const errorMessage = error.response?.data?.message || 'Hubo un error al liquidar el aguinaldo.';
+        notify.error(errorMessage, 6000);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+    
+    // Lógica normal de liquidación de sueldo
     // Formatear período para el mensaje de confirmación y para enviar
     // Normalizar el período a formato YYYY-MM
     const periodoFormateado = normalizePeriod(periodo);
@@ -1173,13 +1336,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-     // Generar filas de conceptos
-     const conceptosRows = conceptos.map(concept => {
+     // Generar filas de conceptos (excluir CATEGORIA_ZONA, solo se usa como base de cálculo)
+     const conceptosRows = conceptos
+       .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+       .map(concept => {
        const remuneracion = (concept.tipo === 'CATEGORIA' ||
          concept.tipo === 'BONIFICACION_AREA' ||
          concept.tipo === 'CONCEPTO_LYF' ||
          concept.tipo === 'CONCEPTO_UOCRA' ||
-         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
+         concept.tipo === 'HORA_EXTRA_LYF' ||
+         concept.tipo === 'AGUINALDO') && concept.total > 0
          ? formatCurrencyAR(concept.total)
          : '';
       
@@ -1676,13 +1842,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Generar texto en palabras automáticamente si no está definido
     const amountWordsText = (amountInWords || (netAmount > 0 ? numberToWords(netAmount) + ' pesos' : '—')).toUpperCase();
 
-     // Generar filas de conceptos
-     const conceptosRows = conceptos.map(concept => {
+     // Generar filas de conceptos (excluir CATEGORIA_ZONA, solo se usa como base de cálculo)
+     const conceptosRows = conceptos
+       .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+       .map(concept => {
        const remuneracion = (concept.tipo === 'CATEGORIA' ||
          concept.tipo === 'BONIFICACION_AREA' ||
          concept.tipo === 'CONCEPTO_LYF' ||
          concept.tipo === 'CONCEPTO_UOCRA' ||
-         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
+         concept.tipo === 'HORA_EXTRA_LYF' ||
+         concept.tipo === 'AGUINALDO') && concept.total > 0
          ? formatCurrencyAR(concept.total)
          : '';
       
@@ -2016,6 +2185,122 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {/* STEP 2: PAYROLL FORM */}
       {currentStep === 'payroll' && selectedEmployee && (
         <div className="payroll-form">
+          {/* Selector de tipo de liquidación */}
+          <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+              Tipo de Liquidación
+            </label>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="liquidacionType"
+                  value="normal"
+                  checked={liquidacionType === 'normal'}
+                  onChange={(e) => {
+                    setLiquidacionType(e.target.value);
+                    setAguinaldoCalculo(null);
+                    setConceptos([]);
+                    setTotal(0);
+                  }}
+                />
+                <span>Liquidación Normal</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="liquidacionType"
+                  value="aguinaldo"
+                  checked={liquidacionType === 'aguinaldo'}
+                  onChange={(e) => {
+                    setLiquidacionType(e.target.value);
+                    setAguinaldoCalculo(null);
+                    setConceptos([]);
+                    setTotal(0);
+                  }}
+                />
+                <span>Aguinaldo</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Campos de aguinaldo */}
+          {liquidacionType === 'aguinaldo' && (
+            <div style={{ marginBottom: '1rem', padding: '1rem', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                    Aguinaldo Número
+                  </label>
+                  <select
+                    value={aguinaldoNumero}
+                    onChange={(e) => {
+                      setAguinaldoNumero(Number(e.target.value));
+                      setAguinaldoCalculo(null);
+                      setConceptos([]);
+                      setTotal(0);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    <option value={1}>Primer Aguinaldo</option>
+                    <option value={2}>Segundo Aguinaldo</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                    Año
+                  </label>
+                  <input
+                    type="number"
+                    value={aguinaldoAnio}
+                    onChange={(e) => {
+                      setAguinaldoAnio(Number(e.target.value));
+                      setAguinaldoCalculo(null);
+                      setConceptos([]);
+                      setTotal(0);
+                    }}
+                    min="2000"
+                    max="2100"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={calcularAguinaldo}
+                disabled={isProcessing}
+                style={{ width: '100%' }}
+              >
+                {isProcessing ? 'Calculando...' : 'Calcular Aguinaldo'}
+              </button>
+              {aguinaldoCalculo && (
+                <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#d1e7dd', borderRadius: '4px', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span><strong>Aguinaldo:</strong></span>
+                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.aguinaldo || 0)}</strong></span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #0f5132', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    <span><strong>Total Aguinaldo:</strong></span>
+                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.totalAguinaldo || aguinaldoCalculo.aguinaldo || 0)}</strong></span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="employee-header">
             <div className="employee-summary">
               <div className="employee-avatar-small">
@@ -2303,7 +2588,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span>Acciones</span>
               </div>
 
-              {conceptos.map(concept => (
+              {conceptos
+                .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+                .map(concept => (
                 <div key={concept.uid} className="concept-row">
                   <div className="concept-cell">
                     {concept.isManual ? (
@@ -2346,7 +2633,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'BONIFICACION_AREA' ||
                       concept.tipo === 'CONCEPTO_LYF' ||
                        concept.tipo === 'CONCEPTO_UOCRA' ||
-                       concept.tipo === 'HORA_EXTRA_LYF') && (
+                       concept.tipo === 'HORA_EXTRA_LYF' ||
+                       concept.tipo === 'AGUINALDO') && (
                       <div className="amount-editable-wrapper">
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
@@ -2530,7 +2818,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </tr>
               </thead>
               <tbody>
-                {conceptos.map(concept => (
+                {conceptos
+                  .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+                  .map(concept => (
                   <tr key={concept.id}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
@@ -2540,7 +2830,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         concept.tipo === 'BONIFICACION_AREA' ||
                         concept.tipo === 'CONCEPTO_LYF' ||
                          concept.tipo === 'CONCEPTO_UOCRA' ||
-                         concept.tipo === 'HORA_EXTRA_LYF') && concept.total > 0
+                         concept.tipo === 'HORA_EXTRA_LYF' ||
+                         concept.tipo === 'AGUINALDO') && concept.total > 0
                         ? formatCurrencyAR(concept.total)
                         : ''}
                     </td>
