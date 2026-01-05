@@ -39,6 +39,7 @@ export default function Reportes() {
     try {
       setLoading(true);
       const data = await api.getResumeCustomMonth(periodo);
+      console.log('data', data);
       setResumenConceptos(data || []);
     } catch (error) {
       console.error('Error al cargar resumen del mes seleccionado:', error);
@@ -67,12 +68,61 @@ export default function Reportes() {
   // En este modo usamos el resumen que devuelve el backend: 'resumenConceptos'
   const conceptosAgrupados = useMemo(() => {
     // El backend ya devuelve objetos con { nombre, tipoConcepto, cantidad, totalPagado }
-    return (resumenConceptos || []).map((c) => ({
+    const conceptosRaw = (resumenConceptos || []).map((c) => ({
       nombre: c.nombre,
       tipo: c.tipoConcepto || c.tipo || 'OTRO',
       cantidad: c.cantidad || 0,
       total: Number(c.totalPagado || 0)
-    })).sort((a, b) => {
+    }));
+
+    // Agrupar conceptos según el tipo
+    const agrupados = {};
+    
+    conceptosRaw.forEach((concepto) => {
+      if (concepto.tipo === 'CATEGORIA') {
+        // Agrupar todos los sueldos básicos en uno solo
+        const key = 'CATEGORIA_TOTAL';
+        if (!agrupados[key]) {
+          agrupados[key] = {
+            nombre: 'Sueldo Básico',
+            tipo: 'CATEGORIA',
+            cantidad: 0,
+            total: 0
+          };
+        }
+        agrupados[key].cantidad += concepto.cantidad;
+        agrupados[key].total += concepto.total;
+      } else if (concepto.tipo === 'BONIFICACION_AREA') {
+        // Agrupar bonificaciones de área por nombre de área
+        const key = `BONIFICACION_AREA_${concepto.nombre}`;
+        if (!agrupados[key]) {
+          agrupados[key] = {
+            nombre: concepto.nombre,
+            tipo: 'BONIFICACION_AREA',
+            cantidad: 0,
+            total: 0
+          };
+        }
+        agrupados[key].cantidad += concepto.cantidad;
+        agrupados[key].total += concepto.total;
+      } else {
+        // Para otros tipos, mantener como están (o agrupar por nombre si hay duplicados)
+        const key = `${concepto.tipo}_${concepto.nombre}`;
+        if (!agrupados[key]) {
+          agrupados[key] = {
+            nombre: concepto.nombre,
+            tipo: concepto.tipo,
+            cantidad: 0,
+            total: 0
+          };
+        }
+        agrupados[key].cantidad += concepto.cantidad;
+        agrupados[key].total += concepto.total;
+      }
+    });
+
+    // Convertir objeto a array y ordenar
+    return Object.values(agrupados).sort((a, b) => {
       // Ordenar por tipo de concepto primero, luego por total descendente
       const aOrder = tipoConceptoOrder[a.tipo] || 99;
       const bOrder = tipoConceptoOrder[b.tipo] || 99;
