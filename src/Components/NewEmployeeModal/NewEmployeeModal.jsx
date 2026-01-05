@@ -55,6 +55,42 @@ const calculateAntiguedad = (fechaIngreso) => {
   }
 };
 
+// Calcula solo los años de antigüedad (número entero)
+const calculateAniosAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return 0;
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return 0;
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    return Math.max(0, años); // Retornar solo los años, mínimo 0
+  } catch (error) {
+    console.error('Error al calcular años de antigüedad:', error);
+    return 0;
+  }
+};
+
 export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const notify = useNotification();
   const removeArea = (id) => {
@@ -839,6 +875,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
   // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
+  // Para Bonif Antigüedad: se calcula como (básico cat 11 + SUMA FIJA) * porcentaje * unidades
   const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
     
@@ -851,6 +888,40 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       const porcentaje = Number(concepto.porcentaje) || 0;
       const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
       return -(montoUnitario * unidades);
+    }
+
+    // Manejo especial para Bonif Antigüedad (solo para Luz y Fuerza)
+    const nombreNormalizado = normalize(concepto.nombre || '');
+    const isBonifAntiguedad = (nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad')) 
+      && formData.gremio === 'LUZ_Y_FUERZA';
+    
+    if (isBonifAntiguedad) {
+      // Base = básico de categoría 11 + concepto "SUMA FIJA"
+      if (basicoCat11 <= 0) return 0;
+      
+      // Buscar el concepto "SUMA FIJA"
+      const conceptoSumaFija = conceptos.find(c => {
+        const nombreSumaFija = normalize(c.nombre || '');
+        return nombreSumaFija.includes('suma fija');
+      });
+      
+      let sumaFija = 0;
+      if (conceptoSumaFija) {
+        // Si SUMA FIJA tiene montoUnitario, usarlo directamente
+        if (conceptoSumaFija.montoUnitario) {
+          sumaFija = Number(conceptoSumaFija.montoUnitario) || 0;
+        } else if (conceptoSumaFija.porcentaje && basicoCat11 > 0) {
+          // Si tiene porcentaje, calcular sobre básico cat 11
+          sumaFija = (basicoCat11 * Number(conceptoSumaFija.porcentaje)) / 100;
+        }
+      }
+      
+      const baseCalculo = basicoCat11 + sumaFija;
+      if (baseCalculo <= 0 || !concepto.porcentaje) return 0;
+      
+      const porcentaje = Number(concepto.porcentaje) || 0;
+      // Fórmula: (básico cat 11 + SUMA FIJA) * porcentaje * unidades
+      return (baseCalculo * porcentaje / 100) * unidades;
     }
 
     // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
@@ -866,6 +937,13 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
         if (cIsDescuento) return sum;
         if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
+        
+        // Excluir Bonif Antigüedad del cálculo de horas extras
+        const cNombreNormalizado = normalize(c.nombre || '');
+        if (cNombreNormalizado.includes('bonif antiguedad') || cNombreNormalizado.includes('bonif antigüedad')) {
+          return sum;
+        }
+        
         const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
         if (!u || u <= 0) return sum;
 
