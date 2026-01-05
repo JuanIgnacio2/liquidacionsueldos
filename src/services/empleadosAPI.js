@@ -133,3 +133,11 @@ export const changePassword = (dto) =>
 
 export const getUser = () =>
     axiosClient.get('/auth/usuario-actual').then((r)=>r.data);
+
+export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
+    axiosClient.get(`/aguinaldo/calcular/${legajo}`, {
+        params: { aguinaldoNumero, anio }
+    }).then((r)=>r.data);
+
+export const liquidarAguinaldo = (dto) =>
+    axiosClient.post('/aguinaldo/liquidar', dto).then((r)=>r.data);

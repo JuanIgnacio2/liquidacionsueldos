@@ -55,6 +55,42 @@ const calculateAntiguedad = (fechaIngreso) => {
   }
 };
 
+// Calcula solo los años de antigüedad (número entero)
+const calculateAniosAntiguedad = (fechaIngreso) => {
+  if (!fechaIngreso) return 0;
+  
+  try {
+    const fechaIngresoDate = new Date(fechaIngreso);
+    const fechaActual = new Date();
+    
+    if (Number.isNaN(fechaIngresoDate.getTime())) return 0;
+    
+    // Calcular diferencia en años y meses
+    let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+    let meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+    
+    // Ajustar si el mes actual es menor que el mes de ingreso
+    if (meses < 0) {
+      años--;
+      meses += 12;
+    }
+    
+    // Ajustar si el día actual es menor que el día de ingreso (considerar mes completo)
+    if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+      meses--;
+      if (meses < 0) {
+        años--;
+        meses += 12;
+      }
+    }
+    
+    return Math.max(0, años); // Retornar solo los años, mínimo 0
+  } catch (error) {
+    console.error('Error al calcular años de antigüedad:', error);
+    return 0;
+  }
+};
+
 export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const notify = useNotification();
   const removeArea = (id) => {
@@ -308,33 +344,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     loadConceptos();
   }, [formData.gremio]);
 
-  // Determina qué concepto de "Suplemento antigüedad" debe asignarse según antigüedad y sexo
-  const determinarSuplementoAntiguedad = (añosAntiguedad, sexo) => {
-    if (añosAntiguedad < 10) {
-      return null; // Menos de 10 años, no aplica
-    }
-
-    const sexoNormalizado = (sexo || '').toString().toUpperCase().trim();
-    
-    if (sexoNormalizado === 'M' || sexoNormalizado === 'MASCULINO') {
-      // Masculino: entre 10 y 24, o más de 25
-      if (añosAntiguedad >= 10 && añosAntiguedad <= 24) {
-        return 'Suplemento Antigüedad entre 10 y 24';
-      } else if (añosAntiguedad >= 25) {
-        return 'Suplemento Antigüedad mas de 25';
-      }
-    } else if (sexoNormalizado === 'F' || sexoNormalizado === 'FEMENINO') {
-      // Femenino: entre 10 a 21, o más de 22
-      if (añosAntiguedad >= 10 && añosAntiguedad <= 21) {
-        return 'Suplemento Antigüedad entre 10 a 21';
-      } else if (añosAntiguedad >= 22) {
-        return 'Suplemento Antigüedad mas de 22';
-      }
-    }
-    
-    return null;
-  };
-
   // Asignar automáticamente "Bonif Antigüedad" para Luz y Fuerza si tiene 1 año o más
   // También actualiza las unidades si cambia la fecha de ingreso
   useEffect(() => {
@@ -379,93 +388,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       }));
     }
   }, [formData.gremio, formData.inicioActividad, conceptos, conceptosSeleccionados]);
-
-  // Asignar automáticamente "Suplemento antigüedad" para Luz y Fuerza según antigüedad y sexo
-  useEffect(() => {
-    // Solo para Luz y Fuerza
-    if (formData.gremio !== 'LUZ_Y_FUERZA' || !formData.inicioActividad || conceptos.length === 0) {
-      return;
-    }
-
-    // Calcular años de antigüedad (solo años completos, sin meses)
-    const añosAntiguedad = calculateAniosAntiguedad(formData.inicioActividad);
-    
-    // Determinar qué suplemento debería tener
-    const suplementoRequerido = determinarSuplementoAntiguedad(añosAntiguedad, formData.sexo);
-
-    // Buscar todos los conceptos de suplemento antigüedad en el catálogo
-    const conceptosSuplemento = conceptos.filter(c => {
-      const nombreNormalizado = normalize(c.nombre || '');
-      return nombreNormalizado.includes('suplemento antiguedad') || 
-             nombreNormalizado.includes('suplemento antigüedad');
-    });
-
-    // Buscar qué suplementos tiene asignados actualmente
-    const suplementosAsignados = Object.keys(conceptosSeleccionados).filter(conceptId => {
-      const concepto = conceptos.find(c => String(c.id) === String(conceptId));
-      if (!concepto) return false;
-      const nombreNormalizado = normalize(concepto.nombre || '');
-      return nombreNormalizado.includes('suplemento antiguedad') || 
-             nombreNormalizado.includes('suplemento antigüedad');
-    });
-
-    // Determinar qué concepto de suplemento debería tener
-    let conceptoSuplementoCorrecto = null;
-    if (suplementoRequerido) {
-      const requeridoNormalizado = normalize(suplementoRequerido);
-      // Extraer la parte clave del nombre (ej: "entre 10 y 24", "mas de 25")
-      const partesClave = requeridoNormalizado
-        .replace('suplemento antiguedad', '')
-        .trim()
-        .split(/\s+/)
-        .filter(p => p.length > 0);
-      
-      conceptoSuplementoCorrecto = conceptosSuplemento.find(c => {
-        const nombreNormalizado = normalize(c.nombre || '');
-        // Verificar que el nombre normalizado contenga todas las partes clave
-        return partesClave.every(parte => nombreNormalizado.includes(parte));
-      });
-    }
-
-    // Verificar si tiene el suplemento correcto asignado
-    const suplementoCorrectoAsignado = conceptoSuplementoCorrecto 
-      ? suplementosAsignados.includes(String(conceptoSuplementoCorrecto.id))
-      : false;
-
-    // Verificar si tiene suplementos incorrectos
-    const tieneSuplementosIncorrectos = suplementosAsignados.some(conceptId => {
-      if (!conceptoSuplementoCorrecto) return true; // Si no debería tener ninguno, cualquier suplemento es incorrecto
-      return String(conceptId) !== String(conceptoSuplementoCorrecto.id);
-    });
-
-    // Si necesita actualización
-    if (suplementoRequerido && (!suplementoCorrectoAsignado || tieneSuplementosIncorrectos)) {
-      setConceptosSeleccionados(prev => {
-        const next = { ...prev };
-        
-        // Quitar todos los suplementos antiguos
-        suplementosAsignados.forEach(conceptId => {
-          delete next[conceptId];
-        });
-        
-        // Agregar el suplemento correcto con 1 unidad
-        if (conceptoSuplementoCorrecto) {
-          next[conceptoSuplementoCorrecto.id] = { units: '1' };
-        }
-        
-        return next;
-      });
-    } else if (!suplementoRequerido && suplementosAsignados.length > 0) {
-      // Si no debería tener suplemento pero lo tiene, removerlo
-      setConceptosSeleccionados(prev => {
-        const next = { ...prev };
-        suplementosAsignados.forEach(conceptId => {
-          delete next[conceptId];
-        });
-        return next;
-      });
-    }
-  }, [formData.gremio, formData.inicioActividad, formData.sexo, conceptos, conceptosSeleccionados]);
 
   // Actualiza el salario base cuando cambia la categoría seleccionada
   useEffect(() => {
@@ -1019,6 +941,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
   // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
+  // Para Bonif Antigüedad: se calcula como (básico cat 11 + SUMA FIJA) * porcentaje * unidades
   const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
     if (!concepto || !units || units <= 0) return 0;
     
@@ -1031,6 +954,40 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       const porcentaje = Number(concepto.porcentaje) || 0;
       const montoUnitario = (totalRemuneraciones * porcentaje) / 100;
       return -(montoUnitario * unidades);
+    }
+
+    // Manejo especial para Bonif Antigüedad (solo para Luz y Fuerza)
+    const nombreNormalizado = normalize(concepto.nombre || '');
+    const isBonifAntiguedad = (nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad')) 
+      && formData.gremio === 'LUZ_Y_FUERZA';
+    
+    if (isBonifAntiguedad) {
+      // Base = básico de categoría 11 + concepto "SUMA FIJA"
+      if (basicoCat11 <= 0) return 0;
+      
+      // Buscar el concepto "SUMA FIJA"
+      const conceptoSumaFija = conceptos.find(c => {
+        const nombreSumaFija = normalize(c.nombre || '');
+        return nombreSumaFija.includes('suma fija');
+      });
+      
+      let sumaFija = 0;
+      if (conceptoSumaFija) {
+        // Si SUMA FIJA tiene montoUnitario, usarlo directamente
+        if (conceptoSumaFija.montoUnitario) {
+          sumaFija = Number(conceptoSumaFija.montoUnitario) || 0;
+        } else if (conceptoSumaFija.porcentaje && basicoCat11 > 0) {
+          // Si tiene porcentaje, calcular sobre básico cat 11
+          sumaFija = (basicoCat11 * Number(conceptoSumaFija.porcentaje)) / 100;
+        }
+      }
+      
+      const baseCalculo = basicoCat11 + sumaFija;
+      if (baseCalculo <= 0 || !concepto.porcentaje) return 0;
+      
+      const porcentaje = Number(concepto.porcentaje) || 0;
+      // Fórmula: (básico cat 11 + SUMA FIJA) * porcentaje * unidades
+      return (baseCalculo * porcentaje / 100) * unidades;
     }
 
     // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
@@ -1046,6 +1003,13 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
         if (cIsDescuento) return sum;
         if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
+        
+        // Excluir Bonif Antigüedad del cálculo de horas extras
+        const cNombreNormalizado = normalize(c.nombre || '');
+        if (cNombreNormalizado.includes('bonif antiguedad') || cNombreNormalizado.includes('bonif antigüedad')) {
+          return sum;
+        }
+        
         const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
         if (!u || u <= 0) return sum;
 
