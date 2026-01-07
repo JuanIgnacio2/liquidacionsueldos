@@ -32,6 +32,14 @@ const formatDateDDMMYYYY = (dateStr) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+// Normaliza strings para comparar sin importar mayúsculas, tildes, espacios, etc.
+const normalize = (s) =>
+  (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
 const formatPeriodToMonthYear = (period) => {
   if (!period) return '—';
@@ -203,7 +211,7 @@ export default function HistorialPagos() {
   const filteredPagos = useMemo(() => {
     let filtered = pagos;
 
-    // Filtrar por búsqueda de texto
+    // Filtrar por búsqueda de texto (normalizado, sin acentos)
     if (normalizedQuery) {
       filtered = filtered.filter((pago) => {
         return [
@@ -214,7 +222,7 @@ export default function HistorialPagos() {
           pago.periodoPago
         ]
           .filter(Boolean)
-          .some((field) => String(field).toLowerCase().includes(normalizedQuery));
+          .some((field) => normalize(String(field)).includes(normalizedQuery));
       });
     }
 
