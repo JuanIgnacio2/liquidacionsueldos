@@ -55,10 +55,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [quincena, setQuincena] = useState(1); // 1 = primera quincena, 2 = segunda quincena
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
   // Estados para aguinaldo
-  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal' o 'aguinaldo'
+  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo' o 'vacaciones'
   const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
   const [aguinaldoAnio, setAguinaldoAnio] = useState(new Date().getFullYear());
   const [aguinaldoCalculo, setAguinaldoCalculo] = useState(null);
+  // Estados para vacaciones
+  const [anioVacaciones, setAnioVacaciones] = useState(new Date().getFullYear());
+  const [vacacionesCalculo, setVacacionesCalculo] = useState(null);
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -704,6 +707,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setAguinaldoNumero(1);
       setAguinaldoAnio(new Date().getFullYear());
       setAguinaldoCalculo(null);
+      setAnioVacaciones(new Date().getFullYear());
+      setVacacionesCalculo(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEmployee]);
@@ -969,10 +974,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Filtrar por búsqueda de texto
     if (searchTerm) {
       filtered = filtered.filter(emp =>
-        emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.legajo.toString().includes(searchTerm) ||
-        emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.legajo.toString().includes(searchTerm) ||
+      emp.apellido.toLowerCase().includes(searchTerm.toLowerCase())
+    );
     }
 
     // Filtrar por gremio
@@ -1096,7 +1101,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const basicoEmpleado = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? basicSalary : 0;
     
     const remunerations = basicoEmpleado + conceptos
-      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF' || c.tipo === 'AGUINALDO')
+      .filter(c => c.tipo === 'CATEGORIA' || c.tipo === 'BONIFICACION_AREA' || c.tipo === 'CONCEPTO_LYF' || c.tipo === 'CONCEPTO_UOCRA' || c.tipo === 'HORA_EXTRA_LYF' || c.tipo === 'AGUINALDO' || c.tipo === 'VACACIONES')
       .reduce((sum, c) => sum + (c.total || 0), 0);
 
     const deductions = conceptos.filter(c => c.tipo === 'DESCUENTO')
@@ -1152,7 +1157,43 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       notify.success('Cálculo de aguinaldo realizado correctamente');
     } catch (error) {
       notify.error('Error al calcular aguinaldo:', error);
-      const errorMessage = error.response?.data?.message || 'Hubo un error al calcular el aguinaldo.';
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al calcular el aguinaldo.';
+      notify.error(errorMessage, 6000);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Calcular vacaciones (preview antes de liquidar)
+  const calcularVacaciones = async () => {
+    if (!selectedEmployee) return;
+    
+    setIsProcessing(true);
+    try {
+      const calculo = await api.calcularVacaciones(selectedEmployee.legajo, parseInt(anioVacaciones, 10));
+      console.log("calculo", calculo);
+      setVacacionesCalculo(calculo);
+      // Crear concepto de vacaciones con el monto calculado
+      const montoVacaciones = calculo.baseCalculo || calculo.vacaciones || calculo.totalVacaciones || calculo.monto || 0;
+      
+      // Concepto único de vacaciones (remuneración)
+      const conceptoVacaciones = {
+        uid: uidCounter.current++,
+        id: 'VACACIONES',
+        tipo: 'VACACIONES',
+        nombre: 'Bono de Vacaciones',
+        montoUnitario: montoVacaciones,
+        cantidad: 1,
+        total: montoVacaciones,
+      };
+      
+      // Solo el concepto de vacaciones, sin descuentos ni otros conceptos
+      setConceptos([conceptoVacaciones]);
+      setTotal(montoVacaciones);
+      notify.success('Cálculo de vacaciones realizado correctamente');
+    } catch (error) {
+      notify.error('Error al calcular vacaciones:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al calcular las vacaciones.';
       notify.error(errorMessage, 6000);
     } finally {
       setIsProcessing(false);
@@ -1183,11 +1224,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       if (!result) return;
       
-      setIsProcessing(true);
+    setIsProcessing(true);
 
       try {
-        const payload = {
-          legajo: selectedEmployee.legajo,
+    const payload = {
+      legajo: selectedEmployee.legajo,
           aguinaldoNumero: aguinaldoNumero,
           anio: aguinaldoAnio,
         };
@@ -1214,7 +1255,67 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         setCurrentStep('preview');
       } catch (error) {
         notify.error('Error al liquidar aguinaldo:', error);
-        const errorMessage = error.response?.data?.message || 'Hubo un error al liquidar el aguinaldo.';
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al liquidar el aguinaldo.';
+        notify.error(errorMessage, 6000);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // Si es vacaciones, usar la lógica de vacaciones
+    if (liquidacionType === 'vacaciones') {
+      if (!vacacionesCalculo) {
+        notify.error('Debe calcular las vacaciones primero');
+        return;
+      }
+      
+      // Confirmar antes de liquidar vacaciones
+      const result = await confirmAction({
+        title: 'Liquidar Vacaciones',
+        message: `¿Está seguro de liquidar el bono de vacaciones del año ${anioVacaciones} para ${selectedEmployee.nombre} ${selectedEmployee.apellido}?`,
+        confirmText: 'Liquidar Vacaciones',
+        cancelText: 'Cancelar',
+        type: 'warning',
+        confirmButtonVariant: 'primary',
+        cancelButtonVariant: 'secondary'
+      });
+
+      if (!result) return;
+      
+      setIsProcessing(true);
+
+      try {
+        const payload = {
+          legajo: selectedEmployee.legajo,
+          anioVacaciones: parseInt(anioVacaciones, 10),
+        };
+
+        const result = await api.liquidarVacaciones(payload);
+        const usuario = localStorage.getItem('usuario') || 'Sistema';
+        
+        const montoVacaciones = vacacionesCalculo.vacaciones || vacacionesCalculo.totalVacaciones || vacacionesCalculo.monto || 0;
+        
+        setPayrollData({
+          ...payrollData,
+          periodDisplay: `Vacaciones - ${anioVacaciones}`,
+          totalNeto: result.total_neto || montoVacaciones
+        });
+
+        // Registrar actividad de liquidación
+        await api.registrarActividad({
+          usuario,
+          accion: 'LIQUIDAR',
+          descripcion: `Se liquidó el bono de vacaciones del año ${anioVacaciones} del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
+          referenciaTipo: 'PAGO',
+          referenciaId: result.idPago || result.id || result.idLiquidacion || selectedEmployee.legajo
+        });
+
+        notify.success(`Bono de vacaciones del año ${anioVacaciones} liquidado exitosamente`);
+        setCurrentStep('preview');
+      } catch (error) {
+        notify.error('Error al liquidar vacaciones:', error);
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al liquidar las vacaciones.';
         notify.error(errorMessage, 6000);
       } finally {
         setIsProcessing(false);
@@ -2091,17 +2192,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <div className="search-filters-container">
               <div className="search-field-wrapper">
                 <label htmlFor="employee-search">Buscar empleado</label>
-                <div className="search-input-container">
-                  <Search className="search-icon" />
-                  <input
+              <div className="search-input-container">
+                <Search className="search-icon" />
+                <input
                     id="employee-search"
-                    type="text"
-                    placeholder="Buscar por nombre o legajo..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input"
-                  />
-                </div>
+                  type="text"
+                  placeholder="Buscar por nombre o legajo..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+                  </div>
               </div>
 
               <div className="filter-field-wrapper">
@@ -2194,12 +2295,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       {currentStep === 'payroll' && selectedEmployee && (
         <div className="payroll-form">
           {/* Selector de tipo de liquidación */}
-          <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+          <div className="liquidation-type-selector">
+            <label>
               Tipo de Liquidación
             </label>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <div className="radio-group">
+              <label className="radio-option">
                 <input
                   type="radio"
                   name="liquidacionType"
@@ -2208,13 +2309,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   onChange={(e) => {
                     setLiquidacionType(e.target.value);
                     setAguinaldoCalculo(null);
+                    setVacacionesCalculo(null);
                     setConceptos([]);
                     setTotal(0);
                   }}
                 />
                 <span>Liquidación Normal</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <label className="radio-option">
                 <input
                   type="radio"
                   name="liquidacionType"
@@ -2223,21 +2325,38 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   onChange={(e) => {
                     setLiquidacionType(e.target.value);
                     setAguinaldoCalculo(null);
+                    setVacacionesCalculo(null);
                     setConceptos([]);
                     setTotal(0);
                   }}
                 />
                 <span>Aguinaldo</span>
               </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="liquidacionType"
+                  value="vacaciones"
+                  checked={liquidacionType === 'vacaciones'}
+                  onChange={(e) => {
+                    setLiquidacionType(e.target.value);
+                    setAguinaldoCalculo(null);
+                    setVacacionesCalculo(null);
+                    setConceptos([]);
+                    setTotal(0);
+                  }}
+                />
+                <span>Vacaciones</span>
+              </label>
             </div>
           </div>
 
           {/* Campos de aguinaldo */}
           {liquidacionType === 'aguinaldo' && (
-            <div style={{ marginBottom: '1rem', padding: '1rem', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+            <div className="aguinaldo-section">
+              <div className="aguinaldo-fields">
+                <div className="field-group">
+                  <label>
                     Aguinaldo Número
                   </label>
                   <select
@@ -2248,20 +2367,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       setConceptos([]);
                       setTotal(0);
                     }}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
                   >
                     <option value={1}>Primer Aguinaldo</option>
                     <option value={2}>Segundo Aguinaldo</option>
                   </select>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
+                <div className="field-group">
+                  <label>
                     Año
                   </label>
                   <input
@@ -2275,35 +2387,72 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     }}
                     min="2000"
                     max="2100"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '0.9rem'
-                    }}
                   />
                 </div>
               </div>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary btn-full-width"
                 onClick={calcularAguinaldo}
                 disabled={isProcessing}
-                style={{ width: '100%' }}
               >
                 {isProcessing ? 'Calculando...' : 'Calcular Aguinaldo'}
               </button>
               {aguinaldoCalculo && (
-                <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#d1e7dd', borderRadius: '4px', fontSize: '0.9rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span><strong>Aguinaldo:</strong></span>
-                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.aguinaldo || 0)}</strong></span>
+                <div className="aguinaldo-result">
+                  <div className="result-row">
+                    <span className="result-label">Aguinaldo:</span>
+                    <span className="result-value">{formatCurrencyAR(aguinaldoCalculo.aguinaldo || 0)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #0f5132', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                    <span><strong>Total Aguinaldo:</strong></span>
-                    <span><strong style={{ color: '#22c55e' }}>{formatCurrencyAR(aguinaldoCalculo.totalAguinaldo || aguinaldoCalculo.aguinaldo || 0)}</strong></span>
+                  <div className="result-row result-divider">
+                    <span className="result-label">Total Aguinaldo:</span>
+                    <span className="result-value">{formatCurrencyAR(aguinaldoCalculo.totalAguinaldo || aguinaldoCalculo.aguinaldo || 0)}</span>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Campos de vacaciones */}
+          {liquidacionType === 'vacaciones' && (
+            <div className="vacaciones-section">
+              <div className="vacaciones-field">
+                <label>
+                  Año
+                </label>
+                <input
+                  type="number"
+                  value={anioVacaciones}
+                  onChange={(e) => {
+                    setAnioVacaciones(parseInt(e.target.value, 10) || new Date().getFullYear());
+                    setVacacionesCalculo(null);
+                    setConceptos([]);
+                    setTotal(0);
+                  }}
+                  min="2000"
+                  max="2100"
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-full-width"
+                onClick={calcularVacaciones}
+                disabled={isProcessing}
+              >
+                {isProcessing ? 'Calculando...' : 'Calcular Vacaciones'}
+              </button>
+              {vacacionesCalculo && (
+                <div className="vacaciones-result">
+                  <div className="result-row">
+                    <span className="result-label">Bono de Vacaciones:</span>
+                    <span className="result-value">{formatCurrencyAR(vacacionesCalculo.baseCalculo || vacacionesCalculo.vacaciones || vacacionesCalculo.totalVacaciones || vacacionesCalculo.monto || 0)}</span>
+                  </div>
+                  {vacacionesCalculo.diasVacaciones && (
+                    <div className="result-divider">
+                      <span className="result-label">Días de Vacaciones:</span>
+                      <span className="result-value">{vacacionesCalculo.diasVacaciones}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2334,38 +2483,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <div className="period-info">
               <Calendar className="period-icon" />
               <div className="period-details">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div className="period-inputs-wrapper">
                   {selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') ? (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <input
-                        type="month"
+                    <div className="period-inputs-row">
+                  <input
+                    type="month"
                         value={normalizePeriod(periodo)}
                         onChange={(e) => {
                           const normalized = normalizePeriod(e.target.value);
                           setPeriodo(normalized);
                         }}
-                        style={{
-                          padding: '4px 8px',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '0.9rem',
-                          flex: 1
-                        }}
                       />
                       <select
                         value={quincena}
                         onChange={(e) => setQuincena(Number(e.target.value))}
-                        style={{
-                          padding: '4px 8px',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '0.9rem',
-                          backgroundColor: '#fff',
-                          cursor: 'pointer',
-                          appearance: 'auto',
-                          WebkitAppearance: 'menulist',
-                          MozAppearance: 'menulist'
-                        }}
                       >
                         <option value={1}>Primera quincena</option>
                         <option value={2}>Segunda quincena</option>
@@ -2378,12 +2509,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       onChange={(e) => {
                         const normalized = normalizePeriod(e.target.value);
                         setPeriodo(normalized);
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid #ddd',
-                        borderRadius: '4px',
-                        fontSize: '0.9rem'
                       }}
                     />
                   )}
@@ -2426,16 +2551,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   className="form-select concept-select"
                   value={selectedCatalogConcept}
                   onChange={(e) => setSelectedCatalogConcept(e.target.value)}
-                  style={{
-                    appearance: 'auto',
-                    WebkitAppearance: 'menulist',
-                    MozAppearance: 'menulist',
-                    backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundSize: '1em 1em',
-                    paddingRight: '2rem'
-                  }}
                 >
                   <option value="">Agregar desde catálogo...</option>
                   {catalogBonificaciones.map((c) => {
@@ -2632,9 +2747,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                   <div className="concept-cell">
                     {canEditQuantity(concept) ? (
-                      <input
+                    <input
                         type="text"
-                        value={concept.cantidad}
+                      value={concept.cantidad}
                         onChange={(e) => {
                           const value = e.target.value;
                           // Permitir números con decimales (0.1, 0.01, etc.)
@@ -2642,9 +2757,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                             handleQtyChange(concept.uid, parseFloat(value) || 0);
                           }
                         }}
-                        className="concept-input small"
+                      className="concept-input small"
                         placeholder="0"
-                      />
+                    />
                     ) : (
                       <span className="concept-quantity-disabled" title="La cantidad no es editable para este concepto">
                         {concept.cantidad || 1}
@@ -2684,7 +2799,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <div className="amount-column-wrapper">
                               <span className="amount positive">{formatCurrencyAR(concept.total || ((concept.montoUnitario || 0) * (concept.cantidad || 1)))}</span>
                             </div>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
@@ -2855,7 +2970,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         concept.tipo === 'CONCEPTO_LYF' ||
                          concept.tipo === 'CONCEPTO_UOCRA' ||
                          concept.tipo === 'HORA_EXTRA_LYF' ||
-                         concept.tipo === 'AGUINALDO') && concept.total > 0
+                         concept.tipo === 'AGUINALDO' ||
+                         concept.tipo === 'VACACIONES') && concept.total > 0
                         ? formatCurrencyAR(concept.total)
                         : ''}
                     </td>
@@ -2879,21 +2995,21 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </tbody>
               <tfoot>
                 <tr className="receipt-totals-row">
-                  <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                  <td colSpan="3">
                     TOTALES:
                   </td>
-                  <td className="receipt-total-remuneration" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                  <td className="receipt-total-remuneration">
                     {formatCurrencyAR(remunerations)}
                   </td>
-                  <td className="receipt-total-deduction" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                  <td className="receipt-total-deduction">
                     {formatCurrencyAR(deductions)}
                   </td>
                 </tr>
                 <tr className="receipt-net-row">
-                  <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
+                  <td colSpan="4">
                     TOTAL NETO A COBRAR:
                   </td>
-                  <td className="receipt-net-amount" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', fontSize: '1.1rem', color: '#22c55e', borderTop: '2px solid #22c55e' }}>
+                  <td className="receipt-net-amount">
                     {formatCurrencyAR(netAmount)}
                   </td>
                 </tr>
@@ -2970,11 +3086,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <CheckCircle className="h-4 w-4 mr-2" />
                 {isProcessing ? 'Liquidando...' : 'Liquidar Aguinaldo'}
               </button>
-            ) : (
-              <button className="btn btn-primary" onClick={generatePayroll} disabled={isProcessing}>
+            ) : liquidacionType === 'vacaciones' ? (
+              <button 
+                className="btn btn-primary" 
+                onClick={generatePayroll} 
+                disabled={isProcessing || !vacacionesCalculo}
+              >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Generar Recibo
+                {isProcessing ? 'Liquidando...' : 'Liquidar Vacaciones'}
               </button>
+            ) : (
+            <button className="btn btn-primary" onClick={generatePayroll} disabled={isProcessing}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Generar Recibo
+            </button>
             )}
           </>
         )}
