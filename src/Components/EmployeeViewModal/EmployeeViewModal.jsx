@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
+import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -78,6 +79,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   const [zonas, setZonas] = useState([]);
   const [categoriaBasico, setCategoriaBasico] = useState(0);
   const [salarioBasico, setSalarioBasico] = useState(0);
+  const [showPayrollHistoryModal, setShowPayrollHistoryModal] = useState(false);
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
@@ -559,14 +561,26 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             Liquidar Sueldo
           </button>
           <button 
-            className={`${'action-btn'} ${'secondary'}`}
-            onClick={() => onHistorialLiquidaciones && onHistorialLiquidaciones(employee)}
+            className={`${'action-btn'} ${'primary'}`}
+            onClick={() => {
+              setShowPayrollHistoryModal(true);
+              if (onHistorialLiquidaciones) {
+                onHistorialLiquidaciones(employee);
+              }
+            }}
           >
             <FileText className="btn-icon" />
             Historial de Liquidaciones
           </button>
         </div>
       </div>
+
+      {/* Modal de Historial de Liquidaciones */}
+      <EmployeePayrollHistoryModal
+        isOpen={showPayrollHistoryModal}
+        onClose={() => setShowPayrollHistoryModal(false)}
+        employee={employee}
+      />
     </Modal>
   );
 }
