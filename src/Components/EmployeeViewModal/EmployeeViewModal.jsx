@@ -2,9 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
-import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
-import { useNotification } from '../../Hooks/useNotification';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -81,10 +79,6 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   const [categoriaBasico, setCategoriaBasico] = useState(0);
   const [salarioBasico, setSalarioBasico] = useState(0);
   const [showPayrollHistoryModal, setShowPayrollHistoryModal] = useState(false);
-  const [sueldoBruto, setSueldoBruto] = useState(0);
-  const [totalDescuentos, setTotalDescuentos] = useState(0);
-  const [sueldoNeto, setSueldoNeto] = useState(0);
-  const { notify } = useNotification();
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
