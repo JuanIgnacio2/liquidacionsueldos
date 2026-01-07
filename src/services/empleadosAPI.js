@@ -83,6 +83,9 @@ export const getConceptosAsignados = (legajo) =>
 export const getPagos = () =>
     axiosClient.get(`/pagos`).then((r)=>r.data);
 
+export const getPagosByEmpleado = (legajo) =>
+    axiosClient.get(`/pagos/empleado/${legajo}`).then((r)=>r.data);
+
 export const getUltimosPagos = () =>
     axiosClient.get(`/pagos/ultimos`).then((r)=>r.data);
 
@@ -156,3 +159,9 @@ export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
 
 export const liquidarAguinaldo = (dto) =>
     axiosClient.post('/aguinaldo/liquidar', dto).then((r)=>r.data);
+
+export const calcularVacaciones = (legajo, anioVacaciones) =>
+    axiosClient.get(`/vacaciones/calcular/${legajo}`, { params: { legajo, anioVacaciones: parseInt(anioVacaciones, 10) } }	).then((r)=>r.data);
+
+export const liquidarVacaciones = (dto) =>
+    axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
