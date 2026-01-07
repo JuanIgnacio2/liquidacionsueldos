@@ -421,6 +421,169 @@
 
   // Payroll Form Section
   .payroll-form {
+    // Selector de tipo de liquidación
+    .liquidation-type-selector {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .radio-group {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+
+        .radio-option {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          cursor: pointer;
+        }
+      }
+    }
+
+    // Campos de aguinaldo
+    .aguinaldo-section {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #fff3cd;
+      border-radius: 8px;
+      border: 1px solid #ffc107;
+
+      .aguinaldo-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+
+        .field-group {
+          label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+          }
+
+          select,
+          input[type="number"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+          }
+        }
+      }
+
+      .btn-full-width {
+        width: 100%;
+      }
+
+      .aguinaldo-result {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: #d1e7dd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+
+        .result-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 0.5rem;
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+
+          .result-label {
+            font-weight: 600;
+          }
+
+          .result-value {
+            font-weight: 600;
+            color: #22c55e;
+          }
+        }
+
+        .result-divider {
+          border-top: 1px solid #0f5132;
+          padding-top: 0.5rem;
+          margin-top: 0.5rem;
+        }
+      }
+    }
+
+    // Campos de vacaciones
+    .vacaciones-section {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #e0f2fe;
+      border-radius: 8px;
+      border: 1px solid #0ea5e9;
+
+      .vacaciones-field {
+        margin-bottom: 1rem;
+
+        label {
+          display: block;
+          margin-bottom: 0.5rem;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+
+        input[type="number"] {
+          width: 100%;
+          padding: 0.5rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 0.9rem;
+        }
+      }
+
+      .btn-full-width {
+        width: 100%;
+        margin-bottom: 1rem;
+      }
+
+      .vacaciones-result {
+        padding: 0.75rem;
+        background: #d1e7dd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+
+        .result-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 0.5rem;
+
+          .result-label {
+            font-weight: 600;
+          }
+
+          .result-value {
+            font-weight: 600;
+            color: #22c55e;
+          }
+        }
+
+        .result-divider {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 0.5rem;
+          padding-top: 0.5rem;
+          border-top: 1px solid #0f5132;
+        }
+      }
+    }
+
     .employee-header {
       display: flex;
       justify-content: space-between;
@@ -531,8 +694,53 @@
             font-size: $font-size-xs;
             font-weight: 400;
           }
+
+          .period-inputs-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+
+            .period-inputs-row {
+              display: flex;
+              gap: 8px;
+              align-items: center;
+
+              input[type="month"],
+              select {
+                padding: 4px 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 0.9rem;
+              }
+
+              input[type="month"] {
+                flex: 1;
+              }
+
+              select {
+                background-color: #fff;
+                cursor: pointer;
+                appearance: auto;
+                -webkit-appearance: menulist;
+                -moz-appearance: menulist;
+              }
+            }
+
+            input[type="month"] {
+              padding: 4px 8px;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+              font-size: 0.9rem;
+            }
+          }
         }
       }
+    }
+
+    .salary-info {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #666;
     }
 
     .concepts-section {
@@ -606,7 +814,7 @@
             appearance: auto;
             -webkit-appearance: menulist;
             -moz-appearance: menulist;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
             background-position: right 0.5rem center;
             background-size: 1em 1em;
@@ -748,6 +956,12 @@
               align-items: center;
               gap: $spacing-2;
               position: relative;
+
+              .amount-column-wrapper {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+              }
 
               .edit-icon {
                 opacity: 0;
@@ -1449,6 +1663,35 @@
       }
     }
 
+    thead {
+      tr {
+        th {
+          &.th-code {
+            width: 60px;
+          }
+
+          &.th-concept {
+            width: 40%;
+          }
+
+          &.th-units {
+            width: 70px;
+            text-align: center;
+          }
+
+          &.th-remuneration {
+            width: 120px;
+            text-align: right;
+          }
+
+          &.th-deduction {
+            width: 120px;
+            text-align: right;
+          }
+        }
+      }
+    }
+
     tbody {
       tr {
         border-bottom: 1px solid var(--border-color);
@@ -1493,6 +1736,30 @@
             width: 120px;
             color: var(--error-color);
             font-weight: 600;
+          }
+        }
+      }
+    }
+
+    tfoot {
+      .receipt-totals-row {
+        td {
+          text-align: right;
+          font-weight: bold;
+          padding: 1rem 0.75rem;
+        }
+      }
+
+      .receipt-net-row {
+        td {
+          text-align: right;
+          font-weight: bold;
+          padding: 1rem 0.75rem;
+          border-top: 2px solid #22c55e;
+
+          &.receipt-net-amount {
+            font-size: 1.1rem;
+            color: #22c55e;
           }
         }
       }
