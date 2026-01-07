@@ -147,6 +147,13 @@ export default function ConvenioDetail() {
     return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  // Formatea número para edición sin puntos (100000.00 => 100000,00)
+  const formatNumberForEdit = (value) => {
+    const num = Number(value) || 0;
+    // Formatear sin separadores de miles, solo con coma decimal
+    return num.toFixed(2).replace('.', ',');
+  };
+
   const buildUocraPayload = (editableData, convenio) => {
     const rows = editableData?.salaryTable?.uocra?.rows ?? [];
     const zonas = convenio?.zonas ?? [];
@@ -212,12 +219,12 @@ export default function ConvenioDetail() {
         const norm = normalizeConvenioDetail(raw, controller);
         setConvenio(norm);
         // Usar una copia profunda para que `editableData` no comparta referencias con `convenio`
-        // Convertir a formato moneda para display durante edición
+        // Convertir a formato sin puntos para edición (000000,00)
         const cloned = JSON.parse(JSON.stringify(norm));
         if (Array.isArray(cloned.salaryTable?.categories)) {
           cloned.salaryTable.categories = cloned.salaryTable.categories.map(c => ({
             ...c,
-            basicSalary: formatNumberToDisplay(c.basicSalary)
+            basicSalary: formatNumberForEdit(c.basicSalary)
           }));
         }
         if (cloned.salaryTable?.uocra?.rows) {
@@ -225,7 +232,7 @@ export default function ConvenioDetail() {
             const formatted = { ...r };
             cloned.salaryTable.uocra.headers?.forEach(h => {
               if (r[h.key] != null) {
-                formatted[h.key] = formatNumberToDisplay(r[h.key]);
+                formatted[h.key] = formatNumberForEdit(r[h.key]);
               }
             });
             return formatted;
@@ -345,12 +352,12 @@ export default function ConvenioDetail() {
       setConvenio(saved);
       setIsEditing(false);
 
-      // Mantener editableData con formato moneda para seguir editando
+      // Mantener editableData con formato sin puntos para seguir editando
       const editClone = JSON.parse(JSON.stringify(saved));
       if (Array.isArray(editClone.salaryTable?.categories)) {
         editClone.salaryTable.categories = editClone.salaryTable.categories.map(c => ({
           ...c,
-          basicSalary: formatNumberToDisplay(c.basicSalary)
+          basicSalary: formatNumberForEdit(c.basicSalary)
         }));
       }
       if (editClone.salaryTable?.uocra?.rows) {
@@ -358,7 +365,7 @@ export default function ConvenioDetail() {
           const formatted = { ...r };
           editClone.salaryTable.uocra.headers?.forEach(h => {
             if (r[h.key] != null) {
-              formatted[h.key] = formatNumberToDisplay(r[h.key]);
+              formatted[h.key] = formatNumberForEdit(r[h.key]);
             }
           });
           return formatted;
@@ -395,12 +402,12 @@ export default function ConvenioDetail() {
   };
 
   const handleCancel = () => {
-    // Restaurar desde `convenio` y convertir a formato moneda
+    // Restaurar desde `convenio` y convertir a formato sin puntos para edición
     const clone = JSON.parse(JSON.stringify(convenio));
     if (Array.isArray(clone.salaryTable?.categories)) {
       clone.salaryTable.categories = clone.salaryTable.categories.map(c => ({
         ...c,
-        basicSalary: formatNumberToDisplay(c.basicSalary)
+        basicSalary: formatNumberForEdit(c.basicSalary)
       }));
     }
     if (clone.salaryTable?.uocra?.rows) {
@@ -408,7 +415,7 @@ export default function ConvenioDetail() {
         const formatted = { ...r };
         clone.salaryTable.uocra.headers?.forEach(h => {
           if (r[h.key] != null) {
-            formatted[h.key] = formatNumberToDisplay(r[h.key]);
+            formatted[h.key] = formatNumberForEdit(r[h.key]);
           }
         });
         return formatted;
@@ -904,7 +911,7 @@ export default function ConvenioDetail() {
                           placeholder="0,00"
                         />
                       ) : (
-                        formatNumberToDisplay(row.basicSalary ?? 0)
+                        formatCurrencyAR(Number(row.basicSalary) || 0)
                       )}
                     </td>
 
@@ -1103,7 +1110,7 @@ export default function ConvenioDetail() {
                             placeholder="0,00"
                           />
                         ) : (
-                          formatNumberToDisplay(r[h.key])
+                          formatCurrencyAR(Number(r[h.key]) || 0)
                         )}
                       </td>
                     ))}

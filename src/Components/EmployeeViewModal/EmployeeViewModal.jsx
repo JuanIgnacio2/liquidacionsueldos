@@ -80,9 +80,6 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   const [categoriaBasico, setCategoriaBasico] = useState(0);
   const [salarioBasico, setSalarioBasico] = useState(0);
   const [showPayrollHistoryModal, setShowPayrollHistoryModal] = useState(false);
-  const [sueldoBruto, setSueldoBruto] = useState(0);
-  const [totalDescuentos, setTotalDescuentos] = useState(0);
-  const [sueldoNeto, setSueldoNeto] = useState(0);
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
