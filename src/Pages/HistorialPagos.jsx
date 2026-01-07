@@ -30,6 +30,14 @@ const formatDateDDMMYYYY = (dateStr) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+// Normaliza strings para comparar sin importar mayúsculas, tildes, espacios, etc.
+const normalize = (s) =>
+  (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 // Convierte periodo 'YYYY-MM' o 'YYYY-MM-DD' a 'Mes de AAAA' en español
 const formatPeriodToMonthYear = (period) => {
   if (!period) return '—';
@@ -129,47 +137,10 @@ export default function HistorialPagos() {
     return 'Convenio General';
   };
 
-  // Obtener gremios únicos de los empleados
-  const gremiosDisponibles = useMemo(() => {
-    const gremiosSet = new Set();
-    employees.forEach(emp => {
-      const gremio = emp.gremioNombre || emp.gremio?.nombre || (typeof emp.gremio === 'string' ? emp.gremio : '');
-      if (gremio) {
-        const gremioUpper = gremio.toUpperCase();
-        if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-          gremiosSet.add('LUZ_Y_FUERZA');
-        } else if (gremioUpper === 'UOCRA') {
-          gremiosSet.add('UOCRA');
-        } else {
-          gremiosSet.add('Convenio General');
-        }
-      }
-    });
-    return Array.from(gremiosSet).sort();
-  }, [employees]);
-
-  // Función para obtener el gremio de un pago basado en el empleado
-  const getGremioFromPago = (pago) => {
-    const legajo = pago.legajoEmpleado;
-    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
-    if (!employee) return '';
-    
-    const gremio = employee.gremioNombre || employee.gremio?.nombre || (typeof employee.gremio === 'string' ? employee.gremio : '');
-    if (!gremio) return '';
-    
-    const gremioUpper = gremio.toUpperCase();
-    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-      return 'LUZ_Y_FUERZA';
-    } else if (gremioUpper === 'UOCRA') {
-      return 'UOCRA';
-    }
-    return 'Convenio General';
-  };
-
   const filteredPagos = useMemo(() => {
     let filtered = pagos;
 
-    // Filtrar por búsqueda de texto
+    // Filtrar por búsqueda de texto (normalizado, sin acentos)
     if (normalizedQuery) {
       filtered = filtered.filter((pago) => {
         return [
@@ -180,7 +151,7 @@ export default function HistorialPagos() {
           pago.periodoPago
         ]
           .filter(Boolean)
-          .some((field) => String(field).toLowerCase().includes(normalizedQuery));
+          .some((field) => normalize(String(field)).includes(normalizedQuery));
       });
     }
 
