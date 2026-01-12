@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText, Percent, List, Plus } from 'lucide-react';
+import { Modal, ModalFooter } from '../Components/Modal/Modal';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
 import { ConfirmDialog } from '../Components/ConfirmDialog/ConfirmDialog';
@@ -17,14 +18,9 @@ export default function ConvenioDetail() {
   const [employees, setEmployees] = useState([]);
   const [descuentos, setDescuentos] = useState([]);
   const [conceptosGenerales, setConceptosGenerales] = useState([]);
-  const [conceptosUocra, setConceptosUocra] = useState([]);
   const [showConceptoModal, setShowConceptoModal] = useState(false);
   const [selectedConcepto, setSelectedConcepto] = useState(null);
   const [conceptoNombre, setConceptoNombre] = useState('');
-  const [showConceptoManualModal, setShowConceptoManualModal] = useState(false);
-  const [selectedConceptoManual, setSelectedConceptoManual] = useState(null);
-  const [conceptoManualNombre, setConceptoManualNombre] = useState('');
-  const [conceptoManualMonto, setConceptoManualMonto] = useState('');
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -258,7 +254,7 @@ export default function ConvenioDetail() {
         const data = await api.getDescuentos();
         setDescuentos(data || []);
       } catch (error) {
-        notify.error(error);
+        notify.error('Error cargando descuentos:', error);
       }
     };
 
@@ -267,16 +263,7 @@ export default function ConvenioDetail() {
         const data = await api.getConceptosGenerales();
         setConceptosGenerales(data || []);
       } catch (error) {
-        notify.error(error);
-      }
-    };
-
-    const loadConceptosUocra = async () => {
-      try {
-        const data = await api.getConceptosUocra();
-        setConceptosUocra(data || []);
-      } catch (error) {
-        notify.error(error);
+        notify.error('Error cargando conceptos generales:', error);
       }
     };
 
@@ -284,10 +271,6 @@ export default function ConvenioDetail() {
     if (controller !== 'descuentos' && controller !== 'conceptos-generales') {
       loadConvenio();
       loadEmployees();
-      // Cargar conceptos UOCRA si es el convenio UOCRA
-      if (controller === 'uocra') {
-        loadConceptosUocra();
-      }
     } else {
       // Cargar datos según el tipo
       if (controller === 'descuentos') {
@@ -473,7 +456,7 @@ export default function ConvenioDetail() {
       setSelectedConcepto(null);
       setConceptoNombre('');
     } catch (error) {
-      notify.error(error);
+      notify.error('Error al guardar concepto: ' + (error?.response?.data?.message || error?.message || 'Error desconocido'));
     }
   };
 
@@ -481,71 +464,6 @@ export default function ConvenioDetail() {
     setShowConceptoModal(false);
     setSelectedConcepto(null);
     setConceptoNombre('');
-  };
-
-  const handleCreateConceptoManual = () => {
-    setSelectedConceptoManual(null);
-    setConceptoManualNombre('');
-    setConceptoManualMonto('');
-    setShowConceptoManualModal(true);
-  };
-
-  const handleEditConceptoManual = (concepto) => {
-    setSelectedConceptoManual(concepto);
-    setConceptoManualNombre(concepto.nombre || concepto.descripcion || '');
-    const monto = concepto.monto || concepto.valor || 0;
-    setConceptoManualMonto(formatNumberForEdit(monto));
-    setShowConceptoManualModal(true);
-  };
-
-  const handleSaveConceptoManual = async () => {
-    if (!conceptoManualNombre.trim()) {
-      notify.error('El nombre del concepto es requerido');
-      return;
-    }
-
-    const monto = parseNumberFromDisplay(conceptoManualMonto);
-    if (isNaN(monto) || monto < 0) {
-      notify.error('El monto debe ser un número válido mayor o igual a 0');
-      return;
-    }
-
-    try {
-      if (selectedConceptoManual) {
-        // Actualizar concepto existente
-        await api.updateConceptoManualLyF(selectedConceptoManual.idConceptoManualLyF || selectedConceptoManual.id, {
-          nombre: conceptoManualNombre.trim(),
-          monto: monto
-        });
-        notify.success('Concepto manual actualizado exitosamente');
-      } else {
-        // Crear nuevo concepto
-        await api.createConceptoManualLyF({
-          nombre: conceptoManualNombre.trim(),
-          monto: monto
-        });
-        notify.success('Concepto manual creado exitosamente');
-      }
-
-      // Recargar convenio para actualizar conceptos manuales
-      const raw = await api.getConveniosNombre(controller);
-      const norm = normalizeConvenioDetail(raw, controller);
-      setConvenio(norm);
-      setEditableData(norm);
-      setShowConceptoManualModal(false);
-      setSelectedConceptoManual(null);
-      setConceptoManualNombre('');
-      setConceptoManualMonto('');
-    } catch (error) {
-      notify.error(error);
-    }
-  };
-
-  const closeConceptoManualModal = () => {
-    setShowConceptoManualModal(false);
-    setSelectedConceptoManual(null);
-    setConceptoManualNombre('');
-    setConceptoManualMonto('');
   };
 
   // Contar empleados del gremio seleccionado
