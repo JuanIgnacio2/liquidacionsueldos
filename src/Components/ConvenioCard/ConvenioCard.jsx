@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, MapPin, Users, Layers, FileText, Percent, List } from 'lucide-react';
+import { Eye, Edit, Upload, MapPin, Users, Calendar, Layers, FileText, Layers3Icon, Percent, List } from 'lucide-react';
 import { Tooltip } from '../ToolTip/ToolTip';
 import './ConvenioCard.scss';
 
@@ -100,23 +100,22 @@ export function ConvenioCard({ convenio, onView, onEdit, onUploadDocument }) {
       )}
 
       {/* --- Acciones --- */}
-      <div className="convenio-actions">
-        <button
-          className="details-toggle"
-          onClick={() => setShowDetails(!showDetails)}
-        >
-          {showDetails ? "Ocultar detalles" : "Ver detalles"}
-        </button>
-
-        <div className="action-buttons">
-          <Tooltip content="Ver convenio completo" position="top">
-            <button
-              className="action-btn view"
-              onClick={() => onView(convenio.controller)}
-            >
-              <Eye className="action-icon" />
-            </button>
-          </Tooltip>
+      {!isSpecialCard && (
+        <div className="convenio-actions">
+          <div className="action-buttons">
+            <Tooltip content="Ver convenio completo" position="top">
+              <button
+                className="action-btn view"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onView && onView(convenio.controller);
+                }}
+              >
+                <Eye className="action-icon" />
+                <span>Ver convenio</span>
+              </button>
+            </Tooltip>
+          </div>
         </div>
       )}
       {isSpecialCard && (

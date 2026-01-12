@@ -56,6 +56,7 @@ export function AntiguedadUpdater() {
       isUpdatingRef.current = true;
 
       try {
+        console.log('Verificando actualización de unidades de "Bonif Antigüedad"...');
         const result = await actualizarAntiguedadAutomatica();
         if (result.updated > 0) {
           console.log(`Actualización completada: ${result.updated} empleado(s) con unidades actualizadas, ${result.errors} error(es)`);
