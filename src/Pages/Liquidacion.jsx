@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye, CheckCircle } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import { StatsGrid } from '../Components/ui/card';
@@ -63,7 +63,7 @@ export default function Liquidacion() {
       const data = await api.getDashboardStats();
       setDashboardStats(data || null);
     } catch (error) {
-      notify.error(error);
+      notify.error('Error al cargar estadísticas del dashboard:', error);
     }
   };
 
@@ -98,15 +98,9 @@ export default function Liquidacion() {
       return;
     }
 
-    const confirmar = await confirmAction({
-      title: 'Completar pago',
-      message: `¿Está seguro de completar el pago para ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})?`,
-      confirmText: 'Completar pago',
-      cancelText: 'Cancelar',
-      type: 'warning',
-      confirmButtonVariant: 'primary',
-      cancelButtonVariant: 'secondary'
-    });
+    const confirmar = window.confirm(
+      `¿Está seguro de completar el pago para ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})?`
+    );
 
     if (!confirmar) return;
 
@@ -115,21 +109,9 @@ export default function Liquidacion() {
       notify.success('Pago completado exitosamente');
       // Recargar la lista de liquidaciones
       loadPayrolls();
-      try {
-        const usuario = localStorage.getItem('usuario') || 'Sistema';
-        await api.registrarActividad({
-          usuario,
-          accion: 'Pago completado',
-          descripcion: `Se completó el pago para el empleado ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})`,
-          referenciaTipo: 'PAGO',
-          referenciaId: idPago
-        });
-      } catch (actividadError) {
-        // Si falla el registro de actividad, solo loguear el error pero no afectar el flujo principal
-        console.warn('Error al registrar actividad de liquidación:', actividadError);
-      }
     } catch (error) {
-      notify.error(error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
+      notify.error(errorMessage);
     }
   };
 
