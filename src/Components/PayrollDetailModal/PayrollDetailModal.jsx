@@ -444,6 +444,18 @@ export default function PayrollDetailModal({
               </div>
             )}
 
+            {/* LUGAR Y FECHA DE PAGO */}
+            <div className="payment-details">
+              <div className="detail-item">
+                <span className="label">Lugar y fecha de pago</span>
+                <span className="value">
+                  Hasenkamp, {selectedPayroll?.fechaPago || payrollDetails?.fechaPago 
+                    ? formatDateDDMMYYYY(selectedPayroll?.fechaPago || payrollDetails?.fechaPago) 
+                    : '—'}
+                </span>
+              </div>
+            </div>
+
             {/* DETALLES DE PAGO */}
             <div className="payment-details">
               <div className="detail-item">
