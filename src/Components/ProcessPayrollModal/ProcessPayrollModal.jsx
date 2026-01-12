@@ -40,6 +40,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [basicSalary, setBasicSalary] = useState(0);
   const [descuentosData, setDescuentosData] = useState([]);
   const [horasExtrasLyFData, setHorasExtrasLyFData] = useState([]);
+  const [conceptosGeneralesData, setConceptosGeneralesData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
   const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
@@ -53,7 +54,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   const [periodo, setPeriodo] = useState(getInitialPeriod());
   const [quincena, setQuincena] = useState(1); // 1 = primera quincena, 2 = segunda quincena
+  const [fechaPago, setFechaPago] = useState(''); // Fecha de pago opcional
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
+  const [liquidacionesEstado, setLiquidacionesEstado] = useState(new Map()); // Map<legajo, {estado: 'completada'|'pendiente', fechaPago: string|null}>
   // Estados para aguinaldo
   const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo' o 'vacaciones'
   const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
@@ -408,6 +411,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setDescuentosData(descuentos); // Guardar descuentos para uso posterior
       setCatalogBonificaciones(bonificacionesFijas || []); // guardar catálogo para el dropdown
 
+      // Cargar conceptos generales (siempre disponibles, no dependen del gremio)
+      let conceptosGeneralesData = [];
+      try {
+        conceptosGeneralesData = await api.getConceptosGenerales();
+        setConceptosGeneralesData(conceptosGeneralesData || []);
+      } catch (error) {
+        console.error('Error al cargar conceptos generales:', error);
+        setConceptosGeneralesData([]);
+      }
+
       // Cargar horas extras LYF si es Luz y Fuerza
       let horasExtrasLyF = [];
       if (isLuzYFuerza) {
@@ -466,48 +479,36 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           
           const concepto = buscarConceptoEnCatalogos(asignado.idReferencia, asignado.tipoConcepto);
 
-          // Detectar si es "Bonif Antigüedad" por nombre
+          // Detectar conceptos que se calculan sobre el total bruto
           const nombreConcepto = concepto?.nombre ?? concepto?.descripcion ?? asignado.nombre ?? asignado.descripcion ?? 'Concepto';
           const nombreNormalizado = normalize(nombreConcepto);
-          const isBonifAntiguedad = (nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad')) 
-            && isLuzYFuerza;
+          const isConceptoEspecial = (
+            nombreNormalizado.includes('bonif antiguedad') ||
+            nombreNormalizado.includes('bonif antigüedad') ||
+            nombreNormalizado.includes('suplemento antiguedad') ||
+            nombreNormalizado.includes('suplemento antigüedad') ||
+            nombreNormalizado.includes('art 50') ||
+            nombreNormalizado.includes('art 69') ||
+            nombreNormalizado.includes('art 70') ||
+            nombreNormalizado.includes('art 72')
+          ) && isLuzYFuerza;
 
-          // Si es Bonif Antigüedad, usar fórmula especial: (básico cat 11 + SUMA FIJA) * porcentaje * unidades
-          if (isBonifAntiguedad && basicoCat11 > 0) {
-            // Buscar el concepto "SUMA FIJA" en el catálogo
-            const conceptoSumaFija = bonificacionesFijas.find(b => {
-              const nombreSumaFija = normalize(b.nombre ?? b.descripcion ?? '');
-              return nombreSumaFija.includes('suma fija');
-            });
-            
-            let sumaFija = 0;
-            if (conceptoSumaFija) {
-              // Si SUMA FIJA tiene montoUnitario, usarlo directamente
-              if (conceptoSumaFija.montoUnitario || conceptoSumaFija.monto) {
-                sumaFija = Number(conceptoSumaFija.montoUnitario ?? conceptoSumaFija.monto ?? 0);
-              } else if (conceptoSumaFija.porcentaje && basicoCat11 > 0) {
-                // Si tiene porcentaje, calcular sobre básico cat 11
-                sumaFija = (basicoCat11 * Number(conceptoSumaFija.porcentaje)) / 100;
-              }
-            }
-            
-            const baseCalculo = basicoCat11 + sumaFija;
+          // Si es un concepto especial, guardar estructura pero calcular después (sobre total bruto)
+          if (isConceptoEspecial) {
             const porcentaje = concepto?.porcentaje ?? asignado.porcentaje ?? asignado.porcentajeBonificacion ?? 0;
             const unidades = Number(asignado.unidades) || 1;
             
-            // Fórmula: (básico cat 11 + SUMA FIJA) * porcentaje / 100 * unidades
-            const montoUnitario = (baseCalculo * Number(porcentaje)) / 100;
-            const total = montoUnitario * unidades;
-
+            // Guardar estructura, se recalculará después con el total bruto
             return {
               uid: uidCounter.current++,
               id: asignado.idReferencia,
               tipo: asignado.tipoConcepto,
               nombre: nombreConcepto,
-              montoUnitario: Number(montoUnitario) || 0,
+              montoUnitario: 0, // Se calculará después
               porcentaje: Number(porcentaje) || null,
               cantidad: unidades,
-              total: Number(total) || 0,
+              total: 0, // Se calculará después
+              _esConceptoEspecial: true, // Flag para identificar y recalcular después
             };
           }
 
@@ -631,19 +632,54 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         })
         .filter(Boolean);
 
+      // Mapear conceptos generales
+      const conceptosGeneralesMapped = conceptosAsignados
+        .filter(asignado => asignado.tipoConcepto === 'CONCEPTO_GENERAL')
+        .map((asignado) => {
+          const concepto = conceptosGeneralesData.find(cg => 
+            (cg.idConceptoGeneral ?? cg.id) === asignado.idReferencia
+          );
+
+          if (!concepto) {
+            // Fallback si no se encuentra en el catálogo
+            return {
+              uid: uidCounter.current++,
+              id: asignado.idReferencia,
+              tipo: 'CONCEPTO_GENERAL',
+              nombre: asignado.nombre ?? asignado.descripcion ?? 'Concepto General',
+              montoUnitario: Number(asignado.montoManual ?? asignado.monto ?? 0),
+              cantidad: 1, // Siempre cantidad 1
+              total: Number(asignado.montoManual ?? asignado.monto ?? 0),
+              montoManual: true
+            };
+          }
+
+          return {
+            uid: uidCounter.current++,
+            id: asignado.idReferencia,
+            tipo: 'CONCEPTO_GENERAL',
+            nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto General',
+            montoUnitario: Number(asignado.montoManual ?? asignado.monto ?? 0), // Monto manual del asignado
+            cantidad: 1, // Siempre cantidad 1
+            total: Number(asignado.montoManual ?? asignado.monto ?? 0),
+            montoManual: true // Flag para indicar que es monto manual
+          };
+        })
+        .filter(Boolean);
+
       /* Lista final de conceptos (sin horas extras todavía) */
       // Para UOCRA, no incluir el concepto básico en la lista
       const listaSinHoras = isUocra 
-        ? [...bonificacionesMapped, ...descuentosMapped]
-        : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
+        ? [...bonificacionesMapped, ...descuentosMapped, ...conceptosGeneralesMapped]
+        : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped, ...conceptosGeneralesMapped];
 
       // Calcular horas extras DESPUÉS de todas las bonificaciones
       const calcularHorasExtras = (items) => {
         if (!isLuzYFuerza || horasExtrasAsignadas.length === 0) return [];
 
-        // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
+        // Calcular total remunerativo (básico + bonificaciones, sin horas extras, descuentos ni conceptos especiales)
         const totalRemunerativo = items
-          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF')
+          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && !c._esConceptoEspecial)
           .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
 
         // Calcular valor hora
@@ -695,7 +731,40 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const horasExtrasMapped = calcularHorasExtras(listaSinHoras);
       const listaConHoras = [...listaSinHoras, ...horasExtrasMapped];
 
-      // Recalcular descuentos DESPUÉS de aplicar Horas Extras con el total correcto de remuneraciones
+      // Recalcular conceptos especiales (Bonif Antigüedad, Suplementos, ART) sobre el total bruto
+      const recalcularConceptosEspeciales = (items) => {
+        // Calcular total bruto (básico + bono área + bonificaciones normales + horas extras, excluyendo conceptos especiales y descuentos)
+        let totalBruto = 0;
+        if (isUocra) {
+          // Para UOCRA, el básico no está en la lista, sumarlo por separado
+          totalBruto = basicoValue + 
+            items
+              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'CATEGORIA_ZONA' && !c._esConceptoEspecial)
+              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        } else {
+          // Para Luz y Fuerza, el básico ya está en la lista como 'CATEGORIA', sumar todo excepto descuentos y conceptos especiales
+          totalBruto = items
+            .filter(c => c.tipo !== 'DESCUENTO' && !c._esConceptoEspecial)
+            .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        }
+
+        return items.map(item => {
+          if (item._esConceptoEspecial && item.porcentaje && totalBruto > 0) {
+            const montoUnitario = (totalBruto * item.porcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Number(montoUnitario) || 0,
+              total: (Number(montoUnitario) || 0) * (Number(item.cantidad) || 1),
+              _esConceptoEspecial: undefined // Remover flag después de calcular
+            };
+          }
+          return item;
+        });
+      };
+
+      const listaConConceptosEspeciales = recalcularConceptosEspeciales(listaConHoras);
+
+      // Recalcular descuentos DESPUÉS de aplicar Horas Extras y conceptos especiales con el total correcto de remuneraciones
       const recalcularDescuentos = (items) => {
         // Calcular total de remuneraciones (incluyendo horas extras)
         // Para UOCRA: basicoValue no está en la lista, así que lo sumamos
@@ -727,7 +796,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         });
       };
 
-      const listaFinal = recalcularDescuentos(listaConHoras);
+      const listaFinal = recalcularDescuentos(listaConConceptosEspeciales);
 
       // Calcular asistencia inicial si es UOCRA
       let listaConAsistencia = listaFinal;
@@ -785,21 +854,36 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       try {
         const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM
         const liquidaciones = await api.getPagosByPeriodo(currentPeriod);
-        // Extraer legajos únicos de las liquidaciones
+        // Extraer legajos únicos de las liquidaciones y su estado
         const legajosSet = new Set();
+        const estadoMap = new Map();
+        
         if (Array.isArray(liquidaciones)) {
           liquidaciones.forEach(liquidacion => {
-            if (liquidacion.legajo) {
-              legajosSet.add(Number(liquidacion.legajo));
+            const legajo = liquidacion.legajo || liquidacion.legajoEmpleado;
+            if (legajo) {
+              const legajoNum = Number(legajo);
+              legajosSet.add(legajoNum);
+              
+              // Determinar estado: si tiene fechaPago es completada, si no es pendiente
+              const fechaPago = liquidacion.fechaPago;
+              const estado = liquidacion.estado?.toLowerCase() || (fechaPago ? 'completada' : 'pendiente');
+              
+              estadoMap.set(legajoNum, {
+                estado: estado,
+                fechaPago: fechaPago || null
+              });
             }
           });
         }
         
         setProcessedLegajos(legajosSet);
+        setLiquidacionesEstado(estadoMap);
       } catch (error) {
         console.error('Error al cargar liquidaciones del mes actual:', error);
         // En caso de error, dejar el set vacío
         setProcessedLegajos(new Set());
+        setLiquidacionesEstado(new Map());
       }
     };
 
@@ -825,6 +909,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setBasicSalary(0);
       setDescuentosData([]);
       setProcessedLegajos(new Set());
+      setLiquidacionesEstado(new Map());
       setQuincena(1);
       setLiquidacionType('normal');
       setAguinaldoNumero(1);
@@ -838,6 +923,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Determinar si un concepto puede tener cantidad editable
   const canEditQuantity = (concept) => {
+    // Conceptos generales siempre tienen cantidad 1 (no editables)
+    if (concept.tipo === 'CONCEPTO_GENERAL') {
+      return false;
+    }
     // Aguinaldo no es editable
     if (concept.tipo === 'AGUINALDO') {
       return false;
@@ -1081,7 +1170,25 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Función para obtener el estado de procesamiento de un empleado
   const getEstadoProcesamiento = (emp) => {
-    return processedLegajos.has(Number(emp.legajo)) ? 'Procesada' : 'Pendiente';
+    const legajo = Number(emp.legajo);
+    
+    // Si tiene liquidación en el mes actual
+    if (processedLegajos.has(legajo)) {
+      const liquidacionInfo = liquidacionesEstado.get(legajo);
+      if (liquidacionInfo) {
+        // Si tiene fechaPago o estado es 'completada', es completada
+        if (liquidacionInfo.estado === 'completada' || liquidacionInfo.fechaPago) {
+          return 'Completada';
+        }
+        // Si no tiene fechaPago y estado es 'pendiente', es pendiente
+        return 'Pendiente';
+      }
+      // Fallback: si está en el set pero no hay info, asumir completada
+      return 'Completada';
+    }
+    
+    // Si no tiene liquidación para el mes actual
+    return 'No realizada';
   };
 
   // Filtrar empleados por búsqueda, gremio y estado
@@ -1120,7 +1227,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     }
 
     return filtered;
-  }, [employees, searchTerm, filterGremio, filterEstado, processedLegajos]);
+  }, [employees, searchTerm, filterGremio, filterEstado, processedLegajos, liquidacionesEstado]);
 
   // Actualizar concepto
   const updateConcept = (uid, field, value) => {
@@ -1163,7 +1270,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
         }
-        const cantidad = c.cantidad || 1;
+        // Para CONCEPTO_GENERAL: cantidad siempre 1
+        const cantidad = c.tipo === 'CONCEPTO_GENERAL' ? 1 : (c.cantidad || 1);
         return { ...c, montoUnitario: value, total: (value * cantidad) };
       }
       return c;
@@ -1172,9 +1280,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     // Recalcular Horas Extras si corresponde
     const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
     if (isLuz) {
-      // Calcular total remunerativo (sin horas extras ni descuentos)
+      // Calcular total remunerativo (sin horas extras, descuentos ni conceptos generales - estos no afectan el cálculo de horas extras)
       const totalRemunerativo = nuevos
-        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA')
+        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CATEGORIA_ZONA' && c.tipo !== 'CONCEPTO_GENERAL')
         .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0) + basicSalary;
 
       // Calcular valor hora
@@ -1298,8 +1406,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     setIsProcessing(true);
     try {
       const calculo = await api.calcularVacaciones(selectedEmployee.legajo, parseInt(anioVacaciones, 10));
-      console.log("calculo", calculo);
       setVacacionesCalculo(calculo);
+      console.log("calculo vacaciones", calculo);
       // Crear concepto de vacaciones con el monto calculado
       const montoVacaciones = calculo.baseCalculo || calculo.vacaciones || calculo.totalVacaciones || calculo.monto || 0;
       
@@ -1353,9 +1461,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
     setIsProcessing(true);
 
-      try {
-    const payload = {
-      legajo: selectedEmployee.legajo,
+    try {
+      const payload = {
+          legajo: selectedEmployee.legajo,
           aguinaldoNumero: aguinaldoNumero,
           anio: aguinaldoAnio,
         };
@@ -1380,6 +1488,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
         notify.success(`Aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} liquidado exitosamente`);
         setCurrentStep('preview');
+        // Notificar al componente padre para actualizar la lista
+        if (onProcess) {
+          onProcess(result);
+        }
       } catch (error) {
         notify.error('Error al liquidar aguinaldo:', error);
         const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al liquidar el aguinaldo.';
@@ -1413,7 +1525,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setIsProcessing(true);
 
       try {
-        const payload = {
+          const payload = {
           legajo: selectedEmployee.legajo,
           anioVacaciones: parseInt(anioVacaciones, 10),
         };
@@ -1440,6 +1552,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
         notify.success(`Bono de vacaciones del año ${anioVacaciones} liquidado exitosamente`);
         setCurrentStep('preview');
+        // Notificar al componente padre para actualizar la lista
+        if (onProcess) {
+          onProcess(result);
+        }
       } catch (error) {
         notify.error('Error al liquidar vacaciones:', error);
         const errorMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data?.exception || error.response?.data?.detail || 'Hubo un error al liquidar las vacaciones.';
@@ -1485,10 +1601,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       periodoPago = `${periodoFormateado}-${day}`;
     }
 
+    // Obtener fecha actual en formato YYYY-MM-DD para fechaLiquidacion
+    const fechaActual = new Date();
+    const fechaLiquidacion = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}-${String(fechaActual.getDate()).padStart(2, '0')}`;
+    
     const payload = {
-      legajo: selectedEmployee.legajo,
-      periodoPago: periodoPago,
-      conceptos: conceptos.map((c) => ({
+        legajo: selectedEmployee.legajo,
+        periodoPago: periodoPago,
+        fechaLiquidacion: fechaLiquidacion, // Fecha actual de liquidación
+        conceptos: conceptos.map((c) => ({
         tipoConcepto: c.tipo,
         idReferencia: c.id,
         unidades: c.cantidad,
@@ -1500,7 +1621,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
     try {
       const result = await api.guardarLiquidacion(payload);
-      console.log("result", result);
       const usuario = localStorage.getItem('usuario') || 'Sistema';
       
       // Usar valores de la respuesta o valores calculados como fallback
@@ -1531,9 +1651,26 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       notify.success(`Liquidación realizada exitosamente para el período ${periodo}`);
       
       // Actualizar el estado de legajos procesados
-      setProcessedLegajos(prev => new Set([...prev, Number(selectedEmployee.legajo)]));
+      const legajoNum = Number(selectedEmployee.legajo);
+      setProcessedLegajos(prev => new Set([...prev, legajoNum]));
+      
+      // Actualizar el estado de la liquidación (pendiente si no hay fechaPago, completada si hay)
+      const estadoLiquidacion = fechaPago && fechaPago.trim() !== '' ? 'completada' : 'pendiente';
+      setLiquidacionesEstado(prev => {
+        const nuevo = new Map(prev);
+        nuevo.set(legajoNum, {
+          estado: estadoLiquidacion,
+          fechaPago: fechaPago && fechaPago.trim() !== '' ? fechaPago : null
+        });
+        return nuevo;
+      });
       
       setCurrentStep('preview');
+      
+      // Notificar al componente padre para actualizar la lista
+      if (onProcess) {
+        onProcess(result);
+      }
     } catch (error) {
       notify.error('Error al liquidar sueldo:', error);
       
@@ -2381,8 +2518,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   onChange={(e) => setFilterEstado(e.target.value)}
                 >
                   <option value="">Todos los estados</option>
-                  <option value="Procesada">Procesada</option>
+                  <option value="Completada">Completada</option>
                   <option value="Pendiente">Pendiente</option>
+                  <option value="No realizada">No realizada</option>
                 </select>
               </div>
             </div>
@@ -2414,17 +2552,32 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         </div>
                       </div>
                       <div className="employee-salary">
-                        {processedLegajos.has(Number(employee.legajo)) ? (
-                          <span className="salary-label status-processed">
-                            <CheckCircle className="status-icon" />
-                            Procesada
-                        </span>
-                        ) : (
-                          <span className="salary-label status-pending">
-                            <Clock className="status-icon" />
-                            Pendiente
-                          </span>
-                        )}
+                        {(() => {
+                          const estado = getEstadoProcesamiento(employee);
+                          if (estado === 'Completada') {
+                            return (
+                              <span className="salary-label status-processed">
+                                <CheckCircle className="status-icon" />
+                                Completada
+                              </span>
+                            );
+                          } else if (estado === 'Pendiente') {
+                            return (
+                              <span className="salary-label status-pending">
+                                <Clock className="status-icon" />
+                                Pendiente
+                              </span>
+                            );
+                          } else {
+                            // No realizada
+                            return (
+                              <span className="salary-label status-not-done">
+                                <Clock className="status-icon" />
+                                No realizada
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -2727,6 +2880,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     const factor = Number(he.factor) || (id === 1 ? 1.5 : 2);
                     return <option key={`HE_${id}`} value={`HE_${id}`}>{`${he.descripcion ?? he.codigo ?? (id === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles')} (Factor ${factor}x)`}</option>;
                   })}
+
+                  {/* Conceptos Generales (siempre disponibles) */}
+                  {conceptosGeneralesData.map((cg) => {
+                    const id = cg.idConceptoGeneral ?? cg.id;
+                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'CONCEPTO_GENERAL');
+                    if (exists) return null;
+                    return <option key={`GEN_${id}`} value={`GEN_${id}`}>{`${cg.nombre ?? cg.descripcion} (Monto manual)`}</option>;
+                  })}
                 </select>
 
                 <button
@@ -2739,7 +2900,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     const idNum = Number(rawId);
 
                     // Evitar duplicados defensivamente
-                    if (conceptos.some(c => c.id === idNum && ((pref === 'BON' && c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF') || (pref === 'DESC' && c.tipo === 'DESCUENTO') || (pref === 'HE' && c.tipo === 'HORA_EXTRA_LYF')) )) {
+                    if (conceptos.some(c => c.id === idNum && ((pref === 'BON' && c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && c.tipo !== 'CONCEPTO_GENERAL') || (pref === 'DESC' && c.tipo === 'DESCUENTO') || (pref === 'HE' && c.tipo === 'HORA_EXTRA_LYF') || (pref === 'GEN' && c.tipo === 'CONCEPTO_GENERAL')) )) {
                       notify.error('El concepto ya está agregado');
                       setSelectedCatalogConcept('');
                       return;
@@ -2860,6 +3021,34 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       return;
                     }
 
+                    if (pref === 'GEN') {
+                      const raw = conceptosGeneralesData.find(cg => (cg.idConceptoGeneral ?? cg.id) === idNum);
+                      if (!raw) {
+                        notify.error('Concepto general no encontrado en el catálogo');
+                        setSelectedCatalogConcept('');
+                        return;
+                      }
+
+                      // Conceptos generales: cantidad 1 y monto manual (por defecto 0)
+                      const nuevo = {
+                        uid: uidCounter.current++,
+                        id: idNum,
+                        tipo: 'CONCEPTO_GENERAL',
+                        nombre: raw.nombre ?? raw.descripcion ?? 'Concepto General',
+                        montoUnitario: 0, // Monto manual, se editará después
+                        cantidad: 1, // Siempre cantidad 1
+                        total: 0, // Por defecto 0, el usuario lo editará
+                        montoManual: true // Flag para indicar que es monto manual
+                      };
+
+                      const next = [...conceptos, nuevo];
+                      setConceptos(next);
+                      setTotal(calcTotal(next));
+                      setSelectedCatalogConcept('');
+                      notify.success('Concepto general agregado');
+                      return;
+                    }
+
                   }}
                   disabled={!selectedCatalogConcept}
                 >
@@ -2923,7 +3112,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'CONCEPTO_LYF' ||
                        concept.tipo === 'CONCEPTO_UOCRA' ||
                        concept.tipo === 'HORA_EXTRA_LYF' ||
-                       concept.tipo === 'AGUINALDO') && (
+                       concept.tipo === 'AGUINALDO' ||
+                       concept.tipo === 'CONCEPTO_GENERAL') && (
                       <div className="amount-editable-wrapper">
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">

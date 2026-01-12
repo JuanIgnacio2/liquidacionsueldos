@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, DollarSign, Search, ArrowLeft, Eye } from 'lucide-react';
+import { Calendar, DollarSign, Search, ArrowLeft, Eye, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
@@ -64,13 +64,14 @@ export default function HistorialPagos() {
   const [query, setQuery] = useState('');
   const [filterGremio, setFilterGremio] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
+  const [periodoDesde, setPeriodoDesde] = useState('');
+  const [periodoHasta, setPeriodoHasta] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showCompletarPagosModal, setShowCompletarPagosModal] = useState(false);
   
   // Estados de paginación
   const [page, setPage] = useState(0);
@@ -79,18 +80,38 @@ export default function HistorialPagos() {
   const [totalElements, setTotalElements] = useState(0);
 
   useEffect(() => {
-    loadPagos();
     loadEmployees();
   }, []);
+
+  // Cargar pagos cuando cambian los parámetros de paginación o filtros
+  useEffect(() => {
+    loadPagos();
+  }, [page, size, filterGremio, periodoDesde, periodoHasta]);
+
+  // Resetear a página 0 cuando cambian los filtros
+  useEffect(() => {
+    if (page !== 0) {
+      setPage(0);
+    }
+  }, [filterGremio, periodoDesde, periodoHasta]);
 
   const loadEmployees = async () => {
     try {
       const data = await api.getEmployees();
       setEmployees(data || []);
     } catch (error) {
-      console.error('Error al cargar empleados:', error);
+      notify.error('Error al cargar empleados:', error);
       setEmployees([]);
     }
+  };
+
+  // Mapear filtro de gremio del frontend al formato del backend
+  const mapGremioToBackend = (gremio) => {
+    if (!gremio || gremio === '') return null;
+    if (gremio === 'LUZ_Y_FUERZA') return 'LUZ_Y_FUERZA';
+    if (gremio === 'UOCRA') return 'UOCRA';
+    if (gremio === 'Convenio General') return 'Convenio General';
+    return null;
   };
 
   const loadPagos = async () => {
@@ -159,6 +180,7 @@ export default function HistorialPagos() {
       setTotalPages(totalPagesValue);
       setTotalElements(totalElementsValue);
     } catch (error) {
+      notify.error('Error al cargar pagos:', error);
       setPagos([]);
       setTotalPages(0);
       setTotalElements(0);
@@ -189,24 +211,7 @@ export default function HistorialPagos() {
     return Array.from(gremiosSet).sort();
   }, [employees]);
 
-  // Función para obtener el gremio de un pago basado en el empleado
-  const getGremioFromPago = (pago) => {
-    const legajo = pago.legajoEmpleado;
-    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
-    if (!employee) return '';
-    
-    const gremio = employee.gremioNombre || employee.gremio?.nombre || (typeof employee.gremio === 'string' ? employee.gremio : '');
-    if (!gremio) return '';
-    
-    const gremioUpper = gremio.toUpperCase();
-    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-      return 'LUZ_Y_FUERZA';
-    } else if (gremioUpper === 'UOCRA') {
-      return 'UOCRA';
-    }
-    return 'Convenio General';
-  };
-
+  // Filtrado solo para búsqueda de texto y estado (gremio, periodo y fechas se filtran en el backend)
   const filteredPagos = useMemo(() => {
     let filtered = pagos;
 
@@ -225,15 +230,7 @@ export default function HistorialPagos() {
       });
     }
 
-    // Filtrar por gremio
-    if (filterGremio) {
-      filtered = filtered.filter((pago) => {
-        const pagoGremio = getGremioFromPago(pago);
-        return pagoGremio === filterGremio;
-      });
-    }
-
-    // Filtrar por estado
+    // Filtrar por estado (solo en frontend ya que no está en el backend)
     if (filterEstado) {
       filtered = filtered.filter((pago) => {
         const estado = pago.estado || 'Completada';
@@ -272,30 +269,6 @@ export default function HistorialPagos() {
       if (!fechaB) fechaB = b.id || 0;
       
       return fechaB - fechaA; // Más reciente primero
-    });
-
-    return filtered;
-  }, [pagos, normalizedQuery, filterGremio, filterEstado, employees]);
-
-    // Filtrar por estado (solo en frontend ya que no está en el backend)
-    if (filterEstado) {
-      filtered = filtered.filter((pago) => {
-        const estado = pago.estado || 'Completada';
-        const estadoNormalizado = estado.toLowerCase();
-        if (filterEstado === 'Completada') {
-          return estadoNormalizado === 'completada' || estadoNormalizado === 'completa';
-        } else if (filterEstado === 'Pendiente') {
-          return estadoNormalizado === 'pendiente' || estadoNormalizado === 'pendiente';
-        }
-        return true;
-      });
-    }
-
-    // Ordenar por idPago descendente (más recientes primero)
-    filtered = filtered.sort((a, b) => {
-      const idA = a.idPago || a.id || 0;
-      const idB = b.idPago || b.id || 0;
-      return idB - idA;
     });
 
     return filtered;
@@ -343,6 +316,30 @@ export default function HistorialPagos() {
       setLoadingDetails(false);
     }
    };
+
+  const handleCompletarPago = async (pago) => {
+    const idPago = pago.id || pago.idPago;
+    if (!idPago) {
+      notify.error('No se pudo identificar el ID del pago');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Está seguro de completar el pago para ${pago.apellidoEmpleado || pago.apellido || ''} ${pago.nombreEmpleado || pago.nombre || ''} (Legajo: ${pago.legajoEmpleado || pago.legajo})?`
+    );
+
+    if (!confirmar) return;
+
+    try {
+      await api.completarPago(idPago);
+      notify.success('Pago completado exitosamente');
+      // Recargar la lista de pagos
+      loadPagos();
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
+      notify.error(errorMessage);
+    }
+  };
 
   // Generar HTML del recibo para imprimir/descargar
   const generateReceiptHTML = (payroll, details) => {
@@ -1180,10 +1177,68 @@ export default function HistorialPagos() {
                 </div>
               </div>
               
+              <div className="search-filters-row">
+                <div className="filter-field-wrapper">
+                  <label htmlFor="periodo-desde">Período desde (YYYY-MM)</label>
+                  <input
+                    id="periodo-desde"
+                    type="month"
+                    className="filter-select"
+                    value={periodoDesde}
+                    onChange={(e) => setPeriodoDesde(e.target.value)}
+                  />
+                </div>
+
+                <div className="filter-field-wrapper">
+                  <label htmlFor="periodo-hasta">Período hasta (YYYY-MM)</label>
+                  <input
+                    id="periodo-hasta"
+                    type="month"
+                    className="filter-select"
+                    value={periodoHasta}
+                    onChange={(e) => setPeriodoHasta(e.target.value)}
+                  />
+                </div>
+
+                {(filterGremio || periodoDesde || periodoHasta) && (
+                  <div className="filter-field-wrapper" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button
+                      className="clear-filters-btn"
+                      onClick={() => {
+                        setFilterGremio('');
+                        setPeriodoDesde('');
+                        setPeriodoHasta('');
+                      }}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        background: '#fff',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = '#f3f4f6';
+                        e.target.style.borderColor = '#9ca3af';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = '#fff';
+                        e.target.style.borderColor = '#d1d5db';
+                      }}
+                    >
+                      Limpiar filtros
+                    </button>
+                  </div>
+                )}
+              </div>
+              
               <div className="search-results-info">
                 <span className="results-count">
-                  Mostrando {filteredTotals.totalPagos} de {totals.totalPagos} liquidación{filteredTotals.totalPagos !== 1 ? 'es' : ''} — Neto{' '}
-                  {formatCurrency(filteredTotals.totalNeto)}
+                  Mostrando {filteredPagos.length} de {totalElements} liquidación{totalElements !== 1 ? 'es' : ''} en esta página
+                  {filteredPagos.length > 0 && ` — Neto ${formatCurrency(filteredTotals.totalNeto)}`}
                 </span>
               </div>
             </div>
