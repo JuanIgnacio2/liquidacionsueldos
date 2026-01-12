@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, TrendingUp, TrendingDown, DollarSign, User, Building2, BarChart3, RefreshCw } from 'lucide-react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ArrowLeft, Calendar, TrendingUp, TrendingDown, DollarSign, User } from 'lucide-react';
 import * as api from '../services/empleadosAPI';
 import { useNotification } from '../Hooks/useNotification';
 import '../styles/components/_reportes.scss';
 
 export default function Reportes() {
   const navigate = useNavigate();
-  const notify = useNotification();
-  const [activeTab, setActiveTab] = useState('general'); // 'general', 'empleados' o 'gremios'
+  const [activeTab, setActiveTab] = useState('general'); // 'general' o 'empleados'
   const [loading, setLoading] = useState(true);
   const [resumenConceptos, setResumenConceptos] = useState([]);
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -27,18 +25,6 @@ export default function Reportes() {
   const [selectedEmployeeYear, setSelectedEmployeeYear] = useState('');
   const [resumenEmpleado, setResumenEmpleado] = useState(null);
   const [loadingEmpleado, setLoadingEmpleado] = useState(false);
-
-  // Estados para la pestaña de gremios
-  const [resumenGremios, setResumenGremios] = useState([]);
-  const [loadingGremios, setLoadingGremios] = useState(false);
-  const [gremioYear, setGremioYear] = useState(() => {
-    const now = new Date();
-    return String(now.getFullYear());
-  });
-  const [gremioMonth, setGremioMonth] = useState(() => {
-    const now = new Date();
-    return String(now.getMonth() + 1).padStart(2, '0');
-  });
 
   // Carga del resumen de conceptos. Por defecto usamos el endpoint del mes actual.
   const loadResumenMesActual = useCallback(async () => {
@@ -58,7 +44,6 @@ export default function Reportes() {
     try {
       setLoading(true);
       const data = await api.getResumeCustomMonth(periodo);
-      console.log('data', data);
       setResumenConceptos(data || []);
     } catch (error) {
       console.error('Error al cargar resumen del mes seleccionado:', error);
@@ -118,84 +103,12 @@ export default function Reportes() {
     loadEmployees();
   }, [loadResumenMesActual, loadEmployees]);
 
-  // Cargar resumen por gremio
-  const loadResumenGremios = useCallback(async () => {
-    try {
-      setLoadingGremios(true);
-      const gremios = ['LUZ_Y_FUERZA', 'UOCRA'];
-      const resultados = await Promise.all(
-        gremios.map(async (gremio) => {
-          try {
-            const data = await api.getResumenGremio(gremio);
-            console.log(`Datos recibidos para gremio ${gremio}:`, data);
-            
-            // El backend puede devolver un array o un objeto con conceptos
-            const conceptos = Array.isArray(data) ? data : (data?.conceptos || []);
-            
-            // Calcular totales
-            const totalBonificaciones = conceptos
-              .filter(c => {
-                const tipo = c.tipoConcepto || c.tipo || '';
-                return tipo !== 'DESCUENTO' && tipo !== 'DESCUENTO_LYF' && tipo !== 'DESCUENTO_UOCRA';
-              })
-              .reduce((sum, c) => sum + (Number(c.totalPagado || c.total || 0)), 0);
-            
-            const totalDescuentos = conceptos
-              .filter(c => {
-                const tipo = c.tipoConcepto || c.tipo || '';
-                return tipo === 'DESCUENTO' || tipo === 'DESCUENTO_LYF' || tipo === 'DESCUENTO_UOCRA';
-              })
-              .reduce((sum, c) => sum + (Number(c.totalPagado || c.total || 0)), 0);
-            
-            const totalNeto = totalBonificaciones - totalDescuentos;
-            
-            return {
-              gremio,
-              nombre: gremio === 'LUZ_Y_FUERZA' ? 'Luz y Fuerza' : 'UOCRA',
-              conceptos: conceptos,
-              totalBonificaciones,
-              totalDescuentos,
-              totalNeto
-            };
-          } catch (error) {
-            console.error(`Error al cargar resumen del gremio ${gremio}:`, error);
-            // No mostrar error para cada gremio individual, solo loguear
-            return {
-              gremio,
-              nombre: gremio === 'LUZ_Y_FUERZA' ? 'Luz y Fuerza' : 'UOCRA',
-              conceptos: [],
-              totalBonificaciones: 0,
-              totalDescuentos: 0,
-              totalNeto: 0
-            };
-          }
-        })
-      );
-      setResumenGremios(resultados);
-    } catch (error) {
-      console.error('Error general al cargar resúmenes de gremios:', error);
-      notify.error(error);
-      setResumenGremios([]);
-    } finally {
-      setLoadingGremios(false);
-    }
-  }, []);
-
   useEffect(() => {
     // Cargar resumen cuando cambia el empleado o año seleccionado
     if (activeTab === 'empleados') {
       loadResumenEmpleado();
     }
   }, [activeTab, loadResumenEmpleado]);
-
-  useEffect(() => {
-    // Cargar resumen de gremios solo cuando se activa la pestaña
-    // No incluimos loadResumenGremios en las dependencias para evitar loops infinitos
-    if (activeTab === 'gremios') {
-      loadResumenGremios();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
 
   // Mapeo de tipos de concepto para ordenamiento
   const tipoConceptoOrder = {
@@ -227,7 +140,7 @@ export default function Reportes() {
         const key = 'CATEGORIA_TOTAL';
         if (!agrupados[key]) {
           agrupados[key] = {
-            nombre: 'Sueldo Básico',
+            nombre: 'Básico',
             tipo: 'CATEGORIA',
             cantidad: 0,
             total: 0
@@ -339,13 +252,6 @@ export default function Reportes() {
         >
           <User className="tab-icon" />
           Resumen por Empleado
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'gremios' ? 'active' : ''}`}
-          onClick={() => setActiveTab('gremios')}
-        >
-          <Building2 className="tab-icon" />
-          Resumen por Gremio
         </button>
       </div>
 
@@ -631,186 +537,6 @@ export default function Reportes() {
           ) : (
             <div className="loading-state">
               <p>Seleccione un empleado para ver su resumen</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Contenido de pestaña: Resumen por Gremio */}
-      {activeTab === 'gremios' && (
-        <>
-          <div className="reportes-filters-empleado">
-            <div className="info-message">
-              <p>El resumen por gremio muestra todos los pagos realizados sin filtro de período.</p>
-            </div>
-            <button 
-              className="update-button"
-              onClick={handleSearchGremios}
-              disabled={loadingGremios}
-            >
-              <RefreshCw className={`update-icon ${loadingGremios ? 'spinning' : ''}`} />
-              <span>{loadingGremios ? 'Actualizando...' : 'Actualizar Datos'}</span>
-            </button>
-          </div>
-
-          {loadingGremios ? (
-            <div className="loading-state">
-              <p>Cargando resumen por gremio...</p>
-            </div>
-          ) : resumenGremios.length > 0 ? (
-            <>
-              {/* Gráficos */}
-              <div className="reportes-charts-container">
-                <div className="chart-card">
-                  <h3 className="chart-title">
-                    <BarChart3 className="chart-icon" />
-                    Comparativa por Gremio
-                  </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={gremiosChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value) => `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                      />
-                      <Legend />
-                      <Bar dataKey="bonificaciones" fill="#22c55e" name="Bonificaciones" />
-                      <Bar dataKey="descuentos" fill="#ef4444" name="Descuentos" />
-                      <Bar dataKey="neto" fill="#3b82f6" name="Neto" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="chart-card">
-                  <h3 className="chart-title">
-                    <BarChart3 className="chart-icon" />
-                    Distribución de Pagos por Gremio
-                  </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={gremiosPieData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {gremiosPieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value) => `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Tabla de resumen por gremio */}
-              <div className="reportes-summary gremios-summary">
-                {resumenGremios.map((gremio, index) => (
-                  <div key={gremio.gremio} className="summary-card gremio-card">
-                    <div className="summary-icon">
-                      <Building2 />
-                    </div>
-                    <div className="summary-content">
-                      <p className="summary-label">{gremio.nombre}</p>
-                      <div className="gremio-details">
-                        <div className="gremio-detail-item">
-                          <span className="detail-label">Bonificaciones:</span>
-                          <span className="detail-value positive">
-                            ${gremio.totalBonificaciones.toLocaleString('es-AR', { 
-                              minimumFractionDigits: 2, 
-                              maximumFractionDigits: 2 
-                            })}
-                          </span>
-                        </div>
-                        <div className="gremio-detail-item">
-                          <span className="detail-label">Descuentos:</span>
-                          <span className="detail-value negative">
-                            ${gremio.totalDescuentos.toLocaleString('es-AR', { 
-                              minimumFractionDigits: 2, 
-                              maximumFractionDigits: 2 
-                            })}
-                          </span>
-                        </div>
-                        <div className="gremio-detail-item total">
-                          <span className="detail-label">Total Neto:</span>
-                          <span className="detail-value neto">
-                            ${gremio.totalNeto.toLocaleString('es-AR', { 
-                              minimumFractionDigits: 2, 
-                              maximumFractionDigits: 2 
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tabla detallada por gremio */}
-              {resumenGremios.map((gremio) => (
-                <div key={gremio.gremio} className="gremio-table-section">
-                  <h3 className="gremio-section-title">{gremio.nombre}</h3>
-                  <div className="reportes-table-container">
-                    <table className="reportes-table">
-                      <thead>
-                        <tr>
-                          <th>Concepto</th>
-                          <th>Tipo</th>
-                          <th>Cantidad</th>
-                          <th>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {gremio.conceptos.length === 0 ? (
-                          <tr>
-                            <td colSpan="4" className="no-data">
-                              No hay datos disponibles para este gremio
-                            </td>
-                          </tr>
-                        ) : (
-                          gremio.conceptos.map((concepto, idx) => {
-                            const nombreConcepto = concepto.nombre || concepto.concepto || concepto.descripcion || '—';
-                            const tipoConcepto = concepto.tipoConcepto || concepto.tipo || '—';
-                            const cantidad = concepto.cantidad || concepto.unidades || 0;
-                            const total = Number(concepto.totalPagado || concepto.total || concepto.monto || 0);
-                            const isDescuento = tipoConcepto === 'DESCUENTO' || tipoConcepto === 'DESCUENTO_LYF' || tipoConcepto === 'DESCUENTO_UOCRA';
-                            
-                            return (
-                              <tr key={idx} className={isDescuento ? 'descuento' : 'bonificacion'}>
-                                <td className="concepto-nombre">{nombreConcepto}</td>
-                                <td>
-                                  <span className={`tipo-badge ${tipoConcepto?.toLowerCase() || ''}`}>
-                                    {tipoConcepto}
-                                  </span>
-                                </td>
-                                <td>{cantidad}</td>
-                                <td className={`concepto-total ${isDescuento ? 'negative' : 'positive'}`}>
-                                  ${total.toLocaleString('es-AR', { 
-                                    minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 2 
-                                  })}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : (
-            <div className="loading-state">
-              <p>No hay datos disponibles para los gremios</p>
             </div>
           )}
         </>
