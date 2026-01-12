@@ -334,8 +334,24 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           };
         });
         
-        // Combinar bonificaciones, descuentos y horas extras
-        setConceptos([...mappedBonificaciones, ...mappedDescuentos, ...mappedHorasExtras]);
+        // Mapear conceptos generales - usar prefijo 'GEN_' para evitar conflictos de IDs
+        const mappedConceptosGenerales = conceptosGeneralesData.map((concepto) => {
+          const originalId = concepto.idConceptoGeneral ?? concepto.id;
+          return {
+            id: `GEN_${originalId}`, // Prefijo para conceptos generales
+            originalId: originalId, // ID original para enviar al backend
+            nombre: concepto.nombre ?? concepto.descripcion,
+            unidad: 'manual', // Monto manual
+            porcentaje: null,
+            montoUnitario: null, // Se establece manualmente
+            tipo: 'CONCEPTO_GENERAL',
+            isDescuento: false,
+            cantidadFija: 1 // Siempre cantidad 1
+          };
+        });
+        
+        // Combinar bonificaciones, descuentos, horas extras y conceptos generales
+        setConceptos([...mappedBonificaciones, ...mappedDescuentos, ...mappedHorasExtras, ...mappedConceptosGenerales]);
       } catch (error) {
         notify.error("Error al cargar conceptos");
         setConceptos([]);
@@ -343,6 +359,33 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     };
     loadConceptos();
   }, [formData.gremio]);
+
+  // Determina qué concepto de "Suplemento antigüedad" debe asignarse según antigüedad y sexo
+  const determinarSuplementoAntiguedad = (añosAntiguedad, sexo) => {
+    if (añosAntiguedad < 10) {
+      return null; // Menos de 10 años, no aplica
+    }
+
+    const sexoNormalizado = (sexo || '').toString().toUpperCase().trim();
+    
+    if (sexoNormalizado === 'M' || sexoNormalizado === 'MASCULINO') {
+      // Masculino: entre 10 y 24, o más de 25
+      if (añosAntiguedad >= 10 && añosAntiguedad <= 24) {
+        return 'Suplemento Antigüedad entre 10 y 24';
+      } else if (añosAntiguedad >= 25) {
+        return 'Suplemento Antigüedad mas de 25';
+      }
+    } else if (sexoNormalizado === 'F' || sexoNormalizado === 'FEMENINO') {
+      // Femenino: entre 10 a 21, o más de 22
+      if (añosAntiguedad >= 10 && añosAntiguedad <= 21) {
+        return 'Suplemento Antigüedad entre 10 a 21';
+      } else if (añosAntiguedad >= 22) {
+        return 'Suplemento Antigüedad mas de 22';
+      }
+    }
+    
+    return null;
+  };
 
   // Asignar automáticamente "Bonif Antigüedad" para Luz y Fuerza si tiene 1 año o más
   // También actualiza las unidades si cambia la fecha de ingreso
@@ -388,6 +431,93 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       }));
     }
   }, [formData.gremio, formData.inicioActividad, conceptos, conceptosSeleccionados]);
+
+  // Asignar automáticamente "Suplemento antigüedad" para Luz y Fuerza según antigüedad y sexo
+  useEffect(() => {
+    // Solo para Luz y Fuerza
+    if (formData.gremio !== 'LUZ_Y_FUERZA' || !formData.inicioActividad || conceptos.length === 0) {
+      return;
+    }
+
+    // Calcular años de antigüedad (solo años completos, sin meses)
+    const añosAntiguedad = calculateAniosAntiguedad(formData.inicioActividad);
+    
+    // Determinar qué suplemento debería tener
+    const suplementoRequerido = determinarSuplementoAntiguedad(añosAntiguedad, formData.sexo);
+
+    // Buscar todos los conceptos de suplemento antigüedad en el catálogo
+    const conceptosSuplemento = conceptos.filter(c => {
+      const nombreNormalizado = normalize(c.nombre || '');
+      return nombreNormalizado.includes('suplemento antiguedad') || 
+             nombreNormalizado.includes('suplemento antigüedad');
+    });
+
+    // Buscar qué suplementos tiene asignados actualmente
+    const suplementosAsignados = Object.keys(conceptosSeleccionados).filter(conceptId => {
+      const concepto = conceptos.find(c => String(c.id) === String(conceptId));
+      if (!concepto) return false;
+      const nombreNormalizado = normalize(concepto.nombre || '');
+      return nombreNormalizado.includes('suplemento antiguedad') || 
+             nombreNormalizado.includes('suplemento antigüedad');
+    });
+
+    // Determinar qué concepto de suplemento debería tener
+    let conceptoSuplementoCorrecto = null;
+    if (suplementoRequerido) {
+      const requeridoNormalizado = normalize(suplementoRequerido);
+      // Extraer la parte clave del nombre (ej: "entre 10 y 24", "mas de 25")
+      const partesClave = requeridoNormalizado
+        .replace('suplemento antiguedad', '')
+        .trim()
+        .split(/\s+/)
+        .filter(p => p.length > 0);
+      
+      conceptoSuplementoCorrecto = conceptosSuplemento.find(c => {
+        const nombreNormalizado = normalize(c.nombre || '');
+        // Verificar que el nombre normalizado contenga todas las partes clave
+        return partesClave.every(parte => nombreNormalizado.includes(parte));
+      });
+    }
+
+    // Verificar si tiene el suplemento correcto asignado
+    const suplementoCorrectoAsignado = conceptoSuplementoCorrecto 
+      ? suplementosAsignados.includes(String(conceptoSuplementoCorrecto.id))
+      : false;
+
+    // Verificar si tiene suplementos incorrectos
+    const tieneSuplementosIncorrectos = suplementosAsignados.some(conceptId => {
+      if (!conceptoSuplementoCorrecto) return true; // Si no debería tener ninguno, cualquier suplemento es incorrecto
+      return String(conceptId) !== String(conceptoSuplementoCorrecto.id);
+    });
+
+    // Si necesita actualización
+    if (suplementoRequerido && (!suplementoCorrectoAsignado || tieneSuplementosIncorrectos)) {
+      setConceptosSeleccionados(prev => {
+        const next = { ...prev };
+        
+        // Quitar todos los suplementos antiguos
+        suplementosAsignados.forEach(conceptId => {
+          delete next[conceptId];
+        });
+        
+        // Agregar el suplemento correcto con 1 unidad
+        if (conceptoSuplementoCorrecto) {
+          next[conceptoSuplementoCorrecto.id] = { units: '1' };
+        }
+        
+        return next;
+      });
+    } else if (!suplementoRequerido && suplementosAsignados.length > 0) {
+      // Si no debería tener suplemento pero lo tiene, removerlo
+      setConceptosSeleccionados(prev => {
+        const next = { ...prev };
+        suplementosAsignados.forEach(conceptId => {
+          delete next[conceptId];
+        });
+        return next;
+      });
+    }
+  }, [formData.gremio, formData.inicioActividad, formData.sexo, conceptos, conceptosSeleccionados]);
 
   // Actualiza el salario base cuando cambia la categoría seleccionada
   useEffect(() => {
@@ -730,9 +860,9 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       // Construir conceptosAsignados según el DTO
       const conceptosAsignados = [];
       
-      // 1. Bonificaciones fijas, descuentos y horas extras (conceptos seleccionados)
+      // 1. Bonificaciones fijas, descuentos, horas extras y conceptos generales (conceptos seleccionados)
       Object.keys(conceptosSeleccionados).forEach(conceptId => {
-        // conceptId ahora puede ser 'BON_X', 'DESC_X' o 'HE_X'
+        // conceptId ahora puede ser 'BON_X', 'DESC_X', 'HE_X' o 'GEN_X'
         const concepto = conceptos.find(c => c.id === conceptId);
         const units = conceptosSeleccionados[conceptId]?.units;
         if (concepto && units && units > 0) {
@@ -745,6 +875,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             tipoConcepto = 'CONCEPTO_UOCRA';
           } else if (concepto.tipo === 'CONCEPTO_LYF') {
             tipoConcepto = 'CONCEPTO_LYF';
+          } else if (concepto.tipo === 'CONCEPTO_GENERAL') {
+            tipoConcepto = 'CONCEPTO_GENERAL';
           } else {
             tipoConcepto = 'BONIFICACION_FIJA';
           }
@@ -941,12 +1073,19 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
   // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
-  // Para Bonif Antigüedad: se calcula como (básico cat 11 + SUMA FIJA) * porcentaje * unidades
-  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null) => {
+  // Para conceptos especiales (Bonif Antigüedad, Suplementos, ART): se calculan sobre el total bruto
+  // Para CONCEPTO_GENERAL: monto manual (no se calcula, se usa el montoUnitario directamente)
+  const calculateConceptTotal = (concepto, units, totalRemuneraciones = null, skipTotalBruto = false) => {
     if (!concepto || !units || units <= 0) return 0;
     
     const unidades = Number(units) || 0;
     const isDescuento = concepto.isDescuento || concepto.tipo === 'DESCUENTO';
+
+    // Si es CONCEPTO_GENERAL, usar monto manual (montoUnitario)
+    if (concepto.tipo === 'CONCEPTO_GENERAL') {
+      const montoManual = Number(conceptosSeleccionados[concepto.id]?.montoManual) || 0;
+      return montoManual * unidades; // Siempre cantidad 1, pero por si acaso
+    }
 
     // Si es descuento, calcular sobre el total de remuneraciones
     if (isDescuento) {
@@ -956,38 +1095,19 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       return -(montoUnitario * unidades);
     }
 
-    // Manejo especial para Bonif Antigüedad (solo para Luz y Fuerza)
+    // Manejo especial para conceptos que se calculan sobre el total bruto
     const nombreNormalizado = normalize(concepto.nombre || '');
-    const isBonifAntiguedad = (nombreNormalizado.includes('bonif antiguedad') || nombreNormalizado.includes('bonif antigüedad')) 
+    const isConceptoEspecial = isConceptoCalculadoSobreTotalBruto(concepto.nombre) 
       && formData.gremio === 'LUZ_Y_FUERZA';
     
-    if (isBonifAntiguedad) {
-      // Base = básico de categoría 11 + concepto "SUMA FIJA"
-      if (basicoCat11 <= 0) return 0;
-      
-      // Buscar el concepto "SUMA FIJA"
-      const conceptoSumaFija = conceptos.find(c => {
-        const nombreSumaFija = normalize(c.nombre || '');
-        return nombreSumaFija.includes('suma fija');
-      });
-      
-      let sumaFija = 0;
-      if (conceptoSumaFija) {
-        // Si SUMA FIJA tiene montoUnitario, usarlo directamente
-        if (conceptoSumaFija.montoUnitario) {
-          sumaFija = Number(conceptoSumaFija.montoUnitario) || 0;
-        } else if (conceptoSumaFija.porcentaje && basicoCat11 > 0) {
-          // Si tiene porcentaje, calcular sobre básico cat 11
-          sumaFija = (basicoCat11 * Number(conceptoSumaFija.porcentaje)) / 100;
-        }
-      }
-      
-      const baseCalculo = basicoCat11 + sumaFija;
-      if (baseCalculo <= 0 || !concepto.porcentaje) return 0;
+    if (isConceptoEspecial && !skipTotalBruto) {
+      // Calcular sobre el total bruto (básico + bono área + otras bonificaciones)
+      const totalBruto = calcularTotalBruto();
+      if (totalBruto <= 0 || !concepto.porcentaje) return 0;
       
       const porcentaje = Number(concepto.porcentaje) || 0;
-      // Fórmula: (básico cat 11 + SUMA FIJA) * porcentaje * unidades
-      return (baseCalculo * porcentaje / 100) * unidades;
+      // Fórmula: total bruto * porcentaje / 100 * unidades
+      return (totalBruto * porcentaje / 100) * unidades;
     }
 
     // Manejo especial para Horas Extras de Luz y Fuerza (HORA_EXTRA_LYF)
@@ -1004,9 +1124,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         if (cIsDescuento) return sum;
         if (c.tipo === 'HORA_EXTRA_LYF') return sum; // Excluir otras horas extras
         
-        // Excluir Bonif Antigüedad del cálculo de horas extras
-        const cNombreNormalizado = normalize(c.nombre || '');
-        if (cNombreNormalizado.includes('bonif antiguedad') || cNombreNormalizado.includes('bonif antigüedad')) {
+        // Excluir conceptos que se calculan sobre total bruto del cálculo de horas extras
+        if (isConceptoCalculadoSobreTotalBruto(c.nombre)) {
           return sum;
         }
         
@@ -1014,7 +1133,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
         if (!u || u <= 0) return sum;
 
         // Para el resto, usar el cálculo estándar
-        const total = calculateConceptTotal(c, u);
+        const total = calculateConceptTotal(c, u, null, true); // Pasar flag para evitar recursión
         return sum + total;
       }, 0);
 
@@ -1457,7 +1576,13 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                     onClick={() => {
                       if (!selectedConceptToAdd) return;
                       const id = selectedConceptToAdd;
-                      setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
+                      const concepto = conceptos.find(c => c.id === id);
+                      // Para conceptos generales: cantidad 1 y monto manual (0 por defecto)
+                      if (concepto?.tipo === 'CONCEPTO_GENERAL') {
+                        setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1', montoManual: '0' } }));
+                      } else {
+                        setConceptosSeleccionados(prev => ({ ...prev, [id]: { units: '1' } }));
+                      }
                       setSelectedConceptToAdd('');
                     }}
                     disabled={!selectedConceptToAdd}
@@ -1473,7 +1598,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                     <thead>
                       <tr>
                         <th style={{ width: '30%', textAlign: 'left' }}>Concepto</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje</th>
+                        <th style={{ width: '20%', textAlign: 'center' }}>Porcentaje / Monto</th>
                         <th style={{ width: '20%', textAlign: 'center' }}>Unidades</th>
                         <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
                         <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
@@ -1483,7 +1608,9 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                       {Object.keys(conceptosSeleccionados).map((conceptId) => {
                         const concepto = conceptos.find(c => String(c.id) === String(conceptId));
                         const units = conceptosSeleccionados[conceptId]?.units ?? '';
+                        const montoManual = conceptosSeleccionados[conceptId]?.montoManual ?? '0';
                         const isDescuento = concepto ? (concepto.isDescuento || concepto.tipo === 'DESCUENTO') : false;
+                        const isConceptoGeneral = concepto?.tipo === 'CONCEPTO_GENERAL';
 
                         const calcularTotalRemuneraciones = () => {
                           const salarioBasico = Number(formData.salary) || 0;
@@ -1507,27 +1634,58 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
                             <td style={{ textAlign: 'center' }} className="porcentaje-cell">
-                              {concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
+                              {isConceptoGeneral ? (
+                                <input
+                                  type="text"
+                                  value={montoManual}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    // Permitir números con decimales para el monto manual
+                                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                      handleUnitsChange(conceptId, '1', value);
+                                    }
+                                  }}
+                                  className="monto-manual-input"
+                                  placeholder="0.00"
+                                  style={{ width: '100px', textAlign: 'center' }}
+                                />
+                              ) : concepto && concepto.tipo === 'HORA_EXTRA_LYF' 
                                 ? (concepto.factor ? `Factor ${concepto.factor}x` : '-')
                                 : (concepto && concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
                               }
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <input
-                                type="text"
-                                value={units}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  // Permitir solo números enteros (sin decimales)
-                                  if (value === '' || /^\d+$/.test(value)) {
-                                    handleUnitsChange(conceptId, value);
-                                  }
-                                }}
-                                className="units-input-field"
-                                placeholder="0"
-                              />
+                              {isConceptoGeneral ? (
+                                <input
+                                  type="text"
+                                  value="1"
+                                  disabled
+                                  readOnly
+                                  className="units-input-field"
+                                  style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
+                                />
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={units}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    // Permitir solo números enteros (sin decimales)
+                                    if (value === '' || /^\d+$/.test(value)) {
+                                      handleUnitsChange(conceptId, value);
+                                    }
+                                  }}
+                                  className="units-input-field"
+                                  placeholder="0"
+                                />
+                              )}
                             </td>
-                            <td style={{ textAlign: 'right' }} className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>{units && total !== 0 ? formatCurrencyAR(total) : '-'}</td>
+                            <td style={{ textAlign: 'right' }} className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
+                              {isConceptoGeneral 
+                                ? formatCurrencyAR(Number(montoManual) || 0)
+                                : (units && total !== 0 ? formatCurrencyAR(total) : '-')
+                              }
+                            </td>
                             <td style={{ textAlign: 'center' }}>
                               <button type="button" className="icon-btn delete-btn" onClick={() => setConceptosSeleccionados(prev => { const next = { ...prev }; delete next[conceptId]; return next; })} title="Quitar concepto" aria-label="Quitar concepto">
                                 <Trash2 className="h-4 w-4" />

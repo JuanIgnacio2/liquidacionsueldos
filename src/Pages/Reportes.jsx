@@ -43,7 +43,6 @@ export default function Reportes() {
     try {
       setLoading(true);
       const data = await api.getResumeCustomMonth(periodo);
-      console.log('data', data);
       setResumenConceptos(data || []);
     } catch (error) {
       console.error('Error al cargar resumen del mes seleccionado:', error);
@@ -140,7 +139,7 @@ export default function Reportes() {
         const key = 'CATEGORIA_TOTAL';
         if (!agrupados[key]) {
           agrupados[key] = {
-            nombre: 'Sueldo Básico',
+            nombre: 'Básico',
             tipo: 'CATEGORIA',
             cantidad: 0,
             total: 0
