@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText, Percent, List, Plus } from 'lucide-react';
+import { Modal, ModalFooter } from '../Components/Modal/Modal';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
 import { ConfirmDialog } from '../Components/ConfirmDialog/ConfirmDialog';
@@ -15,6 +16,11 @@ export default function ConvenioDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editableData, setEditableData] = useState(null);
   const [employees, setEmployees] = useState([]);
+  const [descuentos, setDescuentos] = useState([]);
+  const [conceptosGenerales, setConceptosGenerales] = useState([]);
+  const [showConceptoModal, setShowConceptoModal] = useState(false);
+  const [selectedConcepto, setSelectedConcepto] = useState(null);
+  const [conceptoNombre, setConceptoNombre] = useState('');
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -236,8 +242,36 @@ export default function ConvenioDetail() {
       }
     };
 
-    loadConvenio();
-    loadEmployees();
+    const loadDescuentos = async () => {
+      try {
+        const data = await api.getDescuentos();
+        setDescuentos(data || []);
+      } catch (error) {
+        notify.error('Error cargando descuentos:', error);
+      }
+    };
+
+    const loadConceptosGenerales = async () => {
+      try {
+        const data = await api.getConceptosGenerales();
+        setConceptosGenerales(data || []);
+      } catch (error) {
+        notify.error('Error cargando conceptos generales:', error);
+      }
+    };
+
+    // Solo cargar convenio si no es descuentos o conceptos-generales
+    if (controller !== 'descuentos' && controller !== 'conceptos-generales') {
+      loadConvenio();
+      loadEmployees();
+    } else {
+      // Cargar datos según el tipo
+      if (controller === 'descuentos') {
+        loadDescuentos();
+      } else if (controller === 'conceptos-generales') {
+        loadConceptosGenerales();
+      }
+    }
   }, [controller]);
 
   const handleEdit = () => {
@@ -375,6 +409,56 @@ export default function ConvenioDetail() {
     navigate('/convenios');
   };
 
+  const handleCreateConcepto = () => {
+    setSelectedConcepto(null);
+    setConceptoNombre('');
+    setShowConceptoModal(true);
+  };
+
+  const handleEditConcepto = (concepto) => {
+    setSelectedConcepto(concepto);
+    setConceptoNombre(concepto.nombre || concepto.descripcion || '');
+    setShowConceptoModal(true);
+  };
+
+  const handleSaveConcepto = async () => {
+    if (!conceptoNombre.trim()) {
+      notify.error('El nombre del concepto es requerido');
+      return;
+    }
+
+    try {
+      if (selectedConcepto) {
+        // Actualizar concepto existente
+        await api.updateConceptoGeneral(selectedConcepto.idConceptoGeneral || selectedConcepto.id, {
+          nombre: conceptoNombre.trim()
+        });
+        notify.success('Concepto actualizado exitosamente');
+      } else {
+        // Crear nuevo concepto
+        await api.createConceptoGeneral({
+          nombre: conceptoNombre.trim()
+        });
+        notify.success('Concepto creado exitosamente');
+      }
+
+      // Recargar conceptos generales
+      const conceptosResponse = await api.getConceptosGenerales();
+      setConceptosGenerales(conceptosResponse || []);
+      setShowConceptoModal(false);
+      setSelectedConcepto(null);
+      setConceptoNombre('');
+    } catch (error) {
+      notify.error('Error al guardar concepto: ' + (error?.response?.data?.message || error?.message || 'Error desconocido'));
+    }
+  };
+
+  const closeConceptoModal = () => {
+    setShowConceptoModal(false);
+    setSelectedConcepto(null);
+    setConceptoNombre('');
+  };
+
   // Contar empleados del gremio seleccionado
   const getEmployeeCountByController = () => {
     if (!Array.isArray(employees)) return 0;
@@ -426,6 +510,166 @@ export default function ConvenioDetail() {
     const byName = categories.find(c => String(c.cat).includes('11'));
     return byName ? (extract(byName.basicSalary) || 0) : 0;
   };
+
+  // Si es descuentos o conceptos-generales, mostrar vista especial
+  if (controller === 'descuentos') {
+    return (
+      <div className="convenio-detail">
+        {/* Header */}
+        <div className="detail-header">
+          <div className="header-navigation">
+            <button className="back-btn" onClick={handleGoBack}>
+              <ArrowLeft className="back-icon" />
+              Volver a Convenios
+            </button>
+          </div>
+
+          <div className="header-content">
+            <div className="header-info">
+              <h1 className="detail-title">Descuentos</h1>
+              <div className="header-meta">
+                <div className="meta-item">
+                  <Percent className="meta-icon" />
+                  <span>{descuentos.length} descuentos registrados</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Descuentos List */}
+        <div className="salary-table-container">
+          <div className="descuentos-list">
+            {descuentos.length > 0 ? (
+              <table className="descuentos-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Porcentaje</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {descuentos.map((descuento) => (
+                    <tr key={descuento.idDescuento || descuento.id}>
+                      <td>{descuento.nombre || descuento.descripcion || 'Sin nombre'}</td>
+                      <td className="porcentaje-cell">{descuento.porcentaje || 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <p>No hay descuentos registrados</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (controller === 'conceptos-generales') {
+    return (
+      <div className="convenio-detail">
+        {/* Header */}
+        <div className="detail-header">
+          <div className="header-navigation">
+            <button className="back-btn" onClick={handleGoBack}>
+              <ArrowLeft className="back-icon" />
+              Volver a Convenios
+            </button>
+          </div>
+
+          <div className="header-content">
+            <div className="header-info">
+              <h1 className="detail-title">Conceptos Generales</h1>
+              <div className="header-meta">
+                <div className="meta-item">
+                  <List className="meta-icon" />
+                  <span>{conceptosGenerales.length} conceptos registrados</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="header-actions">
+              <button className="action-btn edit" onClick={handleCreateConcepto}>
+                <Plus className="action-icon" />
+                Crear Concepto
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Conceptos Generales List */}
+        <div className="salary-table-container">
+          <div className="conceptos-list">
+            {conceptosGenerales.length > 0 ? (
+              <table className="conceptos-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conceptosGenerales.map((concepto) => (
+                    <tr key={concepto.idConceptoGeneral || concepto.id}>
+                      <td>{concepto.nombre || concepto.descripcion || 'Sin nombre'}</td>
+                      <td className="actions-cell">
+                        <button
+                          className="btn-icon-edit"
+                          onClick={() => handleEditConcepto(concepto)}
+                          title="Editar concepto"
+                        >
+                          <Edit className="icon" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <p>No hay conceptos generales registrados</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Create/Edit Concepto General Modal */}
+        <Modal
+          isOpen={showConceptoModal}
+          onClose={closeConceptoModal}
+          title={selectedConcepto ? 'Editar Concepto General' : 'Crear Concepto General'}
+          size="medium"
+        >
+          <div className="concepto-form">
+            <div className="form-group">
+              <label htmlFor="concepto-nombre">Nombre del Concepto</label>
+              <input
+                id="concepto-nombre"
+                type="text"
+                className="form-input"
+                value={conceptoNombre}
+                onChange={(e) => setConceptoNombre(e.target.value)}
+                placeholder="Ingrese el nombre del concepto"
+                autoFocus
+              />
+            </div>
+          </div>
+          
+          <ModalFooter>
+            <button className="btn btn-secondary" onClick={closeConceptoModal}>
+              Cancelar
+            </button>
+            <button className="btn btn-primary" onClick={handleSaveConcepto}>
+              {selectedConcepto ? 'Actualizar' : 'Crear'}
+            </button>
+          </ModalFooter>
+        </Modal>
+      </div>
+    );
+  }
 
   if (!convenio) {
     return (
