@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users } from 'lucide-react';
+import { FileText, Users, Percent, List, Plus, Edit, Trash2 } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
@@ -123,6 +123,14 @@ export default function Convenios() {
     setSelectedConvenio(null);
   };
 
+  const handleViewDescuentos = () => {
+    navigate('/convenios/descuentos');
+  };
+
+  const handleViewConceptosGenerales = () => {
+    navigate('/convenios/conceptos-generales');
+  };
+
   // Contar empleados de cada gremio para las estadísticas
   const getEmployeeCountByController = (controller) => {
     return getEmployeeCountByGremio(employees, controller);
@@ -200,6 +208,44 @@ export default function Convenios() {
         </div>
       </div>
 
+      {/* Cards de Selección: Descuentos y Conceptos Generales */}
+      <div className="conveniosContainer">
+        <div className="convenios-header">
+          <h2 className="convenios-title section-title-effect">
+            <FileText className="title-icon" />
+            Gestión de Conceptos
+          </h2>
+          <p className="convenios-description">
+            Administra descuentos y conceptos generales del sistema
+          </p>
+        </div>
+        <div className="convenios-content">
+          <div className="convenios-grid">
+            {/* Card de Descuentos */}
+            <ConvenioCard
+              convenio={{
+                name: 'Descuentos',
+                description: 'Ver y gestionar los descuentos disponibles y sus porcentajes',
+                controller: 'descuentos',
+                status: 'Activo'
+              }}
+              onView={handleViewDescuentos}
+            />
+
+            {/* Card de Conceptos Generales */}
+            <ConvenioCard
+              convenio={{
+                name: 'Conceptos Generales',
+                description: 'Crear y editar conceptos generales del sistema',
+                controller: 'conceptos-generales',
+                status: 'Activo'
+              }}
+              onView={handleViewConceptosGenerales}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* View Convenio Modal */}
       <Modal
         isOpen={showViewModal}
@@ -272,6 +318,7 @@ export default function Convenios() {
           </button>
         </ModalFooter>
       </Modal>
+
     </div>
   );
 }

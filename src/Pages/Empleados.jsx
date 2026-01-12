@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, Users, Layers, XCircle, UserCheck, CheckCircle, X } from "lucide-react";
+import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, Users, Layers, XCircle, UserCheck, CheckCircle, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal.jsx";
 import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal.jsx";
@@ -21,7 +21,6 @@ export default function Empleados() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [filtered, setFiltered] = useState([]);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showConceptsModal, setShowConceptsModal] = useState(false);
@@ -33,6 +32,15 @@ export default function Empleados() {
   const [filterGremio, setFilterGremio] = useState("TODOS");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterDropdownRef = useRef(null);
+  
+  // Estados de paginación
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalActivos, setTotalActivos] = useState(0);
+  const [totalBaja, setTotalBaja] = useState(0);
+  const [allEmployeesForModal, setAllEmployeesForModal] = useState([]);
 
   const normalizeEmployees = (rows) =>
     rows.map((e) => ({
@@ -46,18 +54,92 @@ export default function Empleados() {
         (typeof e.categoria === "string" ? e.categoria : ""),
     }));
 
+  // Mapear filtro de gremio del frontend al formato del backend
+  const mapGremioToBackend = (gremio) => {
+    if (gremio === "TODOS") return null;
+    if (gremio === "LUZ_Y_FUERZA") return "LUZ_Y_FUERZA";
+    if (gremio === "UOCRA") return "UOCRA";
+    if (gremio === "CONVENIO_GENERAL") return "Convenio General";
+    return null;
+  };
+
+  // Mapear filtro de estado del frontend al formato del backend
+  const mapEstadoToBackend = (estado) => {
+    if (estado === "TODOS") return null;
+    if (estado === "ACTIVO") return "ACTIVO";
+    if (estado === "DADO_DE_BAJA") return "DADO_DE_BAJA";
+    return null;
+  };
+
   const loadEmployees = async () => {
     try {
       setLoading(true);
-      const data = await api.getEmployees();
-      const norm = normalizeEmployees(data);
-      const ordenados = norm.sort((a, b) => a.legajo - b.legajo);
-      setEmployees(ordenados);
+      const gremioParam = mapGremioToBackend(filterGremio);
+      const estadoParam = mapEstadoToBackend(filterEstado);
+      const searchParam = search.trim() || null;
+      
+      const response = await api.getEmployeesPaginated(
+        page,
+        size,
+        gremioParam,
+        estadoParam,
+        searchParam
+      );
+      
+      // Manejar diferentes formatos de respuesta
+      let employeesData = [];
+      let totalPagesValue = 0;
+      let totalElementsValue = 0;
+      
+      if (Array.isArray(response)) {
+        // Si la respuesta es directamente un array (formato antiguo)
+        employeesData = response;
+        totalPagesValue = 1;
+        totalElementsValue = response.length;
+      } else if (response.content) {
+        // Formato Page<T> de Spring
+        employeesData = response.content;
+        totalPagesValue = response.totalPages || 0;
+        totalElementsValue = response.totalElements || response.content.length;
+      } else {
+        // Fallback: tratar como array
+        employeesData = response || [];
+        totalPagesValue = 1;
+        totalElementsValue = employeesData.length;
+      }
+      
+      const norm = normalizeEmployees(employeesData);
+      setEmployees(norm);
+      setTotalPages(totalPagesValue);
+      setTotalElements(totalElementsValue);
       setError("");
     } catch (err) {
       setError(err.message);
+      notify.error("Error al cargar empleados: " + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Cargar estadísticas totales (sin filtros)
+  const loadStats = async () => {
+    try {
+      // Cargar todos los empleados para contar activos y bajas
+      // Nota: Esto podría optimizarse si el backend proporciona un endpoint de estadísticas
+      const allResponse = await api.getEmployeesPaginated(0, 10, null, null, null);
+      const allEmployees = allResponse.content || allResponse || [];
+      setTotalActivos(allEmployees.filter(e => e.estado === "ACTIVO").length);
+      setTotalBaja(allEmployees.filter(e => e.estado === "DADO_DE_BAJA").length);
+    } catch (err) {
+      notify.error("Error al cargar estadísticas:", err);
+      // Si falla, intentar usar el endpoint sin paginación como fallback
+      try {
+        const allEmployees = await api.getEmployees();
+        setTotalActivos(allEmployees.filter(e => e.estado === "ACTIVO").length);
+        setTotalBaja(allEmployees.filter(e => e.estado === "DADO_DE_BAJA").length);
+      } catch (fallbackErr) {
+        notify.error("Error al cargar estadísticas (fallback):", fallbackErr);
+      }
     }
   };
 
@@ -71,44 +153,21 @@ export default function Empleados() {
   };
 
   useEffect(() => {
-    loadEmployees();
     loadAreas();
+    loadStats();
   }, []);
 
+  // Cargar empleados cuando cambian los filtros, búsqueda o paginación
   useEffect(() => {
-    const lower = search.toLowerCase();
-    let result = employees.filter((e) => {
-      // Filtro de búsqueda por texto
-      const matchesSearch =
-        !search ||
-        e.legajo?.toString().includes(search) ||
-        `${e.nombre} ${e.apellido}`.toLowerCase().includes(lower) ||
-        e.gremioNombre?.toLowerCase().includes(lower) ||
-        e.categoriaNombre?.toLowerCase().includes(lower);
+    loadEmployees();
+  }, [page, size, filterEstado, filterGremio, search]);
 
-      // Filtro por estado
-      const matchesEstado =
-        filterEstado === "TODOS" ||
-        (filterEstado === "ACTIVO" && e.estado === "ACTIVO") ||
-        (filterEstado === "DADO_DE_BAJA" && e.estado === "DADO_DE_BAJA");
-
-      // Filtro por gremio
-      const gremioName = e.gremioNombre || e.gremio?.nombre || "";
-      const matchesGremio =
-        filterGremio === "TODOS" ||
-        (filterGremio === "LUZ_Y_FUERZA" &&
-          (gremioName === "LUZ_Y_FUERZA" ||
-            gremioName?.toUpperCase() === "LUZ_Y_FUERZA")) ||
-        (filterGremio === "UOCRA" && gremioName === "UOCRA") ||
-        (filterGremio === "CONVENIO_GENERAL" &&
-          (gremioName === "Convenio General" ||
-            gremioName === "" ||
-            !gremioName));
-
-      return matchesSearch && matchesEstado && matchesGremio;
-    });
-    setFiltered(result);
-  }, [search, employees, filterEstado, filterGremio]);
+  // Resetear a página 0 cuando cambian los filtros o búsqueda
+  useEffect(() => {
+    if (page !== 0) {
+      setPage(0);
+    }
+  }, [filterEstado, filterGremio, search]);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -171,8 +230,24 @@ export default function Empleados() {
     setShowEditModal(true);
   };
 
-  const handleLiquidarSueldo = (employee) => {
+  const handleLiquidarSueldo = async (employee) => {
     setEmployeeForPayroll(employee);
+    // Cargar todos los empleados para el modal de liquidación
+    try {
+      const response = await api.getEmployeesPaginated(0, 10000, null, null, null);
+      const allEmployees = normalizeEmployees(response.content || response || []);
+      setAllEmployeesForModal(allEmployees);
+    } catch (err) {
+      // Si falla, intentar con el endpoint sin paginación
+      try {
+        const allEmployees = await api.getEmployees();
+        const norm = normalizeEmployees(allEmployees);
+        setAllEmployeesForModal(norm);
+      } catch (fallbackErr) {
+        notify.error("Error al cargar empleados para liquidación");
+        return;
+      }
+    }
     setShowProcessPayrollModal(true);
   };
 
@@ -284,19 +359,19 @@ export default function Empleados() {
   const statsData = [
     {
       icon: Users,
-      value: employees.length,
+      value: totalElements,
       label: "Total Empleados",
       colorClass: "success",
     },
     {
       icon: CheckCircle,
-      value: employees.filter((emp) => emp.estado === "ACTIVO").length,
+      value: totalActivos,
       label: "Empleados Activos",
       colorClass: "success",
     },
     {
       icon: XCircle,
-      value: employees.filter((emp) => emp.estado === "DADO_DE_BAJA").length,
+      value: totalBaja,
       label: "Dados de baja",
       colorClass: "warning",
     }
@@ -498,12 +573,18 @@ export default function Empleados() {
             Lista de Empleados
           </h2>
           <p className="list-description">
-            {filtered.length} empleados encontrados
+            {totalElements} empleados encontrados
+            {totalPages > 1 && ` (Página ${page + 1} de ${totalPages})`}
           </p>
         </div>
         <div className="card-content list-content">
           <div className="employee-list">
-            {filtered.map((employee) => (
+            {employees.length === 0 && !loading ? (
+              <div className="empty-state">
+                <p>No se encontraron empleados con los filtros seleccionados.</p>
+              </div>
+            ) : (
+              employees.map((employee) => (
               <div
                 key={
                   employee.legajo ?? `${employee.nombre}-${employee.apellido}`
@@ -598,8 +679,92 @@ export default function Empleados() {
                   )}
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
+          
+          {/* Controles de paginación */}
+          {totalPages > 1 && (
+            <div className="pagination-controls">
+              <div className="pagination-info">
+                <span>
+                  Mostrando {employees.length > 0 ? page * size + 1 : 0} - {Math.min((page + 1) * size, totalElements)} de {totalElements}
+                </span>
+                <select
+                  className="pagination-size-select"
+                  value={size}
+                  onChange={(e) => {
+                    setSize(Number(e.target.value));
+                    setPage(0);
+                  }}
+                >
+                  <option value={10}>10 por página</option>
+                  <option value={20}>20 por página</option>
+                  <option value={50}>50 por página</option>
+                  <option value={100}>100 por página</option>
+                </select>
+              </div>
+              <div className="pagination-buttons">
+                <button
+                  className="pagination-btn"
+                  onClick={() => setPage(0)}
+                  disabled={page === 0}
+                  title="Primera página"
+                >
+                  <ChevronLeft className="pagination-icon" />
+                  <ChevronLeft className="pagination-icon" />
+                </button>
+                <button
+                  className="pagination-btn"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 0}
+                  title="Página anterior"
+                >
+                  <ChevronLeft className="pagination-icon" />
+                </button>
+                <div className="pagination-page-numbers">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i;
+                    } else if (page < 2) {
+                      pageNum = i;
+                    } else if (page > totalPages - 3) {
+                      pageNum = totalPages - 5 + i;
+                    } else {
+                      pageNum = page - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        className={`pagination-page-btn ${page === pageNum ? 'active' : ''}`}
+                        onClick={() => setPage(pageNum)}
+                      >
+                        {pageNum + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  className="pagination-btn"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= totalPages - 1}
+                  title="Página siguiente"
+                >
+                  <ChevronRight className="pagination-icon" />
+                </button>
+                <button
+                  className="pagination-btn"
+                  onClick={() => setPage(totalPages - 1)}
+                  disabled={page >= totalPages - 1}
+                  title="Última página"
+                >
+                  <ChevronRight className="pagination-icon" />
+                  <ChevronRight className="pagination-icon" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {/* Modales */}
@@ -631,7 +796,7 @@ export default function Empleados() {
         isOpen={showProcessPayrollModal}
         onClose={closeModals}
         onProcess={handleProcessPayroll}
-        employees={employees}
+        employees={allEmployeesForModal}
         initialEmployee={employeeForPayroll}
       />
     </div>

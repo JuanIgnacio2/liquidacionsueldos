@@ -46,6 +46,46 @@
     }
   }
 
+  // Pestañas
+  .reportes-tabs {
+    display: flex;
+    gap: $spacing-2;
+    margin-bottom: $spacing-6;
+    border-bottom: 2px solid $color-gray-200;
+
+    .tab-button {
+      display: flex;
+      align-items: center;
+      gap: $spacing-2;
+      padding: $spacing-3 $spacing-5;
+      background-color: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: $color-gray-600;
+      font-size: $font-size-base;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: -2px;
+
+      .tab-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      &:hover {
+        color: $color-green-primary;
+        background-color: rgba(34, 197, 94, 0.05);
+      }
+
+      &.active {
+        color: $color-green-primary;
+        border-bottom-color: $color-green-primary;
+        font-weight: 600;
+      }
+    }
+  }
+
   .reportes-filters {
     margin-bottom: $spacing-6;
     background-color: $color-white;
@@ -77,17 +117,32 @@
       .month-select,
       .year-select {
         padding: $spacing-2 $spacing-3;
+        padding-right: 2.5rem; // Espacio para la flecha
         border: 1px solid $color-gray-300;
         border-radius: $border-radius;
         font-size: $font-size-sm;
         background-color: $color-white;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right $spacing-3 center;
+        background-size: 12px 12px;
         color: $color-gray-900;
         cursor: pointer;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
 
         &:focus {
           outline: none;
           border-color: $color-white;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        &:disabled {
+          background-color: $color-gray-100;
+          color: $color-gray-500;
+          cursor: not-allowed;
+          opacity: 0.6;
         }
       }
     }
@@ -106,6 +161,135 @@
 
       &:hover {
         background-color: darken($color-green-primary, 10%);
+      }
+    }
+  }
+
+  // Filtros para resumen de empleado
+  .reportes-filters-empleado {
+    margin-bottom: $spacing-6;
+    background-color: $color-white;
+    padding: $spacing-4;
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-sm;
+    display: flex;
+    gap: $spacing-4;
+    flex-wrap: wrap;
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: $spacing-3;
+      flex: 1;
+      min-width: 250px;
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+        font-weight: 500;
+        color: $color-gray-700;
+        white-space: nowrap;
+
+        .icon {
+          width: 1.25rem;
+          height: 1.25rem;
+          color: $color-gray-500;
+        }
+      }
+
+      .employee-select,
+      .year-select {
+        flex: 1;
+        padding: $spacing-2 $spacing-3;
+        padding-right: 2.5rem; // Espacio para la flecha
+        border: 1px solid $color-gray-300;
+        border-radius: $border-radius;
+        font-size: $font-size-sm;
+        background-color: $color-white;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right $spacing-3 center;
+        background-size: 12px 12px;
+        color: $color-gray-900;
+        cursor: pointer;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+
+        &:focus {
+          outline: none;
+          border-color: $color-green-primary;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+        }
+
+        &:disabled {
+          background-color: $color-gray-100;
+          color: $color-gray-500;
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+      }
+    }
+  }
+
+  // Header del resumen de empleado
+  .empleado-resumen-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-6;
+    padding: $spacing-5;
+    background-color: $color-white;
+    border-radius: $border-radius-lg;
+    box-shadow: $shadow-sm;
+
+    .empleado-info {
+      h2 {
+        font-size: $font-size-2xl;
+        font-weight: 700;
+        margin: 0 0 $spacing-1 0;
+        color: $color-gray-900;
+      }
+
+      .empleado-legajo,
+      .empleado-anio {
+        font-size: $font-size-sm;
+        color: $color-gray-600;
+        margin: $spacing-1 0 0 0;
+      }
+    }
+
+    .empleado-total {
+      text-align: right;
+      padding: $spacing-4;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+      border-radius: $border-radius-lg;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+
+      .total-label {
+        font-size: $font-size-sm;
+        color: $color-gray-600;
+        margin: 0 0 $spacing-1 0;
+        font-weight: 500;
+      }
+
+      .total-value {
+        font-size: $font-size-2xl;
+        font-weight: 700;
+        color: $color-green-primary;
+        margin: 0;
+      }
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: $spacing-4;
+
+      .empleado-total {
+        width: 100%;
+        text-align: left;
       }
     }
   }

@@ -3,6 +3,14 @@ import axiosClient from "./axiosClient";
 export const getEmployees = () =>
     axiosClient.get('empleados').then((r)=> r.data);
 
+export const getEmployeesPaginated = (page = 0, size = 10, gremio = null, estado = null, search = null) => {
+    const params = { page, size };
+    if (gremio) params.gremio = gremio;
+    if (estado) params.estado = estado;
+    if (search) params.search = search;
+    return axiosClient.get('empleados/paginado', { params }).then((r) => r.data);
+};
+
 export const createEmployee = (dto) =>
     axiosClient.post('empleados', dto).then((r)=>r.data);
 
@@ -39,14 +47,37 @@ export const getHorasExtrasLyF = () =>
 export const getDescuentos = () =>
     axiosClient.get(`/descuento`).then((r)=>r.data);
 
+export const getConceptosGenerales = () =>
+    axiosClient.get(`/conceptos/generales`).then((r)=>r.data);
+
+export const getConceptosGeneralesById = (id) =>
+    axiosClient.get(`/conceptos/generales/${id}`).then((r)=>r.data);
+
+export const createConceptoGeneral = (dto) =>
+    axiosClient.post(`/conceptos/generales`, dto).then((r)=>r.data);
+
+export const updateConceptoGeneral = (id, dto) =>
+    axiosClient.put(`/conceptos/generales/${id}`, dto).then((r)=>r.data);
+
 export const guardarLiquidacion = (dto) =>
     axiosClient.post('/pagos', dto).then((r) => r.data);
+
+export const completarPago = (idPago) =>
+    axiosClient.patch(`/pagos/${idPago}/completar`).then((r) => r.data);
 
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
 
 export const getPagos = () =>
     axiosClient.get(`/pagos`).then((r)=>r.data);
+
+export const getPagosPaginated = (page = 0, size = 10, gremio = null, periodoDesde = null, periodoHasta = null) => {
+    const params = { page, size };
+    if (gremio) params.gremio = gremio;
+    if (periodoDesde) params.periodoDesde = periodoDesde;
+    if (periodoHasta) params.periodoHasta = periodoHasta;
+    return axiosClient.get('/pagos/paginado', { params }).then((r) => r.data);
+};
 
 export const getPagosByEmpleado = (legajo) =>
     axiosClient.get(`/pagos/empleado/${legajo}`).then((r)=>r.data);
@@ -130,3 +161,26 @@ export const calcularVacaciones = (legajo, anioVacaciones) =>
 
 export const liquidarVacaciones = (dto) =>
     axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
+
+export const getResumenEmpleado = (legajo, anio = null) => {
+    const params = anio ? { anio } : {};
+    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
+};
+
+export const getListarUsuariosAdmin = () =>
+    axiosClient.get('/admin/users').then((r)=>r.data);
+
+export const getUsuarioAdById = (id) =>
+    axiosClient.get(`/admin/users/${id}`).then((r)=>r.data);
+
+export const createUsuarioNew = (dto) =>
+    axiosClient.post('/admin/users', dto).then((r)=>r.data);
+
+export const updateUsuarioRol = (id, dto) =>
+    axiosClient.put(`/admin/users/${id}/rol`, dto).then((r)=>r.data);
+
+export const  updateUsuarioEstado = (id, dto) =>
+    axiosClient.put(`/admin/users/${id}/estado`, dto).then((r)=>r.data);
+
+export const eliminarUsuarioAdmin = (id) =>
+    axiosClient.delete(`/admin/users/${id}`).then((r)=>r.data);

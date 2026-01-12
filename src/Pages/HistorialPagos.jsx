@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, DollarSign, Search, ArrowLeft, Eye } from 'lucide-react';
+import { Calendar, DollarSign, Search, ArrowLeft, Eye, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
@@ -63,35 +63,126 @@ export default function HistorialPagos() {
   const [query, setQuery] = useState('');
   const [filterGremio, setFilterGremio] = useState('');
   const [filterEstado, setFilterEstado] = useState('');
+  const [periodoDesde, setPeriodoDesde] = useState('');
+  const [periodoHasta, setPeriodoHasta] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  
+  // Estados de paginación
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   useEffect(() => {
-    loadPagos();
     loadEmployees();
   }, []);
+
+  // Cargar pagos cuando cambian los parámetros de paginación o filtros
+  useEffect(() => {
+    loadPagos();
+  }, [page, size, filterGremio, periodoDesde, periodoHasta]);
+
+  // Resetear a página 0 cuando cambian los filtros
+  useEffect(() => {
+    if (page !== 0) {
+      setPage(0);
+    }
+  }, [filterGremio, periodoDesde, periodoHasta]);
 
   const loadEmployees = async () => {
     try {
       const data = await api.getEmployees();
       setEmployees(data || []);
     } catch (error) {
-      console.error('Error al cargar empleados:', error);
+      notify.error('Error al cargar empleados:', error);
       setEmployees([]);
     }
+  };
+
+  // Mapear filtro de gremio del frontend al formato del backend
+  const mapGremioToBackend = (gremio) => {
+    if (!gremio || gremio === '') return null;
+    if (gremio === 'LUZ_Y_FUERZA') return 'LUZ_Y_FUERZA';
+    if (gremio === 'UOCRA') return 'UOCRA';
+    if (gremio === 'Convenio General') return 'Convenio General';
+    return null;
   };
 
   const loadPagos = async () => {
     try {
       setLoading(true);
-      const data = await api.getPagos();
-      setPagos(data || []);
+      
+      // Preparar parámetros de filtro
+      const gremioParam = mapGremioToBackend(filterGremio);
+      const periodoDesdeParam = periodoDesde.trim() || null;
+      const periodoHastaParam = periodoHasta.trim() || null;
+      
+      const response = await api.getPagosPaginated(
+        page, 
+        size, 
+        gremioParam, 
+        periodoDesdeParam, 
+        periodoHastaParam
+      );
+
+      // Manejar diferentes formatos de respuesta
+      let pagosData = [];
+      let totalPagesValue = 0;
+      let totalElementsValue = 0;
+      
+      if (Array.isArray(response)) {
+        // Si la respuesta es directamente un array (formato antiguo)
+        pagosData = response;
+        totalPagesValue = 1;
+        totalElementsValue = response.length;
+      } else if (response.content) {
+        // Formato Page<T> de Spring
+        pagosData = response.content;
+        totalPagesValue = response.totalPages || 0;
+        totalElementsValue = response.totalElements || response.content.length;
+      } else {
+        // Fallback: tratar como array
+        pagosData = response || [];
+        totalPagesValue = 1;
+        totalElementsValue = pagosData.length;
+      }
+      
+      // Normalizar los datos para manejar diferentes nombres de campos
+      const normalizedPagos = pagosData.map(pago => {
+        const fechaPagoNormalizada = pago.fechaPago ?? pago.fecha ?? null;
+        // Si no hay fechaPago, el estado debería ser Pendiente
+        // Si hay fechaPago pero no estado, asumir Completada
+        const estadoNormalizado = pago.estado ?? (fechaPagoNormalizada ? 'Completada' : 'Pendiente');
+        
+        return {
+          ...pago,
+          // Normalizar total_neto (puede venir como totalNeto, total_neto, etc.)
+          total_neto: pago.total_neto ?? pago.totalNeto ?? pago.total ?? 0,
+          // Normalizar nombres de empleado
+          nombreEmpleado: pago.nombreEmpleado ?? pago.nombre ?? '',
+          apellidoEmpleado: pago.apellidoEmpleado ?? pago.apellido ?? '',
+          legajoEmpleado: pago.legajoEmpleado ?? pago.legajo ?? null,
+          // Normalizar otros campos
+          periodoPago: pago.periodoPago ?? pago.periodo ?? '',
+          fechaPago: fechaPagoNormalizada,
+          estado: estadoNormalizado,
+          id: pago.id ?? pago.idPago ?? null
+        };
+      });
+      
+      setPagos(normalizedPagos);
+      setTotalPages(totalPagesValue);
+      setTotalElements(totalElementsValue);
     } catch (error) {
+      notify.error('Error al cargar pagos:', error);
       setPagos([]);
+      setTotalPages(0);
+      setTotalElements(0);
     } finally {
       setLoading(false);
     }
@@ -119,24 +210,7 @@ export default function HistorialPagos() {
     return Array.from(gremiosSet).sort();
   }, [employees]);
 
-  // Función para obtener el gremio de un pago basado en el empleado
-  const getGremioFromPago = (pago) => {
-    const legajo = pago.legajoEmpleado;
-    const employee = employees.find(emp => emp.legajo === legajo || emp.legajo === Number(legajo));
-    if (!employee) return '';
-    
-    const gremio = employee.gremioNombre || employee.gremio?.nombre || (typeof employee.gremio === 'string' ? employee.gremio : '');
-    if (!gremio) return '';
-    
-    const gremioUpper = gremio.toUpperCase();
-    if (gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA')) {
-      return 'LUZ_Y_FUERZA';
-    } else if (gremioUpper === 'UOCRA') {
-      return 'UOCRA';
-    }
-    return 'Convenio General';
-  };
-
+  // Filtrado solo para búsqueda de texto y estado (gremio, periodo y fechas se filtran en el backend)
   const filteredPagos = useMemo(() => {
     let filtered = pagos;
 
@@ -155,15 +229,7 @@ export default function HistorialPagos() {
       });
     }
 
-    // Filtrar por gremio
-    if (filterGremio) {
-      filtered = filtered.filter((pago) => {
-        const pagoGremio = getGremioFromPago(pago);
-        return pagoGremio === filterGremio;
-      });
-    }
-
-    // Filtrar por estado
+    // Filtrar por estado (solo en frontend ya que no está en el backend)
     if (filterEstado) {
       filtered = filtered.filter((pago) => {
         const estado = pago.estado || 'Completada';
@@ -205,13 +271,16 @@ export default function HistorialPagos() {
     });
 
     return filtered;
-  }, [pagos, normalizedQuery, filterGremio, filterEstado, employees]);
+  }, [pagos, normalizedQuery, filterEstado]);
 
+  // Calcular totales basados en los datos paginados
+  // Nota: El total neto solo se calcula con los pagos de la página actual
+  // Para obtener el total real, se necesitaría un endpoint de estadísticas
   const totals = useMemo(() => {
-    const totalPagos = pagos.length;
+    const totalPagos = totalElements;
     const totalNeto = pagos.reduce((accumulator, pago) => accumulator + (Number(pago.total_neto) || 0), 0);
     return { totalPagos, totalNeto };
-  }, [pagos]);
+  }, [totalElements, pagos]);
 
   const filteredTotals = useMemo(() => {
     const totalPagos = filteredPagos.length;
@@ -246,6 +315,30 @@ export default function HistorialPagos() {
       setLoadingDetails(false);
     }
    };
+
+  const handleCompletarPago = async (pago) => {
+    const idPago = pago.id || pago.idPago;
+    if (!idPago) {
+      notify.error('No se pudo identificar el ID del pago');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Está seguro de completar el pago para ${pago.apellidoEmpleado || pago.apellido || ''} ${pago.nombreEmpleado || pago.nombre || ''} (Legajo: ${pago.legajoEmpleado || pago.legajo})?`
+    );
+
+    if (!confirmar) return;
+
+    try {
+      await api.completarPago(idPago);
+      notify.success('Pago completado exitosamente');
+      // Recargar la lista de pagos
+      loadPagos();
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
+      notify.error(errorMessage);
+    }
+  };
 
   // Generar HTML del recibo para imprimir/descargar
   const generateReceiptHTML = (payroll, details) => {
@@ -1029,7 +1122,8 @@ export default function HistorialPagos() {
           <div className="card-header list-header">
             <h2 className="list-title section-title-effect">Listado de Pagos</h2>
             <p className="list-description">
-              {totals.totalPagos} liquidación{totals.totalPagos !== 1 ? 'es' : ''} registrada{totals.totalPagos !== 1 ? 's' : ''}
+              {totalElements} liquidación{totalElements !== 1 ? 'es' : ''} registrada{totalElements !== 1 ? 's' : ''}
+              {totalPages > 1 && ` (Página ${page + 1} de ${totalPages})`}
             </p>
           </div>
           <div className="card-content list-content">
@@ -1082,10 +1176,68 @@ export default function HistorialPagos() {
                 </div>
               </div>
               
+              <div className="search-filters-row">
+                <div className="filter-field-wrapper">
+                  <label htmlFor="periodo-desde">Período desde (YYYY-MM)</label>
+                  <input
+                    id="periodo-desde"
+                    type="month"
+                    className="filter-select"
+                    value={periodoDesde}
+                    onChange={(e) => setPeriodoDesde(e.target.value)}
+                  />
+                </div>
+
+                <div className="filter-field-wrapper">
+                  <label htmlFor="periodo-hasta">Período hasta (YYYY-MM)</label>
+                  <input
+                    id="periodo-hasta"
+                    type="month"
+                    className="filter-select"
+                    value={periodoHasta}
+                    onChange={(e) => setPeriodoHasta(e.target.value)}
+                  />
+                </div>
+
+                {(filterGremio || periodoDesde || periodoHasta) && (
+                  <div className="filter-field-wrapper" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button
+                      className="clear-filters-btn"
+                      onClick={() => {
+                        setFilterGremio('');
+                        setPeriodoDesde('');
+                        setPeriodoHasta('');
+                      }}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        background: '#fff',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = '#f3f4f6';
+                        e.target.style.borderColor = '#9ca3af';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = '#fff';
+                        e.target.style.borderColor = '#d1d5db';
+                      }}
+                    >
+                      Limpiar filtros
+                    </button>
+                  </div>
+                )}
+              </div>
+              
               <div className="search-results-info">
                 <span className="results-count">
-                  Mostrando {filteredTotals.totalPagos} de {totals.totalPagos} liquidación{filteredTotals.totalPagos !== 1 ? 'es' : ''} — Neto{' '}
-                  {formatCurrency(filteredTotals.totalNeto)}
+                  Mostrando {filteredPagos.length} de {totalElements} liquidación{totalElements !== 1 ? 'es' : ''} en esta página
+                  {filteredPagos.length > 0 && ` — Neto ${formatCurrency(filteredTotals.totalNeto)}`}
                 </span>
               </div>
             </div>
@@ -1104,18 +1256,20 @@ export default function HistorialPagos() {
                   >
                     <div className="employee-grid">
                         <div className="employee-info">
-                          <h3 className="employee-name">{`${pago.apellidoEmpleado || ''} ${pago.nombreEmpleado || ''}`}</h3>
-                          <p className="employee-email">Legajo: {pago.legajoEmpleado || '-'}</p>
+                          <h3 className="employee-name">
+                            {`${pago.apellidoEmpleado || pago.apellido || ''} ${pago.nombreEmpleado || pago.nombre || ''}`.trim() || 'Sin nombre'}
+                          </h3>
+                          <p className="employee-email">Legajo: {pago.legajoEmpleado || pago.legajo || '-'}</p>
                         </div>
                         <div className="employee-position">
-                          <p className="position-title">Período: {pago.periodoPago || '-'}</p>
+                          <p className="position-title">Período: {pago.periodoPago || pago.periodo || '-'}</p>
                           <p className="department">
                             Fecha: {pago.fechaPago ? new Date(pago.fechaPago).toLocaleDateString('es-AR') : '-'}
                           </p>
                         </div>
                         <div className="employee-salary">
                           <p className="salary-amount">
-                            {formatCurrency(pago.total_neto || 0)}
+                            {formatCurrency(pago.total_neto || pago.totalNeto || pago.total || 0)}
                           </p>
                           <p className="hire-date">Total Neto</p>
                         </div>
@@ -1126,6 +1280,24 @@ export default function HistorialPagos() {
                         </div>
                       </div>
                       <div className="employee-actions">
+                        {(() => {
+                          const estado = pago.estado?.toLowerCase() || '';
+                          const esPendiente = estado === 'pendiente' || !pago.fechaPago;
+                          return esPendiente ? (
+                            <button
+                              className="action-icon-button complete-action"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCompletarPago(pago);
+                              }}
+                              title="Completar pago"
+                            >
+                              <CheckCircle className="action-icon" />
+                            </button>
+                          ) : (
+                            <div className="action-placeholder"></div>
+                          );
+                        })()}
                         <button
                           className="action-icon-button view-action"
                           onClick={(e) => {
@@ -1145,6 +1317,89 @@ export default function HistorialPagos() {
                 <Search className="empty-icon" />
                 <h3>Sin resultados</h3>
                 <p>No se encontraron pagos que coincidan con tu búsqueda.</p>
+              </div>
+            )}
+            
+            {/* Controles de paginación */}
+            {totalPages > 1 && (
+              <div className="pagination-controls">
+                <div className="pagination-info">
+                  <span>
+                    Mostrando {pagos.length > 0 ? page * size + 1 : 0} - {Math.min((page + 1) * size, totalElements)} de {totalElements}
+                  </span>
+                  <select
+                    className="pagination-size-select"
+                    value={size}
+                    onChange={(e) => {
+                      setSize(Number(e.target.value));
+                      setPage(0);
+                    }}
+                  >
+                    <option value={10}>10 por página</option>
+                    <option value={20}>20 por página</option>
+                    <option value={50}>50 por página</option>
+                    <option value={100}>100 por página</option>
+                  </select>
+                </div>
+                <div className="pagination-buttons">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setPage(0)}
+                    disabled={page === 0}
+                    title="Primera página"
+                  >
+                    <ChevronLeft className="pagination-icon" />
+                    <ChevronLeft className="pagination-icon" />
+                  </button>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 0}
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="pagination-icon" />
+                  </button>
+                  <div className="pagination-page-numbers">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i;
+                      } else if (page < 2) {
+                        pageNum = i;
+                      } else if (page > totalPages - 3) {
+                        pageNum = totalPages - 5 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          className={`pagination-page-btn ${page === pageNum ? 'active' : ''}`}
+                          onClick={() => setPage(pageNum)}
+                        >
+                          {pageNum + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= totalPages - 1}
+                    title="Página siguiente"
+                  >
+                    <ChevronRight className="pagination-icon" />
+                  </button>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setPage(totalPages - 1)}
+                    disabled={page >= totalPages - 1}
+                    title="Última página"
+                  >
+                    <ChevronRight className="pagination-icon" />
+                    <ChevronRight className="pagination-icon" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

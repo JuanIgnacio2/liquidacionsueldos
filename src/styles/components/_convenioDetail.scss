@@ -1028,25 +1028,211 @@
     @media print {
       padding: 0;
       background: white;
-  
+
       .detail-header {
         box-shadow: none;
         border: none;
-  
+
         .header-navigation,
         .header-actions {
           display: none;
         }
       }
-  
+
       .salary-table-container {
         box-shadow: none;
         border: none;
       }
-  
+
       .detail-footer {
         box-shadow: none;
         border: none;
+      }
+    }
+  }
+
+  // Estilos para la lista de descuentos
+  .descuentos-list {
+    width: 100%;
+
+    .descuentos-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: $color-white;
+      border-radius: $border-radius-lg;
+      overflow: hidden;
+
+      thead {
+        background: $color-green-primary;
+        color: $color-white;
+
+        th {
+          padding: $spacing-3 $spacing-4;
+          text-align: left;
+          font-weight: 600;
+          font-size: $font-size-sm;
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid $color-gray-200;
+          transition: background-color 0.2s ease;
+
+          &:hover {
+            background-color: rgba(34, 197, 94, 0.05);
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          td {
+            padding: $spacing-3 $spacing-4;
+            font-size: $font-size-sm;
+            color: $color-gray-700;
+
+            &.porcentaje-cell {
+              font-weight: 600;
+              color: $color-green-primary;
+              text-align: right;
+            }
+          }
+        }
+      }
+    }
+
+    .empty-state {
+      padding: $spacing-8;
+      text-align: center;
+      color: $color-gray-500;
+      background: $color-gray-50;
+      border-radius: $border-radius-lg;
+      border: 1px dashed $color-gray-300;
+    }
+  }
+
+  // Estilos para conceptos generales
+  .conceptos-list {
+    width: 100%;
+
+    .conceptos-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: $color-white;
+      border-radius: $border-radius-lg;
+      overflow: hidden;
+
+      thead {
+        background: $color-green-primary;
+        color: $color-white;
+
+        th {
+          padding: $spacing-3 $spacing-4;
+          text-align: left;
+          font-weight: 600;
+          font-size: $font-size-sm;
+
+          &:last-child {
+            width: 120px;
+            text-align: center;
+          }
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid $color-gray-200;
+          transition: background-color 0.2s ease;
+
+          &:hover {
+            background-color: rgba(34, 197, 94, 0.05);
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          td {
+            padding: $spacing-3 $spacing-4;
+            font-size: $font-size-sm;
+            color: $color-gray-700;
+
+            &.actions-cell {
+              text-align: center;
+
+              .btn-icon-edit {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: $spacing-1 $spacing-2;
+                background: transparent;
+                border: 1px solid $color-gray-300;
+                border-radius: $border-radius;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                color: $color-gray-600;
+
+                &:hover {
+                  background: $color-green-primary;
+                  border-color: $color-green-primary;
+                  color: $color-white;
+                  transform: translateY(-1px);
+                }
+
+                .icon {
+                  width: 1rem;
+                  height: 1rem;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    .empty-state {
+      padding: $spacing-8;
+      text-align: center;
+      color: $color-gray-500;
+      background: $color-gray-50;
+      border-radius: $border-radius-lg;
+      border: 1px dashed $color-gray-300;
+    }
+  }
+
+  // Estilos para el formulario de concepto
+  .concepto-form {
+    padding: $spacing-4 0;
+
+    .form-group {
+      margin-bottom: $spacing-4;
+
+      label {
+        display: block;
+        margin-bottom: $spacing-2;
+        font-weight: 600;
+        font-size: $font-size-sm;
+        color: $color-gray-700;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: $spacing-2 $spacing-3;
+        border: 1px solid $color-gray-300;
+        border-radius: $border-radius;
+        font-size: $font-size-sm;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+        &:focus {
+          outline: none;
+          border-color: $color-green-primary;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+        }
+
+        &::placeholder {
+          color: $color-gray-400;
+        }
       }
     }
   }

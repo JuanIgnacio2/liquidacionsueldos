@@ -14,6 +14,29 @@ const formatCurrencyAR = (value) => {
   return `$${integerPart},${parts[1]}`;
 };
 
+// Función helper para normalizar strings
+const normalize = (s) =>
+  (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+// Función helper para identificar conceptos que se calculan sobre el total bruto
+const isConceptoCalculadoSobreTotalBruto = (nombreConcepto) => {
+  const nombreNormalizado = normalize(nombreConcepto || '');
+  return (
+    nombreNormalizado.includes('bonif antiguedad') ||
+    nombreNormalizado.includes('bonif antigüedad') ||
+    nombreNormalizado.includes('suplemento antiguedad') ||
+    nombreNormalizado.includes('suplemento antigüedad') ||
+    nombreNormalizado.includes('art 50') ||
+    nombreNormalizado.includes('art 69') ||
+    nombreNormalizado.includes('art 70') ||
+    nombreNormalizado.includes('art 72')
+  );
+};
+
 // Función helper para obtener el nombre legible del tipo de concepto
 const getTipoConceptoLabel = (tipoConcepto) => {
   switch (tipoConcepto) {
@@ -113,6 +136,14 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         const areasData = await api.getAreas();
         
         setAreas(areasData);
+        
+        // Cargar conceptos generales (siempre disponibles)
+        let conceptosGeneralesData = [];
+        try {
+          conceptosGeneralesData = await api.getConceptosGenerales();
+        } catch (error) {
+          console.error('Error al cargar conceptos generales:', error);
+        }
         
         // Cargar horas extras LYF si es Luz y Fuerza
         let horasExtrasLyF = [];
@@ -229,21 +260,40 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               // Mostrar categoría-zona solo para otros convenios
               nombre = `Categoría-Zona ${asignado.idReferencia}`;
               porcentaje = null;
+            } else if (asignado.tipoConcepto === 'CONCEPTO_GENERAL') {
+              concepto = conceptosGeneralesData.find(cg => 
+                (cg.idConceptoGeneral ?? cg.id) === asignado.idReferencia
+              );
+              if (concepto) {
+                nombre = concepto.nombre ?? concepto.descripcion ?? '';
+                porcentaje = null; // Los conceptos generales no usan porcentaje, usan monto manual
+              } else {
+                // Fallback si no se encuentra en el catálogo
+                nombre = asignado.nombre ?? asignado.descripcion ?? 'Concepto General';
+                porcentaje = null;
+              }
             }
 
-            if (!nombre && !concepto && !area && asignado.tipoConcepto !== 'HORA_EXTRA_LYF') return null;
+            if (!nombre && !concepto && !area && asignado.tipoConcepto !== 'HORA_EXTRA_LYF' && asignado.tipoConcepto !== 'CONCEPTO_GENERAL') return null;
 
             // Calcular total si hay porcentaje y básico
             // Para bonificaciones de área: calcular sobre el básico de categoría 11
-            // Para conceptos CONCEPTO_LYF (Luz y Fuerza): calcular sobre el básico de categoría 11
+            // Para conceptos CONCEPTO_LYF (Luz y Fuerza): calcular sobre el básico de categoría 11 (excepto conceptos especiales)
             // Para conceptos CONCEPTO_UOCRA: calcular sobre el salario básico del empleado
             // Para HORAS_EXTRAS_LYF: se calculará después usando la fórmula especial
             // Para descuentos: se calculará después sobre el total de remuneraciones
+            // Para conceptos especiales (Bonif Antigüedad, Suplementos, ART): se calcularán después sobre el total bruto
             let total = 0;
+            const esConceptoEspecial = isConceptoCalculadoSobreTotalBruto(nombre) && isLuzYFuerza;
+            
             if (asignado.tipoConcepto === 'HORA_EXTRA_LYF') {
               // Las horas extras se calcularán después, por ahora dejamos total en 0
               total = 0;
-            } else if (porcentaje && !isDescuento) {
+            } else if (asignado.tipoConcepto === 'CONCEPTO_GENERAL') {
+              // Conceptos generales: usar monto manual (si existe en el asignado)
+              total = Number(asignado.montoManual ?? asignado.monto ?? 0) * unidades;
+            } else if (porcentaje && !isDescuento && !esConceptoEspecial) {
+              // No calcular conceptos especiales aquí, se recalcularán después sobre el total bruto
               let baseCalculo = 0;
               if (asignado.tipoConcepto === 'BONIFICACION_AREA') {
                 // Bonificaciones de área se calculan sobre categoría 11
@@ -262,7 +312,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                 total = montoUnitario * unidades;
               }
             }
-            // Los descuentos se calcularán después sobre el total de remuneraciones
+            // Los descuentos y conceptos especiales se calcularán después sobre el total de remuneraciones/total bruto
 
             return {
               id: asignado.idEmpleadoConcepto || asignado.idReferencia,
@@ -272,7 +322,9 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               unidades: unidades,
               total: total,
               idReferencia: asignado.idReferencia,
-              isDescuento: isDescuento
+              isDescuento: isDescuento,
+              _esConceptoEspecial: esConceptoEspecial, // Flag para identificar y recalcular después
+              isConceptoGeneral: asignado.tipoConcepto === 'CONCEPTO_GENERAL' // Flag para conceptos generales
             };
           })
         );
@@ -304,14 +356,13 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           });
         }
 
-        // Calcular total de remuneraciones (básico + bonificaciones + áreas + horas extras)
-        // Incluir bonificaciones de área, conceptos CONCEPTO_LYF y horas extras
+        // Calcular total bruto (básico + bonificaciones + áreas + horas extras, excluyendo conceptos especiales y descuentos)
         const totalBonificacionesArea = mappedConceptos
           .filter(c => c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
           .reduce((sum, c) => sum + c.total, 0);
         
         const totalConceptosLyF = mappedConceptos
-          .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0)
+          .filter(c => c.tipoConcepto === 'CONCEPTO_LYF' && c.total > 0 && !c._esConceptoEspecial)
           .reduce((sum, c) => sum + c.total, 0);
         
         const totalHorasExtras = mappedConceptos
@@ -319,7 +370,22 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
           .reduce((sum, c) => sum + c.total, 0);
         
         // Usar basicoEmpleado (variable local) en lugar del estado
-        const totalRemuneraciones = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras;
+        const totalBruto = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras;
+
+        // Recalcular conceptos especiales sobre el total bruto
+        mappedConceptos.forEach(concepto => {
+          if (concepto._esConceptoEspecial && concepto.porcentaje && totalBruto > 0) {
+            const montoUnitario = (totalBruto * concepto.porcentaje) / 100;
+            concepto.total = montoUnitario * concepto.unidades;
+          }
+        });
+
+        // Calcular total de remuneraciones (incluyendo conceptos especiales ahora recalculados)
+        const totalConceptosEspeciales = mappedConceptos
+          .filter(c => c._esConceptoEspecial && c.total > 0)
+          .reduce((sum, c) => sum + c.total, 0);
+        
+        const totalRemuneraciones = totalBruto + totalConceptosEspeciales;
 
         // Recalcular descuentos sobre el total de remuneraciones
         mappedConceptos.forEach(concepto => {
@@ -511,7 +577,10 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                             </span>
                           </td>
                           <td className="porcentaje-cell" style={{ textAlign: 'center' }}>
-                            {concepto.porcentaje ? `${concepto.porcentaje}%` : '-'}
+                            {concepto.isConceptoGeneral 
+                              ? 'Monto manual' 
+                              : (concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
+                            }
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             {concepto.unidades || '-'}

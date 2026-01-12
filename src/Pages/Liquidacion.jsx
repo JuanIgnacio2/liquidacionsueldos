@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye, CheckCircle } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import { StatsGrid } from '../Components/ui/card';
@@ -55,7 +55,7 @@ export default function Liquidacion() {
       const data = await api.getDashboardStats();
       setDashboardStats(data || null);
     } catch (error) {
-      console.error('Error al cargar estadísticas del dashboard:', error);
+      notify.error('Error al cargar estadísticas del dashboard:', error);
     }
   };
 
@@ -79,6 +79,30 @@ export default function Liquidacion() {
       notify('No se pudieron cargar los detalles de la liquidación.');
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleCompletarPago = async (liquidacion) => {
+    const idPago = liquidacion.id || liquidacion.idPago;
+    if (!idPago) {
+      notify.error('No se pudo identificar el ID del pago');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Está seguro de completar el pago para ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})?`
+    );
+
+    if (!confirmar) return;
+
+    try {
+      await api.completarPago(idPago);
+      notify.success('Pago completado exitosamente');
+      // Recargar la lista de liquidaciones
+      loadPayrolls();
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
+      notify.error(errorMessage);
     }
   };
 
@@ -212,12 +236,33 @@ export default function Liquidacion() {
                         <p className="hire-date">Total Neto</p>
                       </div>
                       <div className="employee-status">
-                        <span className={`status-badge ${liq.estado?.toLowerCase() || 'completada'}`}>
-                          {liq.estado ? liq.estado.charAt(0).toUpperCase() + liq.estado.slice(1) : 'Completada'}
+                        <span className={`status-badge ${(liq.estado?.toLowerCase() || (liq.fechaPago ? 'completada' : 'pendiente'))}`}>
+                          {(() => {
+                            const estado = liq.estado || (liq.fechaPago ? 'Completada' : 'Pendiente');
+                            return estado.charAt(0).toUpperCase() + estado.slice(1);
+                          })()}
                         </span>
                       </div>
                     </div>
                     <div className="employee-actions">
+                      {(() => {
+                        const estado = liq.estado?.toLowerCase() || '';
+                        const esPendiente = estado === 'pendiente' || !liq.fechaPago;
+                        return esPendiente ? (
+                          <button
+                            className="action-icon-button complete-action"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCompletarPago(liq);
+                            }}
+                            title="Completar pago"
+                          >
+                            <CheckCircle className="action-icon" />
+                          </button>
+                        ) : (
+                          <div className="action-placeholder"></div>
+                        );
+                      })()}
                       <button
                         className="action-icon-button view-action"
                         onClick={(e) => {
