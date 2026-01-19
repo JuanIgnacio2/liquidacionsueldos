@@ -18,9 +18,14 @@ export default function ConvenioDetail() {
   const [employees, setEmployees] = useState([]);
   const [descuentos, setDescuentos] = useState([]);
   const [conceptosGenerales, setConceptosGenerales] = useState([]);
+  const [conceptosUocra, setConceptosUocra] = useState([]);
   const [showConceptoModal, setShowConceptoModal] = useState(false);
   const [selectedConcepto, setSelectedConcepto] = useState(null);
   const [conceptoNombre, setConceptoNombre] = useState('');
+  const [showConceptoManualModal, setShowConceptoManualModal] = useState(false);
+  const [selectedConceptoManual, setSelectedConceptoManual] = useState(null);
+  const [conceptoManualNombre, setConceptoManualNombre] = useState('');
+  const [conceptoManualMonto, setConceptoManualMonto] = useState('');
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -236,7 +241,7 @@ export default function ConvenioDetail() {
         }
         setEditableData(cloned);
     } catch (error) {
-        notify.error('Error cargando convenio:', error);
+        notify.error(error);
   }
     };
 
@@ -245,7 +250,7 @@ export default function ConvenioDetail() {
         const data = await api.getEmployees();
         setEmployees(data || []);
       } catch (error) {
-        notify.error('Error cargando empleados:', error);
+        notify.error(error);
       }
     };
 
@@ -254,7 +259,7 @@ export default function ConvenioDetail() {
         const data = await api.getDescuentos();
         setDescuentos(data || []);
       } catch (error) {
-        notify.error('Error cargando descuentos:', error);
+        notify.error(error);
       }
     };
 
@@ -263,7 +268,16 @@ export default function ConvenioDetail() {
         const data = await api.getConceptosGenerales();
         setConceptosGenerales(data || []);
       } catch (error) {
-        notify.error('Error cargando conceptos generales:', error);
+        notify.error(error);
+      }
+    };
+
+    const loadConceptosUocra = async () => {
+      try {
+        const data = await api.getConceptosUocra();
+        setConceptosUocra(data || []);
+      } catch (error) {
+        notify.error(error);
       }
     };
 
@@ -271,6 +285,10 @@ export default function ConvenioDetail() {
     if (controller !== 'descuentos' && controller !== 'conceptos-generales') {
       loadConvenio();
       loadEmployees();
+      // Cargar conceptos UOCRA si es el convenio UOCRA
+      if (controller === 'uocra') {
+        loadConceptosUocra();
+      }
     } else {
       // Cargar datos según el tipo
       if (controller === 'descuentos') {
@@ -358,7 +376,7 @@ export default function ConvenioDetail() {
       notify.success('Convenio actualizado exitosamente');
     } catch (error) {
       console.error('Error guardando convenio:', error);
-      notify.error('Error guardando convenio: ' + (error?.message || error));
+      notify.error(error);
     }
   };
 
@@ -456,7 +474,7 @@ export default function ConvenioDetail() {
       setSelectedConcepto(null);
       setConceptoNombre('');
     } catch (error) {
-      notify.error('Error al guardar concepto: ' + (error?.response?.data?.message || error?.message || 'Error desconocido'));
+      notify.error(error);
     }
   };
 
@@ -464,6 +482,71 @@ export default function ConvenioDetail() {
     setShowConceptoModal(false);
     setSelectedConcepto(null);
     setConceptoNombre('');
+  };
+
+  const handleCreateConceptoManual = () => {
+    setSelectedConceptoManual(null);
+    setConceptoManualNombre('');
+    setConceptoManualMonto('');
+    setShowConceptoManualModal(true);
+  };
+
+  const handleEditConceptoManual = (concepto) => {
+    setSelectedConceptoManual(concepto);
+    setConceptoManualNombre(concepto.nombre || concepto.descripcion || '');
+    const monto = concepto.monto || concepto.valor || 0;
+    setConceptoManualMonto(formatNumberForEdit(monto));
+    setShowConceptoManualModal(true);
+  };
+
+  const handleSaveConceptoManual = async () => {
+    if (!conceptoManualNombre.trim()) {
+      notify.error('El nombre del concepto es requerido');
+      return;
+    }
+
+    const monto = parseNumberFromDisplay(conceptoManualMonto);
+    if (isNaN(monto) || monto < 0) {
+      notify.error('El monto debe ser un número válido mayor o igual a 0');
+      return;
+    }
+
+    try {
+      if (selectedConceptoManual) {
+        // Actualizar concepto existente
+        await api.updateConceptoManualLyF(selectedConceptoManual.idConceptoManualLyF || selectedConceptoManual.id, {
+          nombre: conceptoManualNombre.trim(),
+          monto: monto
+        });
+        notify.success('Concepto manual actualizado exitosamente');
+      } else {
+        // Crear nuevo concepto
+        await api.createConceptoManualLyF({
+          nombre: conceptoManualNombre.trim(),
+          monto: monto
+        });
+        notify.success('Concepto manual creado exitosamente');
+      }
+
+      // Recargar convenio para actualizar conceptos manuales
+      const raw = await api.getConveniosNombre(controller);
+      const norm = normalizeConvenioDetail(raw, controller);
+      setConvenio(norm);
+      setEditableData(norm);
+      setShowConceptoManualModal(false);
+      setSelectedConceptoManual(null);
+      setConceptoManualNombre('');
+      setConceptoManualMonto('');
+    } catch (error) {
+      notify.error(error);
+    }
+  };
+
+  const closeConceptoManualModal = () => {
+    setShowConceptoManualModal(false);
+    setSelectedConceptoManual(null);
+    setConceptoManualNombre('');
+    setConceptoManualMonto('');
   };
 
   // Contar empleados del gremio seleccionado
@@ -1107,7 +1190,17 @@ export default function ConvenioDetail() {
             />
           </div>
         </div>
-      </div>
+        
+        <ModalFooter>
+          <button className="btn btn-secondary" onClick={closeConceptoManualModal}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" onClick={handleSaveConceptoManual}>
+            {selectedConceptoManual ? 'Actualizar' : 'Crear'}
+          </button>
+        </ModalFooter>
+      </Modal>
+
       <ConfirmDialog />
     </div>
   );
