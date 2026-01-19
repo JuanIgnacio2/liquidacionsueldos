@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, DollarSign, Search, ArrowLeft, Eye, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
+import { Calendar, DollarSign, Search, ArrowLeft, Eye, ChevronLeft, ChevronRight, CheckCircle, Users } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
@@ -73,6 +73,7 @@ export default function HistorialPagos() {
   const [payrollDetails, setPayrollDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCompletarPagosModal, setShowCompletarPagosModal] = useState(false);
   
   // Estados de paginación
   const [page, setPage] = useState(0);
@@ -101,7 +102,7 @@ export default function HistorialPagos() {
       const data = await api.getEmployees();
       setEmployees(data || []);
     } catch (error) {
-      notify.error('Error al cargar empleados:', error);
+      notify.error(error);
       setEmployees([]);
     }
   };
@@ -181,7 +182,7 @@ export default function HistorialPagos() {
       setTotalPages(totalPagesValue);
       setTotalElements(totalElementsValue);
     } catch (error) {
-      notify.error('Error al cargar pagos:', error);
+      notify.error(error);
       setPagos([]);
       setTotalPages(0);
       setTotalElements(0);
@@ -219,14 +220,14 @@ export default function HistorialPagos() {
     // Filtrar por búsqueda de texto (normalizado, sin acentos)
     if (normalizedQuery) {
       filtered = filtered.filter((pago) => {
-        return [
-          pago.nombreEmpleado,
-          pago.apellidoEmpleado,
-          pago.legajoEmpleado,
-          pago.cuil,
-          pago.periodoPago
-        ]
-          .filter(Boolean)
+      return [
+        pago.nombreEmpleado,
+        pago.apellidoEmpleado,
+        pago.legajoEmpleado,
+        pago.cuil,
+        pago.periodoPago
+      ]
+        .filter(Boolean)
           .some((field) => normalize(String(field)).includes(normalizedQuery));
       });
     }
@@ -245,31 +246,11 @@ export default function HistorialPagos() {
       });
     }
 
-    // Ordenar por fecha más reciente (fechaPago, periodoPago o id descendente)
+    // Ordenar por idPago descendente (más recientes primero)
     filtered = filtered.sort((a, b) => {
-      // Intentar usar fechaPago primero
-      let fechaA = a.fechaPago ? new Date(a.fechaPago).getTime() : null;
-      let fechaB = b.fechaPago ? new Date(b.fechaPago).getTime() : null;
-      
-      // Si no hay fechaPago, intentar usar periodoPago (formato YYYY-MM)
-      if (!fechaA && a.periodoPago) {
-        const periodoA = String(a.periodoPago).split('-');
-        if (periodoA.length >= 2) {
-          fechaA = new Date(parseInt(periodoA[0]), parseInt(periodoA[1]) - 1).getTime();
-        }
-      }
-      if (!fechaB && b.periodoPago) {
-        const periodoB = String(b.periodoPago).split('-');
-        if (periodoB.length >= 2) {
-          fechaB = new Date(parseInt(periodoB[0]), parseInt(periodoB[1]) - 1).getTime();
-        }
-      }
-      
-      // Si aún no hay fecha, usar id como fallback
-      if (!fechaA) fechaA = a.id || 0;
-      if (!fechaB) fechaB = b.id || 0;
-      
-      return fechaB - fechaA; // Más reciente primero
+      const idA = a.idPago || a.id || 0;
+      const idB = b.idPago || b.id || 0;
+      return idB - idA;
     });
 
     return filtered;
@@ -337,8 +318,7 @@ export default function HistorialPagos() {
       // Recargar la lista de pagos
       loadPagos();
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
-      notify.error(errorMessage);
+      notify.error(error);
     }
   };
 
@@ -1133,17 +1113,17 @@ export default function HistorialPagos() {
             <div className="search-section">
               <div className="search-filters-row">
                 <div className="search-field-wrapper">
-                  <label htmlFor="pago-search">Buscar pago</label>
-                  <div className="search-field">
-                    <Search className="search-icon" />
-                    <input
-                      id="pago-search"
-                      type="search"
-                      placeholder="Ingresá nombre, legajo o período"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                    />
-                  </div>
+              <label htmlFor="pago-search">Buscar pago</label>
+              <div className="search-field">
+                <Search className="search-icon" />
+                <input
+                  id="pago-search"
+                  type="search"
+                  placeholder="Ingresá nombre, legajo o período"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
                 </div>
                 
                 <div className="filter-field-wrapper">
@@ -1237,10 +1217,18 @@ export default function HistorialPagos() {
               </div>
               
               <div className="search-results-info">
-                <span className="results-count">
+              <span className="results-count">
                   Mostrando {filteredPagos.length} de {totalElements} liquidación{totalElements !== 1 ? 'es' : ''} en esta página
                   {filteredPagos.length > 0 && ` — Neto ${formatCurrency(filteredTotals.totalNeto)}`}
-                </span>
+              </span>
+                <button 
+                  className="completar-pagos-masivo-btn"
+                  onClick={() => setShowCompletarPagosModal(true)}
+                  title="Completar pagos masivo"
+                >
+                  <Users className="btn-icon" />
+                  <span>Completar Pagos Masivo</span>
+                </button>
               </div>
             </div>
 
