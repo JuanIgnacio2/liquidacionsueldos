@@ -2,8 +2,6 @@ import axios from 'axios';
 import { getToken, removeToken } from '../utils/authStorage';
 
 const axiosClient = axios.create({
-    //baseURL: import.meta.env.API_URL
-    //baseURL: 'http://192.168.1.101:8080/api/',
     baseURL: 'https://backend-liquidacion-25-de-mayo.onrender.com/api/',
     headers: {'Content-Type' : 'application/json'},
     timeout: 10_000,
