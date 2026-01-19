@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit, Upload, MapPin, Users, Calendar, Layers, FileText, Layers3Icon, Percent, List } from 'lucide-react';
+import { Eye, MapPin, Users, Layers, FileText, Percent, List } from 'lucide-react';
 import { Tooltip } from '../ToolTip/ToolTip';
 import './ConvenioCard.scss';
 
