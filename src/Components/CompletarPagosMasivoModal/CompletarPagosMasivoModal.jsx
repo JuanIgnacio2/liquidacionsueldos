@@ -59,7 +59,7 @@ export function CompletarPagosMasivoModal({ isOpen, onClose, employees, onSucces
   const construirPeriodo = () => {
     const periodoBase = `${periodoAnio}-${periodoMes}`;
     if (selectedGremio === 'UOCRA') {
-      const day = quincena === 1 ? '1' : '2';
+      const day = quincena === 1 ? '01' : '16';
       return `${periodoBase}-${day}`;
     }
     return periodoBase;

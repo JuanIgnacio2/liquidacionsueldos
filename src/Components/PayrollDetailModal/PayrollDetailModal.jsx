@@ -240,15 +240,22 @@ export default function PayrollDetailModal({
         c.tipoConcepto === 'CATEGORIA' || 
         c.tipoConcepto === 'CONCEPTO_LYF' || 
         c.tipoConcepto === 'CONCEPTO_UOCRA' ||
+        c.tipoConcepto === 'TITULO_LYF' ||
+        c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
         c.tipoConcepto === 'BONIFICACION_AREA' ||
         c.tipoConcepto === 'CATEGORIA_ZONA' ||
         c.tipoConcepto === 'HORA_EXTRA_LYF' ||
-        c.tipoConcepto === 'CONCEPTO_GENERAL'
+        c.tipoConcepto === 'AGUINALDO' ||
+        c.tipoConcepto === 'VACACIONES'
       )
       .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
     const deductions = payrollDetails.conceptos
-      .filter(c => c.tipoConcepto === 'DESCUENTO')
+      .filter(c => 
+        c.tipoConcepto === 'DESCUENTO' || 
+        c.tipoConcepto === 'DESCUENTO_LYF' || 
+        c.tipoConcepto === 'DESCUENTO_UOCRA'
+      )
       .reduce((sum, c) => sum + Math.abs(Number(c.total) || 0), 0);
 
     const netAmount = remunerations - deductions;
@@ -392,9 +399,16 @@ export default function PayrollDetailModal({
                         concepto.tipoConcepto === 'CATEGORIA' || 
                         concepto.tipoConcepto === 'CONCEPTO_LYF' || 
                         concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
+                        concepto.tipoConcepto === 'TITULO_LYF' ||
+                        concepto.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
                         concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-                        concepto.tipoConcepto === 'HORA_EXTRA_LYF'
-                      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
+                        concepto.tipoConcepto === 'HORA_EXTRA_LYF' ||
+                        concepto.tipoConcepto === 'AGUINALDO' ||
+                        concepto.tipoConcepto === 'VACACIONES';
+                      const isDeduction = 
+                        concepto.tipoConcepto === 'DESCUENTO' || 
+                        concepto.tipoConcepto === 'DESCUENTO_LYF' || 
+                        concepto.tipoConcepto === 'DESCUENTO_UOCRA';
                       const total = Number(concepto.total || 0);
                       
                       // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
@@ -404,7 +418,7 @@ export default function PayrollDetailModal({
                       return (
                         <tr key={index}>
                           <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
-                          <td className="concept-name">{concepto.nombreConcepto}</td>
+                          <td className="concept-name">{concepto.nombre || concepto.nombreConcepto}</td>
                           <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
                           <td className="concept-remuneration">
                             {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}

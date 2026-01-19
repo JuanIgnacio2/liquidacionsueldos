@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { login } from '../services/authService';
 import { registerUser } from '../services/empleadosAPI';
+import { useNotification } from '../Hooks/useNotification';
 import { DollarSign, User, Lock, Mail, UserCircle } from 'lucide-react';
 import '../styles/components/_login.scss';
 
@@ -23,11 +24,12 @@ const Login = () => {
     password: '',
     nombre: '',
     apellido: '',
-    correo: ''
+    email: ''
   });
 
   const navigate = useNavigate();
   const { login: authLogin } = useAuth();
+  const notify = useNotification();
 
   const validateLogin = () => {
     const newErrors = {};
@@ -55,10 +57,10 @@ const Login = () => {
     if (!registerData.apellido.trim()) {
       newErrors.apellido = 'El apellido es requerido';
     }
-    if (!registerData.correo.trim()) {
-      newErrors.correo = 'El correo es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerData.correo)) {
-      newErrors.correo = 'El correo no es válido';
+    if (!registerData.email.trim()) {
+      newErrors.email = 'El correo es requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerData.email)) {
+      newErrors.email = 'El correo no es válido';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -90,10 +92,8 @@ const Login = () => {
         }
       }
     } catch (error) {
+      notify.error(error);
       const errorMessage = error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
-      if (window?.showNotification) {
-        window.showNotification(errorMessage, 'error', 5000);
-      }
       setErrors({ general: errorMessage });
     } finally {
       setLoading(false);
@@ -111,7 +111,7 @@ const Login = () => {
         password: registerData.password,
         nombre: registerData.nombre,
         apellido: registerData.apellido,
-        correo: registerData.correo
+        email: registerData.email
       };
       
       const response = await registerUser(dto);
@@ -129,7 +129,7 @@ const Login = () => {
           password: '',
           nombre: '',
           apellido: '',
-          correo: ''
+          email: ''
         });
         setErrors({});
         
@@ -151,10 +151,8 @@ const Login = () => {
         }
       }
     } catch (error) {
+      notify.error(error);
       const errorMessage = error.response?.data?.message || 'Error al registrar usuario. Intenta nuevamente.';
-      if (window?.showNotification) {
-        window.showNotification(errorMessage, 'error', 5000);
-      }
       setErrors({ general: errorMessage });
     } finally {
       setLoading(false);
@@ -189,7 +187,7 @@ const Login = () => {
     setIsRegisterMode(!isRegisterMode);
     setErrors({});
     setLoginData({ username: '', password: '' });
-    setRegisterData({ username: '', password: '', nombre: '', apellido: '', correo: '' });
+    setRegisterData({ username: '', password: '', nombre: '', apellido: '', email: '' });
   };
 
   return (
@@ -310,13 +308,13 @@ const Login = () => {
               </label>
               <input
                 type="email"
-                className={`form-input ${errors.correo ? 'error' : ''}`}
-                value={registerData.correo}
-                onChange={(e) => handleInputChange('correo', e.target.value, true)}
+                className={`form-input ${errors.email ? 'error' : ''}`}
+                  value={registerData.email}
+                onChange={(e) => handleInputChange('email', e.target.value, true)}
                 placeholder="correo@ejemplo.com"
                 disabled={loading}
               />
-              {errors.correo && <span className="error-message">{errors.correo}</span>}
+              {errors.email && <span className="error-message">{errors.email}</span>}
             </div>
 
             <div className="form-group">
