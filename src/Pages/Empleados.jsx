@@ -115,7 +115,7 @@ export default function Empleados() {
       setError("");
     } catch (err) {
       setError(err.message);
-      notify.error("Error al cargar empleados: " + err.message);
+      notify.error(err);
     } finally {
       setLoading(false);
     }
@@ -131,14 +131,14 @@ export default function Empleados() {
       setTotalActivos(allEmployees.filter(e => e.estado === "ACTIVO").length);
       setTotalBaja(allEmployees.filter(e => e.estado === "DADO_DE_BAJA").length);
     } catch (err) {
-      notify.error("Error al cargar estadísticas:", err);
+      notify.error(err);
       // Si falla, intentar usar el endpoint sin paginación como fallback
       try {
         const allEmployees = await api.getEmployees();
         setTotalActivos(allEmployees.filter(e => e.estado === "ACTIVO").length);
         setTotalBaja(allEmployees.filter(e => e.estado === "DADO_DE_BAJA").length);
       } catch (fallbackErr) {
-        notify.error("Error al cargar estadísticas (fallback):", fallbackErr);
+        notify.error(fallbackErr);
       }
     }
   };
@@ -148,7 +148,7 @@ export default function Empleados() {
       const data = await api.getAreas();
       setAreas(data);
     } catch (err) {
-      notify.error("No se pudieron cargar las areas asignadas a los empleados", err);
+      notify.error(err);
     }
   };
 
@@ -216,7 +216,7 @@ export default function Empleados() {
       }
       await loadEmployees(); // Refrescar lista
     } catch (err) {
-      notify.error("Error al registrar empleado: " + err.message);
+      notify.error(err);
     }
   };
 
@@ -297,7 +297,7 @@ export default function Empleados() {
           }
           await loadEmployees(); // Refrescar lista
         } catch (error) {
-          notify.error("Error al dar de alta el empleado: " + error.message);
+          notify.error(error);
         }
       }
     } else if (employee.estado === "ACTIVO") {
@@ -331,7 +331,7 @@ export default function Empleados() {
           }
           await loadEmployees(); // Refrescar lista
         } catch (error) {
-          notify.error("Error al dar de baja el empleado: " + error.message);
+          notify.error(error);
         }
       }
     }
