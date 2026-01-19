@@ -5,6 +5,18 @@
     padding-top: $spacing-4;
     background-color: rgba(217, 247, 226, 0.3);
     min-height: 100vh;
+
+    // Estilos para LoadingSpinner en la página de configuración
+    .loading-spinner-container {
+      min-height: calc(100vh - 200px); // Altura de la pantalla menos el header
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &.list-loading {
+        min-height: calc(100vh - 200px); // Sobrescribir el min-height de la variante list-loading
+      }
+    }
   
     .configuracion-header {
       margin-bottom: $spacing-8;
