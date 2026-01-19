@@ -98,11 +98,12 @@
         grid-template-columns: 2fr 1fr 1fr;
         gap: $spacing-4;
         align-items: end;
-        padding: $spacing-4;
-        background: $color-white;
-        border: 1px solid $color-gray-200;
+        padding: $spacing-5;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(34, 197, 94, 0.03));
+        border: 2px solid rgba(34, 197, 94, 0.2);
         border-radius: $border-radius-lg;
         margin-bottom: $spacing-2;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 
         @media (max-width: 768px) {
           grid-template-columns: 1fr;
@@ -197,51 +198,72 @@
       }
 
       .search-results-info {
-        padding: 0 $spacing-4;
-        padding-bottom: $spacing-2;
-        border-bottom: 1px solid $color-gray-200;
+        padding: $spacing-3 $spacing-4;
+        padding-bottom: $spacing-3;
+        border-bottom: 2px solid $color-green-primary;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.03));
+        border-radius: $border-radius-lg $border-radius-lg 0 0;
+        margin-top: $spacing-2;
 
         .results-count {
-          font-size: $font-size-sm;
-          color: $color-gray-600;
-          font-weight: 500;
+          font-size: $font-size-base;
+          color: $color-gray-700;
+          font-weight: 600;
         }
       }
 
       .employees-list {
         flex: 1;
-        overflow-y: visible;
+        overflow-y: auto;
         overflow-x: hidden;
-        padding: $spacing-4 0;
+        padding: $spacing-4;
         margin-top: 0;
-        border-radius: $border-radius-lg;
+        border-radius: 0 0 $border-radius-lg $border-radius-lg;
         min-height: 0;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(245, 158, 11, 0.02));
+        border: 2px solid rgba(34, 197, 94, 0.2);
+        border-top: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         
         // Ocultar scrollbar si aparece
         &::-webkit-scrollbar {
-          display: none;
+          width: 8px;
         }
-        -ms-overflow-style: none;
-        scrollbar-width: none;
+        
+        &::-webkit-scrollbar-track {
+          background: rgba(34, 197, 94, 0.05);
+          border-radius: 4px;
+        }
+        
+        &::-webkit-scrollbar-thumb {
+          background: rgba(34, 197, 94, 0.3);
+          border-radius: 4px;
+          
+          &:hover {
+            background: rgba(34, 197, 94, 0.5);
+          }
+        }
 
         .employee-card {
           position: relative;
-          padding: $spacing-2 $spacing-6;
-          border: 1px solid $color-gray-200;
+          padding: $spacing-4 $spacing-6;
+          border: 2px solid rgba(34, 197, 94, 0.3);
           border-radius: $border-radius-lg;
-          margin-bottom: $spacing-3;
+          margin-bottom: $spacing-4;
           cursor: pointer;
           transition: all 0.3s ease;
           background: $color-white;
           overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
           &:hover {
             border-color: $color-green-primary;
-            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.15);
-            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(34, 197, 94, 0.25);
+            transform: translateY(-3px);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(34, 197, 94, 0.02));
 
             .employee-card-accent {
-              width: 6px;
+              width: 8px;
             }
 
             .salary-indicator {
@@ -253,10 +275,11 @@
             position: absolute;
             left: 0;
             top: 0;
-            width: 3px;
+            width: 5px;
             height: 100%;
             background: linear-gradient(135deg, $color-green-primary, $color-green-dark);
             transition: all 0.3s ease;
+            box-shadow: 2px 0 8px rgba(34, 197, 94, 0.3);
           }
 
           .employee-info {
@@ -415,24 +438,33 @@
 
         .no-results {
           text-align: center;
-          padding: $spacing-8;
-          color: $color-gray-500;
-          background: rgba(107, 114, 128, 0.05);
+          padding: $spacing-6 $spacing-6;
+          color: $color-gray-600;
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(245, 158, 11, 0.02));
           border-radius: $border-radius-lg;
-          border: 1px dashed $color-gray-300;
+          border: 2px dashed rgba(34, 197, 94, 0.3);
+          margin: $spacing-4 0;
 
           .no-results-icon {
-            width: 3rem;
-            height: 3rem;
-            margin: 0 auto $spacing-3;
-            opacity: 0.5;
+            width: 4rem;
+            height: 4rem;
+            margin: 0 auto $spacing-4;
+            opacity: 0.6;
+            color: $color-green-primary;
+          }
+
+          p {
+            font-size: $font-size-base;
+            font-weight: 600;
+            color: $color-gray-700;
+            margin-bottom: $spacing-2;
           }
 
           .no-results-hint {
             display: block;
-            font-size: $font-size-xs;
-            color: $color-gray-400;
-            margin-top: $spacing-1;
+            font-size: $font-size-sm;
+            color: $color-gray-500;
+            margin-top: $spacing-2;
             font-style: italic;
           }
         }

@@ -1,8 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, Plus, TrendingUp, Clock, History, Settings, FileText, DollarSign, Eye, CheckCircle } from 'lucide-react';
+import { Calculator, Plus, TrendingUp, Clock, History, FileText, DollarSign, Eye, CheckCircle, Users } from 'lucide-react';
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
+import { CompletarPagosMasivoModal } from '../Components/CompletarPagosMasivoModal/CompletarPagosMasivoModal';
 import { StatsGrid } from '../Components/ui/card';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -17,6 +18,7 @@ export default function Liquidacion() {
   const [employees, setEmployees] = useState([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCompletarPagosModal, setShowCompletarPagosModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
@@ -27,7 +29,13 @@ export default function Liquidacion() {
   const loadPayrolls = async () => {
     try {
       const data = await api.getUltimosPagos();
-      setLiquidaciones(data);
+      // Ordenar por idPago descendente (más recientes primero)
+      const ordenados = data.sort((a, b) => {
+        const idA = a.idPago || a.id || 0;
+        const idB = b.idPago || b.id || 0;
+        return idB - idA;
+      });
+      setLiquidaciones(ordenados);
     } catch (error) {
       notify.error('Error al cargar las liquidaciones');
     }
@@ -55,7 +63,7 @@ export default function Liquidacion() {
       const data = await api.getDashboardStats();
       setDashboardStats(data || null);
     } catch (error) {
-      notify.error('Error al cargar estadísticas del dashboard:', error);
+      notify.error(error);
     }
   };
 
@@ -73,6 +81,7 @@ export default function Liquidacion() {
     try {
       // Cargar detalles de la liquidación desde la API
       const detalle = await api.getDetallePago(liquidacion.id || liquidacion.idPago);
+      console.log("detalle", detalle);
       setPayrollDetails(detalle);
     } catch (error) {
       notify.error('Error al cargar detalles de la liquidación');
@@ -100,9 +109,21 @@ export default function Liquidacion() {
       notify.success('Pago completado exitosamente');
       // Recargar la lista de liquidaciones
       loadPayrolls();
+      try {
+        const usuario = localStorage.getItem('usuario') || 'Sistema';
+        await api.registrarActividad({
+          usuario,
+          accion: 'Pago completado',
+          descripcion: `Se completó el pago para el empleado ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})`,
+          referenciaTipo: 'PAGO',
+          referenciaId: idPago
+        });
+      } catch (actividadError) {
+        // Si falla el registro de actividad, solo loguear el error pero no afectar el flujo principal
+        console.warn('Error al registrar actividad de liquidación:', actividadError);
+      }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al completar el pago';
-      notify.error(errorMessage);
+      notify.error(error);
     }
   };
 
@@ -303,9 +324,9 @@ export default function Liquidacion() {
                 <span>Historial</span>
                 <History className="action-icon" />
               </button>
-              <button className="action-btn secondary">
-                <span>Configuración</span>
-                <Settings className="action-icon" />
+              <button className="action-btn secondary" onClick={() => setShowCompletarPagosModal(true)}>
+                <span>Completar Pagos Masivo</span>
+                <Users className="action-icon" />
               </button>
             </div>
           </div>
@@ -336,6 +357,16 @@ export default function Liquidacion() {
         loadingDetails={loadingDetails}
         onPrint={handlePrintPayroll}
         onDownload={handleDownloadPayroll}
+      />
+
+      <CompletarPagosMasivoModal
+        isOpen={showCompletarPagosModal}
+        onClose={() => setShowCompletarPagosModal(false)}
+        employees={employees}
+        onSuccess={() => {
+          loadPayrolls();
+          loadDashboardStats();
+        }}
       />
     </div>
   );

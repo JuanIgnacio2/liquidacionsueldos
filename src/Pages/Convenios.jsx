@@ -98,7 +98,7 @@ export default function Convenios() {
         
         setConvenios(conveniosWithEmployeeCount);
       } catch (err) {
-        notify.error("Error cargando datos:", err);
+        notify.error(err);
       } finally {
         setLoading(false);
       }

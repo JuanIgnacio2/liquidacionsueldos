@@ -115,8 +115,8 @@ export default function Configuracion() {
             });
             setErrors({});
         } catch (error) {
+            notify.error(error);
             const errorMessage = error.response?.data?.message || 'Error al cambiar la contraseña. Verifica los datos ingresados.';
-            notify.error(errorMessage);
             setErrors({ general: errorMessage });
         } finally {
             setLoading(false);
@@ -243,8 +243,7 @@ export default function Configuracion() {
             handleCloseUserModal();
             loadUsuarios();
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Error al guardar usuario';
-            notify.error(errorMessage);
+            notify.error(error);
         }
     };
 
@@ -263,8 +262,7 @@ export default function Configuracion() {
             notify.success('Rol actualizado exitosamente');
             loadUsuarios();
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Error al actualizar el rol';
-            notify.error(errorMessage);
+            notify.error(error);
         }
     };
 
@@ -283,8 +281,7 @@ export default function Configuracion() {
             notify.success(`Usuario ${nuevoEstado ? 'activado' : 'desactivado'} exitosamente`);
             loadUsuarios();
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Error al actualizar el estado';
-            notify.error(errorMessage);
+            notify.error(error);
         }
     };
 
@@ -304,8 +301,7 @@ export default function Configuracion() {
             notify.success('Usuario eliminado exitosamente');
             loadUsuarios();
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Error al eliminar usuario';
-            notify.error(errorMessage);
+            notify.error(error);
         }
     };
 

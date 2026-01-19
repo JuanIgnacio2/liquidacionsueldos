@@ -353,6 +353,18 @@
     }
   }
 
+  // Estilos para LoadingSpinner en la página de empleados
+  .loading-spinner-container {
+    min-height: calc(100vh - 200px); // Altura de la pantalla menos el header
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    &.list-loading {
+      min-height: calc(100vh - 200px); // Sobrescribir el min-height de la variante list-loading
+    }
+  }
+
   .employees-list {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
     background-color: $color-white;

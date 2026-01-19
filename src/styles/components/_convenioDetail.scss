@@ -27,6 +27,18 @@
       font-size: 1.2rem;
       color: var(--text-secondary);
     }
+
+    // Estilos para LoadingSpinner en la página de detalle de convenio
+    .loading-spinner-container {
+      min-height: calc(100vh - 200px); // Altura de la pantalla menos el header
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &.list-loading {
+        min-height: calc(100vh - 200px); // Sobrescribir el min-height de la variante list-loading
+      }
+    }
   
     // Header
     .detail-header {
@@ -361,11 +373,11 @@
         .additional-bonifications {
           margin-top: 2rem;
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
           gap: 2rem;
 
-          .bonif-section, .titles-section {
-            /* Estilos para las tablas de bonificaciones y títulos */
+          .bonif-section, .titles-section, .horas-extras-section {
+            /* Estilos para las tablas de bonificaciones, títulos y horas extras */
             table {
               width: 100%;
               border-collapse: collapse;
@@ -399,6 +411,137 @@
                 &:last-child {
                   text-align: center;
                   padding: 0.75rem 0.5rem;
+                }
+              }
+            }
+          }
+
+          .conceptos-manuales-section {
+            grid-column: 1 / -1; // Ocupa todo el ancho disponible
+            margin-top: 1rem;
+
+            .section-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 1rem;
+
+              h3 {
+                font-size: 1.2rem;
+                font-weight: 600;
+                color: var(--text-primary);
+                margin: 0;
+              }
+
+              .action-btn {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.5rem 1rem;
+                border: none;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                background: var(--primary-color);
+                color: white;
+
+                .action-icon {
+                  width: 16px;
+                  height: 16px;
+                }
+
+                &:hover {
+                  background: var(--primary-dark);
+                  transform: translateY(-2px);
+                  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+                }
+              }
+            }
+
+            .conceptos-manuales-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 0.9rem;
+              background: $color-white;
+              border-radius: $border-radius-lg;
+              overflow: hidden;
+
+              thead {
+                background: $color-green-primary;
+                color: $color-white;
+
+                th {
+                  padding: $spacing-3 $spacing-4;
+                  text-align: left;
+                  font-weight: 600;
+                  font-size: $font-size-sm;
+
+                  &:nth-child(2) {
+                    text-align: right;
+                  }
+
+                  &:last-child {
+                    width: 120px;
+                    text-align: center;
+                  }
+                }
+              }
+
+              tbody {
+                tr {
+                  border-bottom: 1px solid $color-gray-200;
+                  transition: background-color 0.2s ease;
+
+                  &:hover {
+                    background-color: rgba(34, 197, 94, 0.05);
+                  }
+
+                  &:last-child {
+                    border-bottom: none;
+                  }
+
+                  td {
+                    padding: $spacing-3 $spacing-4;
+                    font-size: $font-size-sm;
+                    color: $color-gray-700;
+
+                    &.monto-cell {
+                      font-weight: 600;
+                      color: $color-green-primary;
+                      text-align: right;
+                    }
+
+                    &.actions-cell {
+                      text-align: center;
+
+                      .btn-icon-edit {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: $spacing-1 $spacing-2;
+                        background: transparent;
+                        border: 1px solid $color-gray-300;
+                        border-radius: $border-radius;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        color: $color-gray-600;
+
+                        &:hover {
+                          background: $color-green-primary;
+                          border-color: $color-green-primary;
+                          color: $color-white;
+                          transform: translateY(-1px);
+                        }
+
+                        .icon {
+                          width: 1rem;
+                          height: 1rem;
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -719,6 +862,89 @@
             background: rgba(37, 99, 235, 0.05);
           }
         }
+
+        // Conceptos UOCRA Section
+        .uocra-conceptos-section {
+          margin-top: 3rem;
+          padding-top: 2rem;
+          border-top: 2px solid rgba(34, 197, 94, 0.2);
+
+          .table-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--primary-color);
+
+            h2 {
+              font-size: 1.5rem;
+              font-weight: bold;
+              color: var(--text-primary);
+              margin: 0;
+            }
+          }
+
+          .uocra-conceptos-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            background: $color-white;
+            border-radius: $border-radius-lg;
+            overflow: hidden;
+
+            thead {
+              background: $color-green-primary;
+              color: $color-white;
+
+              th {
+                padding: $spacing-3 $spacing-4;
+                text-align: left;
+                font-weight: 600;
+                font-size: $font-size-sm;
+
+                &:last-child {
+                  text-align: right;
+                }
+              }
+            }
+
+            tbody {
+              tr {
+                border-bottom: 1px solid $color-gray-200;
+                transition: background-color 0.2s ease;
+
+                &:hover {
+                  background-color: rgba(34, 197, 94, 0.05);
+                }
+
+                &:last-child {
+                  border-bottom: none;
+                }
+
+                td {
+                  padding: $spacing-3 $spacing-4;
+                  font-size: $font-size-sm;
+                  color: $color-gray-700;
+
+                  &.porcentaje-cell {
+                    font-weight: 600;
+                    color: $color-green-primary;
+                    text-align: right;
+                  }
+                }
+              }
+            }
+          }
+
+          .empty-state {
+            padding: $spacing-8;
+            text-align: center;
+            color: $color-gray-500;
+            background: $color-gray-50;
+            border-radius: $border-radius-lg;
+            border: 1px dashed $color-gray-300;
+            margin-top: $spacing-4;
+          }
+        }
   
         .uocra-notes {
           background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(245, 158, 11, 0.05));
@@ -927,11 +1153,23 @@
       .salary-table-container {
         .additional-bonifications {
           grid-template-columns: 1fr;
-          .bonif-section, .titles-section {
+          .bonif-section, .titles-section, .horas-extras-section {
             table {
               font-size: 0.85rem;
               th, td {
                 padding: 0.5rem 0.3rem;
+              }
+            }
+          }
+          .conceptos-manuales-section {
+            .section-header {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 1rem;
+
+              .action-btn {
+                width: 100%;
+                justify-content: center;
               }
             }
           }
@@ -986,11 +1224,28 @@
           }
         }
         .additional-bonifications {
-          .bonif-section, .titles-section {
+          .bonif-section, .titles-section, .horas-extras-section {
             table {
               font-size: 0.8rem;
               th, td {
                 padding: 0.4rem 0.2rem;
+              }
+            }
+          }
+          .conceptos-manuales-section {
+            .section-header {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 0.75rem;
+
+              h3 {
+                font-size: 1rem;
+              }
+
+              .action-btn {
+                width: 100%;
+                font-size: 0.85rem;
+                padding: 0.4rem 0.8rem;
               }
             }
           }
@@ -1012,11 +1267,19 @@
           font-size: 0.75rem;
         }
         .additional-bonifications {
-          .bonif-section, .titles-section {
+          .bonif-section, .titles-section, .horas-extras-section {
             table {
               font-size: 0.75rem;
               th, td {
                 padding: 0.3rem 0.1rem;
+              }
+            }
+          }
+          .conceptos-manuales-section {
+            .conceptos-manuales-table {
+              font-size: 0.8rem;
+              th, td {
+                padding: 0.5rem 0.3rem;
               }
             }
           }
@@ -1185,6 +1448,12 @@
                   height: 1rem;
                 }
               }
+            }
+
+            &.porcentaje-cell {
+              font-weight: 600;
+              color: $color-green-primary;
+              text-align: right;
             }
           }
         }
