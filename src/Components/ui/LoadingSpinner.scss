@@ -118,4 +118,9 @@
 .loading-spinner-container.list-loading {
   padding: $spacing-6;
   min-height: 150px;
+  
+  // Si está en un contenedor con altura definida, usar más altura
+  &:not(.loading-spinner-overlay) {
+    min-height: 50vh;
+  }
 }

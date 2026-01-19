@@ -36,7 +36,10 @@ export const getPorcentajeArea = (idArea, idCat) =>
     axiosClient.get(`bonificaciones-variables/area/${idArea}/categoria/${idCat}`).then((r)=>r.data);
 
 export const getConceptosLyF = () =>
-    axiosClient.get(`/conceptos/energia`).then((r)=>r.data);
+    axiosClient.get(`/conceptos/lyf`).then((r)=>r.data);
+
+export const getTitulosLyF = () =>
+    axiosClient.get(`/titulos/lyf`).then((r)=>r.data);
 
 export const getConceptosUocra = () =>
     axiosClient.get(`/uocra/conceptos`).then((r)=>r.data);
@@ -45,7 +48,13 @@ export const getHorasExtrasLyF = () =>
     axiosClient.get(`/horas-extras-lyf`).then((r)=>r.data);
 
 export const getDescuentos = () =>
-    axiosClient.get(`/descuento`).then((r)=>r.data);
+    axiosClient.get(`/descuentos`).then((r)=>r.data);
+
+export const getDescuentosLyF = () =>
+    axiosClient.get(`/descuentos/lyf`).then((r)=>r.data);
+
+export const getDescuentosUocra = () =>
+    axiosClient.get(`/descuentos/uocra`).then((r)=>r.data);
 
 export const getConceptosGenerales = () =>
     axiosClient.get(`/conceptos/generales`).then((r)=>r.data);
@@ -59,11 +68,23 @@ export const createConceptoGeneral = (dto) =>
 export const updateConceptoGeneral = (id, dto) =>
     axiosClient.put(`/conceptos/generales/${id}`, dto).then((r)=>r.data);
 
+export const getConceptosManualesLyF = () =>
+    axiosClient.get(`/conceptos/manuales-lyf`).then((r)=>r.data);
+
+export const createConceptoManualLyF = (dto) =>
+    axiosClient.post(`/conceptos/manuales-lyf`, dto).then((r)=>r.data);
+
+export const updateConceptoManualLyF = (id, dto) =>
+    axiosClient.put(`/conceptos/manuales-lyf/${id}`, dto).then((r)=>r.data);
+
 export const guardarLiquidacion = (dto) =>
     axiosClient.post('/pagos', dto).then((r) => r.data);
 
 export const completarPago = (idPago) =>
     axiosClient.patch(`/pagos/${idPago}/completar`).then((r) => r.data);
+
+export const completarPagoMasivo = (periodo, fechaPago) =>
+    axiosClient.patch(`/pagos/completar-masivo`, { periodo, fechaPago: fechaPago ?? null }).then((r)=>r.data);
 
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
@@ -124,6 +145,14 @@ export const getResumeMonth = () =>
 export const getResumeCustomMonth = (periodo) =>
     axiosClient.get(`/pagos/resumen-conceptos/${periodo}`).then((r)=>r.data);
 
+export const getResumenEmpleado = (legajo, anio = null) => {
+    const params = anio ? { anio } : {};
+    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
+};
+
+export const getResumenGremio = (gremio) =>
+    axiosClient.get(`/pagos/resumen-conceptos/gremio/${gremio}`).then((r)=>r.data);
+
 export const registrarActividad = (dto) =>
     axiosClient.post(`/actividad`, dto).then((r)=>r.data);
 
@@ -136,36 +165,32 @@ export const getActividadesRecientesTipo = (tipo) =>
 export const getActividadesRecientesUsuario = (usuario) =>
     axiosClient.get(`/actividad/reciente/usuario/${usuario}`).then((r)=>r.data);
 
-export const loginUser = (usuario, password) =>
-    axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
-
-export const registerUser = (dto) =>
-    axiosClient.post('/auth/registro', dto).then((r)=>r.data);
-
-export const changePassword = (dto) =>
-    axiosClient.put('/auth/changepassword', dto).then((r)=>r.data);
-
-export const getUser = () =>
-    axiosClient.get('/auth/usuario-actual').then((r)=>r.data);
 
 export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
     axiosClient.get(`/aguinaldo/calcular/${legajo}`, {
         params: { aguinaldoNumero, anio }
     }).then((r)=>r.data);
-
+    
 export const liquidarAguinaldo = (dto) =>
     axiosClient.post('/aguinaldo/liquidar', dto).then((r)=>r.data);
-
+    
 export const calcularVacaciones = (legajo, anioVacaciones) =>
     axiosClient.get(`/vacaciones/calcular/${legajo}`, { params: { legajo, anioVacaciones: parseInt(anioVacaciones, 10) } }	).then((r)=>r.data);
-
+    
 export const liquidarVacaciones = (dto) =>
     axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
-
-export const getResumenEmpleado = (legajo, anio = null) => {
-    const params = anio ? { anio } : {};
-    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
-};
+    
+export const loginUser = (usuario, password) =>
+        axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
+    
+export const registerUser = (dto) =>
+    axiosClient.post('/auth/registro', dto).then((r)=>r.data);
+    
+export const changePassword = (dto) =>
+    axiosClient.put('/auth/changepassword', dto).then((r)=>r.data);
+    
+export const getUser = () =>
+    axiosClient.get('/auth/usuario-actual').then((r)=>r.data);
 
 export const getListarUsuariosAdmin = () =>
     axiosClient.get('/admin/users').then((r)=>r.data);

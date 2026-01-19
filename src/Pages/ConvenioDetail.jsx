@@ -18,9 +18,14 @@ export default function ConvenioDetail() {
   const [employees, setEmployees] = useState([]);
   const [descuentos, setDescuentos] = useState([]);
   const [conceptosGenerales, setConceptosGenerales] = useState([]);
+  const [conceptosUocra, setConceptosUocra] = useState([]);
   const [showConceptoModal, setShowConceptoModal] = useState(false);
   const [selectedConcepto, setSelectedConcepto] = useState(null);
   const [conceptoNombre, setConceptoNombre] = useState('');
+  const [showConceptoManualModal, setShowConceptoManualModal] = useState(false);
+  const [selectedConceptoManual, setSelectedConceptoManual] = useState(null);
+  const [conceptoManualNombre, setConceptoManualNombre] = useState('');
+  const [conceptoManualMonto, setConceptoManualMonto] = useState('');
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -36,7 +41,10 @@ export default function ConvenioDetail() {
         lastUpdate: new Date().toISOString(),
         salaryTable: { categories: [], bonifications: {}, titles: {}, notes: [] },
         bonificacionesAreas: [],
-        bonificacionesFijas: [],
+        conceptosLyF: [],
+        conceptosManualesLyF: [],
+        titulosLyF: [],
+        horasExtrasLyF: [],
         zonas: null,
       };
     }
@@ -73,6 +81,10 @@ export default function ConvenioDetail() {
       },
       bonificacionesAreas: Array.isArray(raw.bonificacionesAreas) ? raw.bonificacionesAreas : [],
       bonificacionesFijas: Array.isArray(raw.bonificacionesFijas) ? raw.bonificacionesFijas : [],
+      conceptosLyF: Array.isArray(raw.conceptosLyF) ? raw.conceptosLyF : [],
+      conceptosManualesLyF: Array.isArray(raw.conceptosManualesLyF) ? raw.conceptosManualesLyF : [],
+      titulosLyF: Array.isArray(raw.titulosLyF) ? raw.titulosLyF : [],
+      horasExtrasLyF: Array.isArray(raw.horasExtrasLyF) ? raw.horasExtrasLyF : [],
       zonas: raw.zonas ?? null,
     };
 
@@ -229,7 +241,7 @@ export default function ConvenioDetail() {
         }
         setEditableData(cloned);
     } catch (error) {
-        notify.error('Error cargando convenio:', error);
+        notify.error(error);
   }
     };
 
@@ -238,7 +250,7 @@ export default function ConvenioDetail() {
         const data = await api.getEmployees();
         setEmployees(data || []);
       } catch (error) {
-        notify.error('Error cargando empleados:', error);
+        notify.error(error);
       }
     };
 
@@ -247,7 +259,7 @@ export default function ConvenioDetail() {
         const data = await api.getDescuentos();
         setDescuentos(data || []);
       } catch (error) {
-        notify.error('Error cargando descuentos:', error);
+        notify.error(error);
       }
     };
 
@@ -256,7 +268,16 @@ export default function ConvenioDetail() {
         const data = await api.getConceptosGenerales();
         setConceptosGenerales(data || []);
       } catch (error) {
-        notify.error('Error cargando conceptos generales:', error);
+        notify.error(error);
+      }
+    };
+
+    const loadConceptosUocra = async () => {
+      try {
+        const data = await api.getConceptosUocra();
+        setConceptosUocra(data || []);
+      } catch (error) {
+        notify.error(error);
       }
     };
 
@@ -264,6 +285,10 @@ export default function ConvenioDetail() {
     if (controller !== 'descuentos' && controller !== 'conceptos-generales') {
       loadConvenio();
       loadEmployees();
+      // Cargar conceptos UOCRA si es el convenio UOCRA
+      if (controller === 'uocra') {
+        loadConceptosUocra();
+      }
     } else {
       // Cargar datos según el tipo
       if (controller === 'descuentos') {
@@ -351,7 +376,7 @@ export default function ConvenioDetail() {
       notify.success('Convenio actualizado exitosamente');
     } catch (error) {
       console.error('Error guardando convenio:', error);
-      notify.error('Error guardando convenio: ' + (error?.message || error));
+      notify.error(error);
     }
   };
 
@@ -449,7 +474,7 @@ export default function ConvenioDetail() {
       setSelectedConcepto(null);
       setConceptoNombre('');
     } catch (error) {
-      notify.error('Error al guardar concepto: ' + (error?.response?.data?.message || error?.message || 'Error desconocido'));
+      notify.error(error);
     }
   };
 
@@ -457,6 +482,71 @@ export default function ConvenioDetail() {
     setShowConceptoModal(false);
     setSelectedConcepto(null);
     setConceptoNombre('');
+  };
+
+  const handleCreateConceptoManual = () => {
+    setSelectedConceptoManual(null);
+    setConceptoManualNombre('');
+    setConceptoManualMonto('');
+    setShowConceptoManualModal(true);
+  };
+
+  const handleEditConceptoManual = (concepto) => {
+    setSelectedConceptoManual(concepto);
+    setConceptoManualNombre(concepto.nombre || concepto.descripcion || '');
+    const monto = concepto.monto || concepto.valor || 0;
+    setConceptoManualMonto(formatNumberForEdit(monto));
+    setShowConceptoManualModal(true);
+  };
+
+  const handleSaveConceptoManual = async () => {
+    if (!conceptoManualNombre.trim()) {
+      notify.error('El nombre del concepto es requerido');
+      return;
+    }
+
+    const monto = parseNumberFromDisplay(conceptoManualMonto);
+    if (isNaN(monto) || monto < 0) {
+      notify.error('El monto debe ser un número válido mayor o igual a 0');
+      return;
+    }
+
+    try {
+      if (selectedConceptoManual) {
+        // Actualizar concepto existente
+        await api.updateConceptoManualLyF(selectedConceptoManual.idConceptoManualLyF || selectedConceptoManual.id, {
+          nombre: conceptoManualNombre.trim(),
+          monto: monto
+        });
+        notify.success('Concepto manual actualizado exitosamente');
+      } else {
+        // Crear nuevo concepto
+        await api.createConceptoManualLyF({
+          nombre: conceptoManualNombre.trim(),
+          monto: monto
+        });
+        notify.success('Concepto manual creado exitosamente');
+      }
+
+      // Recargar convenio para actualizar conceptos manuales
+      const raw = await api.getConveniosNombre(controller);
+      const norm = normalizeConvenioDetail(raw, controller);
+      setConvenio(norm);
+      setEditableData(norm);
+      setShowConceptoManualModal(false);
+      setSelectedConceptoManual(null);
+      setConceptoManualNombre('');
+      setConceptoManualMonto('');
+    } catch (error) {
+      notify.error(error);
+    }
+  };
+
+  const closeConceptoManualModal = () => {
+    setShowConceptoManualModal(false);
+    setSelectedConceptoManual(null);
+    setConceptoManualNombre('');
+    setConceptoManualMonto('');
   };
 
   // Contar empleados del gremio seleccionado
@@ -846,24 +936,26 @@ export default function ConvenioDetail() {
 
             return (
               <>
-                {/* Tabla Bonificaciones Fijas */}
+                {/* Tabla Conceptos LYF */}
                 <div className="bonif-section">
                   <table className="bonif-table">
                     <thead>
                       <tr>
-                        <th>BONIFICACIÓN</th>
+                        <th>CONCEPTOS</th>
                         <th>VALOR</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(Array.isArray(data.bonificacionesFijas) ? data.bonificacionesFijas : [])
-                        .filter(b => Number(b?.id) < 16)
+                      {(Array.isArray(data.conceptosLyF) ? data.conceptosLyF : [])
                         .map((b, i) => {
-                          const nombre = b?.nombre || b?.descripcion || `Bonif ${i+1}`;
+                          const nombre = b?.nombre || b?.descripcion || `Concepto ${i+1}`;
                           const porcentaje = Number(b?.porcentaje) || 0;
-                          const valor = base11 * (porcentaje / 100);
+                          let valor = 0;
+                          if(b.nombre.includes("Bonif Antig")) {
+                            valor = base11 * 1.4 * (porcentaje / 100);}
+                          else{valor = base11 * (porcentaje / 100);}
                           return (
-                            <tr key={nombre}>
+                            <tr key={b?.idConceptoLyF || b?.id || i}>
                               <td>{nombre}</td>
                               <td>{formatCurrencyAR(valor)}</td>
                             </tr>
@@ -873,41 +965,95 @@ export default function ConvenioDetail() {
                   </table>
                 </div>
 
-                {/* Tabla Títulos */}
+                {/* Tabla Títulos LYF */}
                 <div className="titles-section">
                   <table className="titles-table">
                     <thead>
                       <tr>
-                        <th>TÍTULO</th>
+                        <th>TÍTULOS</th>
                         <th>VALOR</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {/* Conceptos con id >= 16 de bonificacionesFijas */}
-                      {(Array.isArray(data.bonificacionesFijas) ? data.bonificacionesFijas : [])
-                        .filter(b => Number(b?.id) >= 16)
+                      {(Array.isArray(data.titulosLyF) ? data.titulosLyF : [])
                         .map((b, i) => {
                           const nombre = b?.nombre || b?.descripcion || `Título ${i+1}`;
                           const porcentaje = Number(b?.porcentaje) || 0;
                           const valor = base11 * (porcentaje / 100);
                           return (
-                            <tr key={nombre}>
+                            <tr key={b?.idTituloLyF || b?.id || i}>
                               <td>{nombre}</td>
                               <td>{formatCurrencyAR(valor)}</td>
                             </tr>
                           );
                         })}
-                      {/* Si existen títulos en data.titles, también los mostramos */}
-                      {(data.titles && typeof data.titles === 'object') ? Object.entries(data.titles).map(([nombre, porcentaje], i) => {
-                        const pct = Number(porcentaje) || 0;
-                        const valor = base11 * (pct / 100);
-                        return (
-                          <tr key={nombre}>
-                            <td>{nombre}</td>
-                            <td>{formatCurrencyAR(valor)}</td>
-                          </tr>
-                        );
-                      }) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Tabla Horas Extras LYF */}
+                <div className="horas-extras-section">
+                  <table className="horas-extras-table">
+                    <thead>
+                      <tr>
+                        <th>HORAS EXTRAS</th>
+                        <th>PORCENTAJE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(data.horasExtrasLyF) ? data.horasExtrasLyF : [])
+                        .map((he, i) => {
+                          const nombre = he?.nombre || he?.descripcion || `Hora Extra ${i+1}`;
+                          const factor = Number(he?.factor) || 0;
+                          return (
+                            <tr key={he?.idHoraExtra || he?.id || i}>
+                              <td>{nombre}</td>
+                              <td>{factor}x</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Tabla Conceptos Manuales LYF */}
+                <div className="conceptos-manuales-section">
+                  <div className="section-header">
+                    <h3>Conceptos Manuales LYF</h3>
+                    <button className="action-btn edit" onClick={handleCreateConceptoManual}>
+                      <Plus className="action-icon" />
+                      Agregar Concepto
+                    </button>
+                  </div>
+                  <table className="conceptos-manuales-table">
+                    <thead>
+                      <tr>
+                        <th>NOMBRE</th>
+                        <th>MONTO</th>
+                        <th>ACCIONES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(data.conceptosManualesLyF) ? data.conceptosManualesLyF : [])
+                        .map((cm, i) => {
+                          const nombre = cm?.nombre || cm?.descripcion || `Concepto Manual ${i+1}`;
+                          const monto = Number(cm?.monto || cm?.valor || 0);
+                          return (
+                            <tr key={cm?.idConceptoManualLyF || cm?.id || i}>
+                              <td>{nombre}</td>
+                              <td className="monto-cell">{formatCurrencyAR(monto)}</td>
+                              <td className="actions-cell">
+                                <button
+                                  className="btn-icon-edit"
+                                  onClick={() => handleEditConceptoManual(cm)}
+                                  title="Editar concepto"
+                                >
+                                  <Edit className="icon" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -973,20 +1119,88 @@ export default function ConvenioDetail() {
                 ))}
               </tbody>
             </table>
-          );
+          )
         })()}
+
+        {/* Conceptos UOCRA */}
+        <div className="uocra-conceptos-section">
+          <div className="table-header">
+            <h2>Conceptos UOCRA</h2>
+          </div>
+          {conceptosUocra.length > 0 ? (
+            <table className="uocra-conceptos-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Porcentaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conceptosUocra.map((concepto) => (
+                  <tr key={concepto.idBonificacion || concepto.id}>
+                    <td>{concepto.nombre || concepto.descripcion || 'Sin nombre'}</td>
+                    <td className="porcentaje-cell">{concepto.porcentaje || 0}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">
+              <p>No hay conceptos UOCRA registrados</p>
+            </div>
+          )}
+        </div>
       </div>
     )}
       </div>
-      {/* Footer info */}
-      <div className="detail-footer">
-        <div className="footer-info">
-          <div className="info-item">
-            <FileText className="info-icon" />
-            <span>Última actualización:</span>
+
+      {/* Create/Edit Concepto Manual LYF Modal */}
+      <Modal
+        isOpen={showConceptoManualModal}
+        onClose={closeConceptoManualModal}
+        title={selectedConceptoManual ? 'Editar Concepto Manual LYF' : 'Crear Concepto Manual LYF'}
+        size="medium"
+      >
+        <div className="concepto-form">
+          <div className="form-group">
+            <label htmlFor="concepto-manual-nombre">Nombre del Concepto</label>
+            <input
+              id="concepto-manual-nombre"
+              type="text"
+              className="form-input"
+              value={conceptoManualNombre}
+              onChange={(e) => setConceptoManualNombre(e.target.value)}
+              placeholder="Ingrese el nombre del concepto"
+              autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="concepto-manual-monto">Monto</label>
+            <input
+              id="concepto-manual-monto"
+              type="text"
+              className="form-input"
+              value={conceptoManualMonto}
+              onChange={(e) => {
+                // Permitir solo números, punto y coma
+                const value = e.target.value.replace(/[^\d,.-]/g, '');
+                setConceptoManualMonto(value);
+              }}
+              placeholder="0,00"
+            />
           </div>
         </div>
-      </div>
+        
+        <ModalFooter>
+          <button className="btn btn-secondary" onClick={closeConceptoManualModal}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" onClick={handleSaveConceptoManual}>
+            {selectedConceptoManual ? 'Actualizar' : 'Crear'}
+          </button>
+        </ModalFooter>
+      </Modal>
+
       <ConfirmDialog />
     </div>
   );

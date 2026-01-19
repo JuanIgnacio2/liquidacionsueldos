@@ -39,7 +39,7 @@ export default function Dashboard() {
       const count = await api.getCountActiveEmployees();
       setActiveEmployees(count);
     } catch (error) {
-      notify.error("Error al obtener el conteo de empleados activos", error);
+      notify.error(error);
     }
   };
 
@@ -48,7 +48,7 @@ export default function Dashboard() {
       const count = await api.countConvenios();
       setGremiosCount(count);
     } catch (error) {
-      notify.error("Error al obtener el conteo de gremios", error);
+      notify.error(error);
     }
   };
 
@@ -58,7 +58,7 @@ export default function Dashboard() {
       const ordenados = data.sort((a, b) => a.legajo - b.legajo);
       setEmployees(ordenados);
     } catch (error) {
-      notify.error("Error al cargar los empleados", error);
+      notify.error(error);
     }
   };
 
@@ -111,7 +111,8 @@ export default function Dashboard() {
       ALTA_EMPLEADO: "Empleado agregado",
       BAJA_EMPLEADO: "Empleado dado de baja",
       EDIT_EMPLEADO: "Empleado editado",
-      PAGO: "Liquidación procesada",
+      LIQUIDAR: "Liquidación procesada",
+      PAGO: "Pago completado",
       EDIT_CONVENIO: "Convenio actualizado",
     };
     return labels[referenciaTipo] || referenciaTipo || "Acción";
@@ -166,7 +167,9 @@ export default function Dashboard() {
           }
           break;
         }
-        case 'PAGO': {
+        case 'PAGO':
+        case 'LIQUIDAR':
+        {
           // referenciaId es el ID del pago
           setShowPayrollDetailModal(true);
           setLoadingPayrollDetails(true);
@@ -274,7 +277,7 @@ export default function Dashboard() {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`
-        : "Cargando...",
+        : "-",
       icon: DollarSign,
       colorClass: "primary",
     }
@@ -389,6 +392,7 @@ export default function Dashboard() {
                         {(activity.referenciaTipo === 'ALTA_EMPLEADO' || 
                           activity.referenciaTipo === 'BAJA_EMPLEADO' || 
                           activity.referenciaTipo === 'EDIT_EMPLEADO' ||
+                          activity.referenciaTipo === 'LIQUIDAR',
                           activity.referenciaTipo === 'PAGO' ||
                           activity.referenciaTipo === 'EDIT_CONVENIO') && (
                           <button

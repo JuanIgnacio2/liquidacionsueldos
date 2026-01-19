@@ -4,6 +4,18 @@
   background-color: rgba(217, 247, 226, 0.3);
   padding-top: $spacing-4;
   min-height: 100vh;
+
+  // Estilos para LoadingSpinner en la página de convenios
+  .loading-spinner-container {
+    min-height: calc(100vh - 200px); // Altura de la pantalla menos el header
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    &.list-loading {
+      min-height: calc(100vh - 200px); // Sobrescribir el min-height de la variante list-loading
+    }
+  }
 }
 
 .conveniosContainer {
