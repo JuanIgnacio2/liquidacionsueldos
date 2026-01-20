@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
+import { sortConceptos, isRemuneration, isDeduction } from '../../utils/conceptosUtils';
 import PayrollDetailModal from '../PayrollDetailModal/PayrollDetailModal';
 import '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal.scss';
 
@@ -217,19 +218,15 @@ export default function EmployeePayrollHistoryModal({ isOpen, onClose, employee 
     const bank = details.banco || payroll.banco || 'Banco Nación';
     const cuenta = details.cuenta || payroll.cuenta || '—';
 
-    // Generar filas de conceptos
-    const conceptosRows = (details.conceptos || []).map((concepto, index) => {
-      const isRemuneration = 
-        concepto.tipoConcepto === 'CATEGORIA' || 
-        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
-        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
-        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-        concepto.tipoConcepto === 'CATEGORIA_ZONA';
-      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
-      const total = Number(concepto.total || 0);
+    // Generar filas de conceptos (ordenados: primero remuneraciones, luego descuentos)
+    const conceptosRows = sortConceptos(details.conceptos || [])
+      .map((concepto, index) => {
+        const isRemunerationConcept = isRemuneration(concepto);
+        const isDeductionConcept = isDeduction(concepto);
+        const total = Number(concepto.total || 0);
 
-      const remuneracion = isRemuneration && total > 0 ? formatCurrencyAR(total) : '';
-      const descuento = isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
+        const remuneracion = isRemunerationConcept && total > 0 ? formatCurrencyAR(total) : '';
+        const descuento = isDeductionConcept && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
 
       return `
         <tr>

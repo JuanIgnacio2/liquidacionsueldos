@@ -567,7 +567,7 @@
   }
 
   // Contenedor de gráficos
-  .reportes-charts-container {
+  .resumenes-charts-container {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: $spacing-6;
@@ -624,7 +624,7 @@
     }
   }
 
-  .reportes-table-container {
+  .resumenes-table-container {
     background-color: $color-white;
     border-radius: $border-radius-lg;
     box-shadow: $shadow-sm;
