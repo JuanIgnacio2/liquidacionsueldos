@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp } from "lucide-react";
+import { Users, FileText, Calculator, DollarSign, Clock, Eye, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { ProcessPayrollModal } from "../Components/ProcessPayrollModal/ProcessPayrollModal";
 import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal";
 import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal";
@@ -25,6 +25,17 @@ export default function Dashboard() {
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Estados para paginación de actividades
+  const [actividadesPaginadas, setActividadesPaginadas] = useState([]);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  // Estados para filtros de actividades
+  const [filterUsuario, setFilterUsuario] = useState('');
+  const [filterFechaDesde, setFilterFechaDesde] = useState('');
+  const [filterFechaHasta, setFilterFechaHasta] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
   // Estados para modales de detalles
   const [showEmployeeViewModal, setShowEmployeeViewModal] = useState(false);
   const [showPayrollDetailModal, setShowPayrollDetailModal] = useState(false);
@@ -84,6 +95,56 @@ export default function Dashboard() {
     }
   };
 
+  const loadActividadesPaginadas = async () => {
+    setLoadingActivities(true);
+    try {
+      // Convertir fechas a formato ISO si están presentes
+      // datetime-local devuelve formato YYYY-MM-DDTHH:mm, necesitamos convertirlo a ISO
+      let fechaDesdeISO = null;
+      let fechaHastaISO = null;
+      
+      if (filterFechaDesde) {
+        // Si el string no tiene segundos, agregarlos
+        const fechaStr = filterFechaDesde.includes(':') && !filterFechaDesde.includes(':', filterFechaDesde.indexOf(':') + 1)
+          ? filterFechaDesde + ':00'
+          : filterFechaDesde;
+        const fechaDesde = new Date(fechaStr);
+        fechaDesdeISO = fechaDesde.toISOString();
+      }
+      
+      if (filterFechaHasta) {
+        // Si el string no tiene segundos, agregarlos
+        let fechaStr = filterFechaHasta.includes(':') && !filterFechaHasta.includes(':', filterFechaHasta.indexOf(':') + 1)
+          ? filterFechaHasta + ':00'
+          : filterFechaHasta;
+        const fechaHasta = new Date(fechaStr);
+        // Agregar 23:59:59 al final del día
+        fechaHasta.setHours(23, 59, 59, 999);
+        fechaHastaISO = fechaHasta.toISOString();
+      }
+
+      const data = await api.getActividadesPaginadas(
+        page,
+        size,
+        filterUsuario || null,
+        fechaDesdeISO,
+        fechaHastaISO,
+        filterTipo || null
+      );
+      
+      setActividadesPaginadas(Array.isArray(data.content) ? data.content : []);
+      setTotalPages(data.totalPages || 0);
+      setTotalElements(data.totalElements || 0);
+    } catch (error) {
+      notify.error("Error al cargar actividades");
+      setActividadesPaginadas([]);
+      setTotalPages(0);
+      setTotalElements(0);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -104,6 +165,14 @@ export default function Dashboard() {
     };
     loadData();
   }, []);
+
+  // Cargar actividades paginadas cuando se abre el modal o cambian los parámetros
+  useEffect(() => {
+    if (showActivitiesModal) {
+      loadActividadesPaginadas();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showActivitiesModal, page, size, filterUsuario, filterFechaDesde, filterFechaHasta, filterTipo]);
 
   // Helper para formatear tipo de referencia
   const getReferenciaLabel = (referenciaTipo) => {
@@ -344,23 +413,11 @@ export default function Dashboard() {
           </div>
           <div className="card-content">
             {loadingActivities ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "2rem",
-                  color: "#6b7280",
-                }}
-              >
+              <div className="activity-loading-state">
                 <p>Cargando actividades...</p>
               </div>
             ) : recentActivities.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "2rem",
-                  color: "#6b7280",
-                }}
-              >
+              <div className="activity-empty-state">
                 <p>No hay actividades recientes</p>
               </div>
             ) : (
@@ -376,11 +433,7 @@ export default function Dashboard() {
                           {activity.descripcion || "Sin descripción"}
                         </p>
                         {activity.usuario && (
-                          <p className="activity-user" style={{
-                            fontSize: '0.75rem',
-                            color: '#6b7280',
-                            marginTop: '0.25rem'
-                          }}>
+                          <p className="activity-user">
                             Realizado por: {activity.usuario}
                           </p>
                         )}
@@ -399,17 +452,6 @@ export default function Dashboard() {
                             className="activity-view-btn"
                             onClick={() => handleViewActivityDetails(activity)}
                             title="Ver detalles"
-                            style={{
-                              marginLeft: '0.5rem',
-                              padding: '0.25rem',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: '#22c55e',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
                           >
                             <Eye size={16} />
                           </button>
@@ -419,29 +461,10 @@ export default function Dashboard() {
                   ))}
                 </div>
                 {actividades.length > 4 && (
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
+                  <div className="view-all-activities-container">
                     <button
                       className="view-all-activities-btn"
                       onClick={() => setShowActivitiesModal(true)}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        backgroundColor: "#22c55e",
-                        color: "#ffffff",
-                        border: "none",
-                        borderRadius: "0.375rem",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
                     >
                       <Eye size={16} />
                       Ver todas las actividades
@@ -570,56 +593,98 @@ export default function Dashboard() {
         title="Historial de Actividades Completo"
         size="large"
       >
-        <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        {/* Filtros */}
+        <div className="activities-filters">
+          <div className="filter-field">
+            <label>Usuario</label>
+            <input
+              type="text"
+              value={filterUsuario}
+              onChange={(e) => {
+                setFilterUsuario(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Filtrar por usuario"
+            />
+          </div>
+          <div className="filter-field">
+            <label>Fecha Desde</label>
+            <input
+              type="datetime-local"
+              value={filterFechaDesde}
+              onChange={(e) => {
+                setFilterFechaDesde(e.target.value);
+                setPage(0);
+              }}
+            />
+          </div>
+          <div className="filter-field">
+            <label>Fecha Hasta</label>
+            <input
+              type="datetime-local"
+              value={filterFechaHasta}
+              onChange={(e) => {
+                setFilterFechaHasta(e.target.value);
+                setPage(0);
+              }}
+            />
+          </div>
+          <div className="filter-field">
+            <label>Tipo</label>
+            <select
+              value={filterTipo}
+              onChange={(e) => {
+                setFilterTipo(e.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="">Todos los tipos</option>
+              <option value="ALTA_EMPLEADO">Alta Empleado</option>
+              <option value="BAJA_EMPLEADO">Baja Empleado</option>
+              <option value="EDIT_EMPLEADO">Editar Empleado</option>
+              <option value="LIQUIDAR">Liquidación</option>
+              <option value="PAGO">Pago</option>
+              <option value="EDIT_CONVENIO">Editar Convenio</option>
+            </select>
+          </div>
+          <button
+            className="filter-clear-btn"
+            onClick={() => {
+              setFilterUsuario('');
+              setFilterFechaDesde('');
+              setFilterFechaHasta('');
+              setFilterTipo('');
+              setPage(0);
+            }}
+          >
+            Limpiar
+          </button>
+        </div>
+
+        <div className="activities-modal-content">
           {loadingActivities ? (
-            <div style={{ padding: "20px", textAlign: "center" }}>
+            <div className="activities-loading">
               <p>Cargando actividades...</p>
             </div>
-          ) : actividades.length === 0 ? (
-            <div
-              style={{ padding: "20px", textAlign: "center", color: "#999" }}
-            >
+          ) : actividadesPaginadas.length === 0 ? (
+            <div className="activities-empty">
               <p>No hay actividades registradas</p>
             </div>
           ) : (
-            <div style={{ paddingBottom: "16px" }}>
-              {actividades.map((activity, idx) => (
+            <div className="activities-list">
+              {actividadesPaginadas.map((activity, idx) => (
                 <div
                   key={activity.id || idx}
-                  style={{
-                    padding: "16px",
-                    borderBottom: "1px solid #e5e7eb",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "start",
-                  }}
+                  className="activity-item-modal"
                 >
-                  <div style={{ flex: 1 }}>
-                    <p
-                      style={{
-                        margin: "0 0 4px 0",
-                        fontWeight: "600",
-                        color: "#1f2937",
-                      }}
-                    >
+                  <div className="activity-content-wrapper">
+                    <p className="activity-title">
                       {getReferenciaLabel(activity.referenciaTipo)}
                     </p>
-                    <p
-                      style={{
-                        margin: "0 0 8px 0",
-                        fontSize: "14px",
-                        color: "#6b7280",
-                      }}
-                    >
+                    <p className="activity-description">
                       {activity.descripcion}
                     </p>
-                    <p
-                      style={{
-                        margin: "0",
-                        fontSize: "12px",
-                        color: "#9ca3af",
-                      }}
-                    >
+                    <p className="activity-meta">
                       <strong>{activity.usuario}</strong> •{" "}
                       {formatFecha(activity.fecha)}
                     </p>
@@ -630,19 +695,9 @@ export default function Dashboard() {
                     activity.referenciaTipo === 'PAGO' ||
                     activity.referenciaTipo === 'EDIT_CONVENIO') && (
                     <button
+                      className="activity-view-btn-modal"
                       onClick={() => handleViewActivityDetails(activity)}
                       title="Ver detalles"
-                      style={{
-                        padding: "0.5rem",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#22c55e",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginLeft: "1rem"
-                      }}
                     >
                       <Eye size={18} />
                     </button>
