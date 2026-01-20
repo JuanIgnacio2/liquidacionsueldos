@@ -1,16 +1,32 @@
 @import '../main.scss';
 
-.reportes-page {
+.resumenes-page {
   padding: $spacing-4 $spacing-6;
   padding-top: $spacing-4;
   background-color: rgba(217, 247, 226, 0.3);
   min-height: 100vh;
-
-  .reportes-header {
+  
+  .back-button {
+    width: fit-content;
     display: flex;
-    align-items: center;
+    align-items: center; 
+    gap: 0.5rem;
+    padding: 0.5rem 1rem; 
+    margin-bottom: 1rem;
+    border: none;
+    background: var(--primary-color, #22c55e);
+    color: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500
+  }
+
+  .resumenes-header {
+    display: flex;
     justify-content: space-between;
     margin-bottom: $spacing-6;
+    flex-direction: column;
 
     .page-title {
       font-size: $font-size-3xl;
@@ -18,36 +34,10 @@
       margin: 0;
       @extend .title-gradient;
     }
-
-    .back-button-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.5rem;
-      height: 2.5rem;
-      padding: 0;
-      background-color: $color-white;
-      border: 1px solid $color-gray-300;
-      border-radius: $border-radius-lg;
-      color: $color-gray-700;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      .icon {
-        width: 1.25rem;
-        height: 1.25rem;
-      }
-
-      &:hover {
-        background-color: $color-gray-50;
-        border-color: $color-gray-400;
-        transform: translateX(-2px);
-      }
-    }
   }
 
   // Pestañas
-  .reportes-tabs {
+  .resumenes-tabs {
     display: flex;
     gap: $spacing-2;
     margin-bottom: $spacing-6;
@@ -86,7 +76,7 @@
     }
   }
 
-  .reportes-filters {
+  .resumenes-filters {
     margin-bottom: $spacing-6;
     background-color: $color-white;
     padding: $spacing-4;
@@ -115,7 +105,8 @@
       }
 
       .month-select,
-      .year-select {
+      .year-select,
+      .gremio-select {
         padding: $spacing-2 $spacing-3;
         padding-right: 2.5rem; // Espacio para la flecha
         border: 1px solid $color-gray-300;
@@ -134,8 +125,8 @@
 
         &:focus {
           outline: none;
-          border-color: $color-white;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+          border-color: $color-green-primary;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
         }
 
         &:disabled {
@@ -245,7 +236,7 @@
   }
 
   // Filtros para resumen de empleado
-  .reportes-filters-empleado {
+  .resumenes-filters-empleado {
     margin-bottom: $spacing-6;
     background-color: $color-white;
     padding: $spacing-4;
@@ -290,7 +281,8 @@
       }
 
       .employee-select,
-      .year-select {
+      .year-select,
+      .month-select {
         flex: 1;
         padding: $spacing-2 $spacing-3;
         padding-right: 2.5rem; // Espacio para la flecha
@@ -391,7 +383,7 @@
     color: $color-gray-500;
   }
 
-  .reportes-summary {
+  .resumenes-summary {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: $spacing-4;
@@ -575,7 +567,7 @@
   }
 
   // Contenedor de gráficos
-  .reportes-charts-container {
+  .resumenes-charts-container {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: $spacing-6;
@@ -632,13 +624,13 @@
     }
   }
 
-  .reportes-table-container {
+  .resumenes-table-container {
     background-color: $color-white;
     border-radius: $border-radius-lg;
     box-shadow: $shadow-sm;
     overflow: hidden;
 
-    .reportes-table {
+    .resumenes-table {
       width: 100%;
       border-collapse: collapse;
 
@@ -722,6 +714,108 @@
             color: $color-gray-500;
             padding: $spacing-8;
             font-style: italic;
+          }
+        }
+      }
+    }
+  }
+
+  // Sección de gráfico de línea
+  .chart-section {
+    margin-bottom: $spacing-6;
+
+    .chart-card {
+      background-color: $color-white;
+      padding: $spacing-5;
+      border-radius: $border-radius-lg;
+      box-shadow: $shadow-sm;
+      transition: box-shadow 0.3s ease;
+
+      &:hover {
+        box-shadow: $shadow-md;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: $spacing-4;
+        padding-bottom: $spacing-3;
+        border-bottom: 2px solid $color-gray-200;
+        flex-wrap: wrap;
+        gap: $spacing-4;
+
+        .chart-title {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+          font-size: $font-size-lg;
+          font-weight: 600;
+          color: $color-gray-900;
+          margin: 0;
+
+          .chart-icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            color: $color-green-primary;
+          }
+        }
+
+        .chart-controls {
+          display: flex;
+          align-items: center;
+          gap: $spacing-3;
+          flex-wrap: wrap;
+
+          .chart-controls-label {
+            display: flex;
+            align-items: center;
+            gap: $spacing-2;
+            font-weight: 500;
+            color: $color-gray-700;
+            font-size: $font-size-sm;
+            white-space: nowrap;
+
+            .icon {
+              width: 1rem;
+              height: 1rem;
+              color: $color-gray-500;
+            }
+          }
+
+          .checkbox-group {
+            display: flex;
+            gap: $spacing-3;
+            flex-wrap: wrap;
+
+            .checkbox-label {
+              display: flex;
+              align-items: center;
+              gap: $spacing-2;
+              cursor: pointer;
+              font-size: $font-size-sm;
+              color: $color-gray-700;
+              padding: $spacing-1 $spacing-2;
+              border-radius: $border-radius;
+              transition: all 0.15s ease;
+
+              &:hover {
+                background-color: rgba(34, 197, 94, 0.05);
+                color: $color-gray-900;
+              }
+
+              input[type="checkbox"] {
+                width: 1.125rem;
+                height: 1.125rem;
+                cursor: pointer;
+                accent-color: $color-green-primary;
+                flex-shrink: 0;
+              }
+
+              span {
+                user-select: none;
+              }
+            }
           }
         }
       }

@@ -316,8 +316,8 @@ export default function Liquidacion() {
                 <span>Procesar Liquidación</span>
                 <Calculator className="action-icon" />
               </button>
-              <button className="action-btn success">
-                <span>Generar Reportes</span>
+              <button className="action-btn success" onClick={() => navigate('/reportes')}>
+                <span>Resumenes</span>
                 <TrendingUp className="action-icon" />
               </button>
               <button className="action-btn warning" onClick={() => navigate('/historial-pagos')}>

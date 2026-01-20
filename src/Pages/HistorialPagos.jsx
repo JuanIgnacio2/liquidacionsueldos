@@ -4,6 +4,7 @@ import html2pdf from 'html2pdf.js';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../services/empleadosAPI';
 import { useNotification } from '../Hooks/useNotification';
+import { sortConceptos, isRemuneration, isDeduction } from '../utils/conceptosUtils';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import { CompletarPagosMasivoModal } from '../Components/CompletarPagosMasivoModal/CompletarPagosMasivoModal';
 import '../styles/components/_PlaceHolder.scss';
@@ -353,30 +354,26 @@ export default function HistorialPagos() {
     const bank = details.banco || payroll.banco || 'Banco Nación';
     const cuenta = details.cuenta || payroll.cuenta || '—';
 
-    // Generar filas de conceptos
-    const conceptosRows = (details.conceptos || []).map((concepto, index) => {
-      const isRemuneration = 
-        concepto.tipoConcepto === 'CATEGORIA' || 
-        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
-        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
-        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-        concepto.tipoConcepto === 'CATEGORIA_ZONA';
-      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
-      const total = Number(concepto.total || 0);
+    // Generar filas de conceptos (ordenados: primero remuneraciones, luego descuentos)
+    const conceptosRows = sortConceptos(details.conceptos || [])
+      .map((concepto, index) => {
+        const isRemunerationConcept = isRemuneration(concepto);
+        const isDeductionConcept = isDeduction(concepto);
+        const total = Number(concepto.total || 0);
 
-      const remuneracion = isRemuneration && total > 0 ? formatCurrencyAR(total) : '';
-      const descuento = isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
+        const remuneracion = isRemunerationConcept && total > 0 ? formatCurrencyAR(total) : '';
+        const descuento = isDeductionConcept && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
 
-      return `
-        <tr>
-          <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
-          <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
-          <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
-          <td class="concept-remuneration">${remuneracion}</td>
-          <td class="concept-deduction">${descuento}</td>
-        </tr>
-      `;
-    }).join('');
+        return `
+          <tr>
+            <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
+            <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
+            <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
+            <td class="concept-remuneration">${remuneracion}</td>
+            <td class="concept-deduction">${descuento}</td>
+          </tr>
+        `;
+      }).join('');
 
     return `
 <!DOCTYPE html>
@@ -840,30 +837,26 @@ export default function HistorialPagos() {
     const bank = details.banco || payroll.banco || 'Banco Nación';
     const cuenta = details.cuenta || payroll.cuenta || '—';
 
-    // Generar filas de conceptos
-    const conceptosRows = (details.conceptos || []).map((concepto, index) => {
-      const isRemuneration = 
-        concepto.tipoConcepto === 'CATEGORIA' || 
-        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
-        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
-        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-        concepto.tipoConcepto === 'CATEGORIA_ZONA';
-      const isDeduction = concepto.tipoConcepto === 'DESCUENTO';
-      const total = Number(concepto.total || 0);
+    // Generar filas de conceptos (ordenados: primero remuneraciones, luego descuentos)
+    const conceptosRows = sortConceptos(details.conceptos || [])
+      .map((concepto, index) => {
+        const isRemunerationConcept = isRemuneration(concepto);
+        const isDeductionConcept = isDeduction(concepto);
+        const total = Number(concepto.total || 0);
 
-      const remuneracion = isRemuneration && total > 0 ? formatCurrencyAR(total) : '';
-      const descuento = isDeduction && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
+        const remuneracion = isRemunerationConcept && total > 0 ? formatCurrencyAR(total) : '';
+        const descuento = isDeductionConcept && total < 0 ? formatCurrencyAR(Math.abs(total)) : '';
 
-      return `
-        <tr>
-          <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
-          <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
-          <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
-          <td class="concept-remuneration">${remuneracion}</td>
-          <td class="concept-deduction">${descuento}</td>
-        </tr>
-      `;
-    }).join('');
+        return `
+          <tr>
+            <td class="concept-code">${concepto.idReferencia || concepto.id || index + 1}</td>
+            <td class="concept-name">${concepto.nombre || `Concepto ${index + 1}`}</td>
+            <td class="concept-units">${concepto.unidades || concepto.cantidad || 0}</td>
+            <td class="concept-remuneration">${remuneracion}</td>
+            <td class="concept-deduction">${descuento}</td>
+          </tr>
+        `;
+      }).join('');
 
     // Retornar solo el contenido del recibo con estilos inline
     return `
