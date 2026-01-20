@@ -4,6 +4,7 @@ import { Search, Users, Download, Printer, X, CheckCircle, User, Calendar, Badge
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
+import { sortConceptos } from '../../utils/conceptosUtils';
 import html2pdf from 'html2pdf.js';
 import './ProcessPayrollModal.scss';
 
@@ -645,15 +646,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           if (!concepto) return null;
 
           // Guardar estructura, montoUnitario se calculará después de aplicar Horas Extras
+          // Incluir baseCalculo si existe en el catálogo
+          const baseCalculoDescuento = concepto?.baseCalculo ?? concepto?.base_calculo;
           return {
             uid: uidCounter.current++,
             id: asignado.idReferencia,
             tipo: tipoDescuento, // Mantener el tipo específico (DESCUENTO, DESCUENTO_LYF, DESCUENTO_UOCRA)
             nombre: concepto.nombre ?? concepto.descripcion ?? 'Concepto',
             montoUnitario: 0, // Se calculará después
-            porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular
+            porcentaje: Number(concepto.porcentaje) || 0, // Guardar porcentaje para recalcular (si no usa baseCalculo)
             cantidad: Number(asignado.unidades) || 1,
             total: 0, // Se calculará después
+            baseCalculo: baseCalculoDescuento || null, // Guardar baseCalculo del catálogo
           };
         })
         .filter(Boolean);
@@ -753,17 +757,76 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
         }
 
-        return items.map(item => {
-          if ((item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') && item.porcentaje && totalRemuneraciones > 0) {
-            const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
-            return {
-              ...item,
-              montoUnitario: Number(montoUnitario) || 0,
-              total: -(Number(montoUnitario) || 0) * (Number(item.cantidad) || 1)
-            };
+        let listaActual = items.map(item => ({ ...item })); // Clonar para no mutar el original
+        
+        // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO (TOTAL_BRUTO o porcentaje tradicional)
+        listaActual = listaActual.map(item => {
+          if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+            const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
+            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            
+            // Solo calcular los que NO usan TOTAL_NETO en este paso
+            if (usaTotalBruto) {
+              // Usar cantidad como porcentaje sobre TOTAL_BRUTO
+              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+              if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
+                const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
+                return {
+                  ...item,
+                  montoUnitario: Math.abs(nuevoTotal),
+                  total: nuevoTotal
+                };
+              }
+            } else if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
+              // Comportamiento tradicional: usar porcentaje del catálogo
+              const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
+              const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
+              return {
+                ...item,
+                montoUnitario: Number(montoUnitario) || 0,
+                total: nuevoTotal
+              };
+            }
+            // Si usa TOTAL_NETO, dejarlo para el siguiente paso
           }
           return item;
         });
+        
+        // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
+        const descuentosNoTotalNeto = listaActual
+          .filter(c => {
+            if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
+            const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            return !usaTotalNeto; // Solo los que NO usan TOTAL_NETO
+          })
+          .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+        const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
+        
+        // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
+        listaActual = listaActual.map(item => {
+          if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+            const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            
+            if (usaTotalNeto) {
+              // Usar cantidad como porcentaje sobre el neto preliminar
+              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+              if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
+                const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+                return {
+                  ...item,
+                  montoUnitario: Math.abs(nuevoTotal),
+                  total: nuevoTotal
+                };
+              }
+            }
+          }
+          return item;
+        });
+        
+        return listaActual;
       };
 
       const listaFinal = recalcularDescuentos(listaConConceptosEspeciales);
@@ -1081,17 +1144,60 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
       .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
 
-    const nuevosConDescuentos = nuevos.map(concept => {
+    // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
+    let listaActual = nuevos.map(concept => {
       if (concept.tipo === 'DESCUENTO' || concept.tipo === 'DESCUENTO_LYF' || concept.tipo === 'DESCUENTO_UOCRA') {
-        if (concept.porcentaje && totalRemuneraciones > 0) {
+        const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
+        const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        
+        // Solo calcular los que NO usan TOTAL_NETO en este paso
+        if (usaTotalBruto) {
+          const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
+          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
+          if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
+            const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
+            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+          }
+        } else if (!usaTotalNeto && concept.porcentaje && totalRemuneraciones > 0) {
+          // Comportamiento tradicional
           const montoUnitario = (totalRemuneraciones * concept.porcentaje / 100);
           const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: -(Number(montoUnitario) || 0) * (Number(cantidadActual) || 1) };
+          const nuevoTotal = -(montoUnitario * (Number(cantidadActual) || 1));
+          return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: nuevoTotal };
         }
-        // Mantener tal cual si no hay porcentaje
-        return { ...concept, montoUnitario: Number(concept.montoUnitario) || 0, total: Number(concept.total) || 0 };
+        // Si usa TOTAL_NETO, dejarlo para el siguiente paso
       }
       return { ...concept, montoUnitario: Number(concept.montoUnitario) || 0, cantidad: Number(concept.cantidad) || 1, total: (Number(concept.montoUnitario) || 0) * (Number(concept.cantidad) || 1) };
+    });
+    
+    // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
+    const descuentosNoTotalNeto = listaActual
+      .filter(c => {
+        if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
+        const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        return !usaTotalNeto;
+      })
+      .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+    const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
+    
+    // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
+    const nuevosConDescuentos = listaActual.map(concept => {
+      if (concept.tipo === 'DESCUENTO' || concept.tipo === 'DESCUENTO_LYF' || concept.tipo === 'DESCUENTO_UOCRA') {
+        const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        
+        if (usaTotalNeto) {
+          const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
+          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
+          if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
+            const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+          }
+        }
+      }
+      return concept;
     });
 
     setConceptos(nuevosConDescuentos);
@@ -1274,6 +1380,16 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const value = parseFloat(editingAmountValue) || 0;
     let nuevos = conceptos.map(c => {
       if (c.uid === concept.uid) {
+        // Si es descuento con baseCalculo, no permitir edición manual del monto (se calcula automáticamente)
+        const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
+        const usaBaseCalculo = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto' || 
+                               baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        
+        if (usaBaseCalculo) {
+          // Si tiene baseCalculo, mantener el monto actual (se recalculará después)
+          return c;
+        }
+        
         if (c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_LYF' || c.tipo === 'DESCUENTO_UOCRA') {
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
@@ -1314,6 +1430,78 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         return item;
       });
     }
+
+    // Recalcular descuentos con baseCalculo después de editar montos
+    const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
+    const basicoEmpleado = isUocra ? basicSalary : 0;
+    const totalRemuneraciones = basicoEmpleado + nuevos
+      .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
+      .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+    
+    // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
+    let listaActual = nuevos.map(item => {
+      if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+        const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
+        const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        
+        // Solo calcular los que NO usan TOTAL_NETO en este paso
+        if (usaTotalBruto) {
+          const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+          if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
+            const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Math.abs(nuevoTotal),
+              total: nuevoTotal
+            };
+          }
+        } else if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
+          // Comportamiento tradicional
+          const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
+          const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
+          return {
+            ...item,
+            montoUnitario: Number(montoUnitario) || 0,
+            total: nuevoTotal
+          };
+        }
+        // Si usa TOTAL_NETO, dejarlo para el siguiente paso
+      }
+      return item;
+    });
+    
+    // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
+    const descuentosNoTotalNeto = listaActual
+      .filter(c => {
+        if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
+        const baseCalculoDescuento = c.baseCalculo ?? c.base_calculo;
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        return !usaTotalNeto;
+      })
+      .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+    const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
+    
+    // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
+    nuevos = listaActual.map(item => {
+      if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+        const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
+        const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+        
+        if (usaTotalNeto) {
+          const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+          if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
+            const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Math.abs(nuevoTotal),
+              total: nuevoTotal
+            };
+          }
+        }
+      }
+      return item;
+    });
 
     setConceptos(nuevos);
     setTotal(calcTotal(nuevos));
@@ -1497,7 +1685,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           periodDisplay: `Aguinaldo ${aguinaldoNumero} - ${aguinaldoAnio}`,
           totalNeto: result.total_neto || aguinaldoCalculo.totalNeto
         });
-
         // Registrar actividad de liquidación (manejar errores de forma independiente para no afectar el flujo principal)
         try {
           await api.registrarActividad({
@@ -1636,13 +1823,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         legajo: selectedEmployee.legajo,
         periodoPago: periodoPago,
         fechaLiquidacion: fechaLiquidacion, // Fecha actual de liquidación
-      conceptos: conceptos.map((c) => ({
+        conceptos: conceptos.map((c) => ({
         tipoConcepto: c.tipo,
         idReferencia: c.id,
         unidades: c.cantidad,
       })),
     };
-    
+
     // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
     payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
 
@@ -3230,12 +3417,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         return;
                       }
 
-                      // Calcular montoUnitario sobre las remuneraciones actuales
-                      const remuneracionesActuales = basicSalary + conceptos
-                        .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
-                        .reduce((s, c) => s + (c.total || 0), 0);
-
-                      const montoUnitario = (remuneracionesActuales * (Number(raw.porcentaje || 0))) / 100;
+                      // Verificar si el descuento tiene baseCalculo
+                      const baseCalculoDescuento = raw?.baseCalculo ?? raw?.base_calculo;
+                      const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
+                      const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
 
                       // Determinar el tipo de descuento según el prefijo
                       let tipoDescuento = 'DESCUENTO';
@@ -3245,20 +3430,128 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         tipoDescuento = 'DESCUENTO_UOCRA';
                       }
 
+                      let montoUnitario = 0;
+                      let cantidad = 1;
+
+                      if (usaTotalBruto || usaTotalNeto) {
+                        // Si usa baseCalculo, la cantidad se usará como porcentaje
+                        // Por defecto, cantidad = 1 (se puede editar después)
+                        cantidad = 1;
+                        montoUnitario = 0; // Se calculará después en recalcularDescuentos
+                      } else {
+                        // Comportamiento tradicional: calcular sobre remuneraciones actuales
+                        const remuneracionesActuales = basicSalary + conceptos
+                          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
+                          .reduce((s, c) => s + (c.total || 0), 0);
+                        montoUnitario = (remuneracionesActuales * (Number(raw.porcentaje || 0))) / 100;
+                      }
+
                       const nuevo = {
                         uid: uidCounter.current++,
                         id: idNum,
                         tipo: tipoDescuento,
                         nombre: raw.nombre ?? raw.descripcion ?? 'Descuento',
-                        porcentaje: Number(raw.porcentaje || 0),
+                        porcentaje: usaTotalBruto || usaTotalNeto ? null : Number(raw.porcentaje || 0),
                         montoUnitario: Number(montoUnitario) || 0,
-                        cantidad: 1,
-                        total: -(Number(montoUnitario) || 0) * 1
+                        cantidad: cantidad,
+                        total: -(Number(montoUnitario) || 0) * cantidad,
+                        baseCalculo: baseCalculoDescuento || null
                       };
 
                       const next = [...conceptos, nuevo];
-                      setConceptos(next);
-                      setTotal(calcTotal(next));
+                      // Si usa baseCalculo, recalcular descuentos para obtener el monto correcto
+                      if (usaTotalBruto || usaTotalNeto) {
+                        const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
+                        const basicoValue = isUocra ? basicSalary : 0;
+                        // Recalcular descuentos con la nueva lista
+                        const recalcularDescuentos = (items) => {
+                          let totalRemuneraciones = 0;
+                          if (isUocra) {
+                            totalRemuneraciones = basicoValue + 
+                              items
+                                .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA' && c.tipo !== 'CATEGORIA_ZONA')
+                                .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+                          } else {
+                            totalRemuneraciones = items
+                              .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA')
+                              .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+                          }
+                          
+                          let listaActual = items.map(item => ({ ...item })); // Clonar
+                          
+                          // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
+                          listaActual = listaActual.map(item => {
+                            if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+                              const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
+                              const usaTotalBrutoItem = baseCalculoItem === 'TOTAL_BRUTO' || baseCalculoItem === 'total_bruto';
+                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
+                              
+                              // Solo calcular los que NO usan TOTAL_NETO en este paso
+                              if (usaTotalBrutoItem) {
+                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+                                if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
+                                  const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
+                                  return {
+                                    ...item,
+                                    montoUnitario: Math.abs(nuevoTotal),
+                                    total: nuevoTotal
+                                  };
+                                }
+                              } else if (!usaTotalNetoItem && item.porcentaje && totalRemuneraciones > 0) {
+                                const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
+                                const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
+                                return {
+                                  ...item,
+                                  montoUnitario: Number(montoUnitario) || 0,
+                                  total: nuevoTotal
+                                };
+                              }
+                              // Si usa TOTAL_NETO, dejarlo para el siguiente paso
+                            }
+                            return item;
+                          });
+                          
+                          // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
+                          const descuentosNoTotalNeto = listaActual
+                            .filter(c => {
+                              if (c.tipo !== 'DESCUENTO' && c.tipo !== 'DESCUENTO_LYF' && c.tipo !== 'DESCUENTO_UOCRA') return false;
+                              const baseCalculoItem = c.baseCalculo ?? c.base_calculo;
+                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
+                              return !usaTotalNetoItem;
+                            })
+                            .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+                          const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
+                          
+                          // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
+                          listaActual = listaActual.map(item => {
+                            if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
+                              const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
+                              const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
+                              
+                              if (usaTotalNetoItem) {
+                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+                                if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
+                                  const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+                                  return {
+                                    ...item,
+                                    montoUnitario: Math.abs(nuevoTotal),
+                                    total: nuevoTotal
+                                  };
+                                }
+                              }
+                            }
+                            return item;
+                          });
+                          
+                          return listaActual;
+                        };
+                        const listaConDescuentos = recalcularDescuentos(next);
+                        setConceptos(listaConDescuentos);
+                        setTotal(calcTotal(listaConDescuentos));
+                      } else {
+                        setConceptos(next);
+                        setTotal(calcTotal(next));
+                      }
                       setSelectedCatalogConcept('');
                       notify.success('Descuento agregado');
                       return;
@@ -3570,9 +3863,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 </tr>
               </thead>
               <tbody>
-                {conceptos
-                  .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
-                  .map(concept => (
+                {sortConceptos(
+                  conceptos.filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+                ).map(concept => (
                   <tr key={concept.id}>
                     <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
