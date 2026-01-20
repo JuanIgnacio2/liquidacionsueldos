@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal } from '../Modal/Modal';
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
+import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -533,11 +534,88 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         
         const totalRemuneraciones = totalBruto + totalConceptosEspeciales;
 
-        // Recalcular descuentos sobre el total de remuneraciones
+        // Recalcular descuentos según baseCalculo o porcentaje tradicional
+        // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
         conceptosValidos.forEach(concepto => {
-          if (concepto && concepto.isDescuento && concepto.porcentaje && totalRemuneraciones > 0) {
-            const montoUnitario = (totalRemuneraciones * concepto.porcentaje) / 100;
-            concepto.total = -(montoUnitario * concepto.unidades);
+          if (concepto && concepto.isDescuento) {
+            // Buscar el concepto en el catálogo para obtener baseCalculo
+            let baseCalculoDescuento = null;
+            if (concepto.tipoConcepto === 'DESCUENTO_LYF') {
+              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
+            } else if (concepto.tipoConcepto === 'DESCUENTO_UOCRA') {
+              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
+            } else {
+              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
+            }
+            
+            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            
+            // Solo calcular los que NO usan TOTAL_NETO en este paso
+            if (usaTotalBruto) {
+              // Usar cantidad (unidades) como porcentaje sobre TOTAL_BRUTO
+              const cantidadComoPorcentaje = Number(concepto.unidades) || 0;
+              if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
+                concepto.total = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
+              }
+            } else if (!usaTotalNeto && concepto.porcentaje && totalRemuneraciones > 0) {
+              // Comportamiento tradicional: usar porcentaje del catálogo
+              const montoUnitario = (totalRemuneraciones * concepto.porcentaje) / 100;
+              concepto.total = -(montoUnitario * concepto.unidades);
+            }
+            // Si usa TOTAL_NETO, se calculará después
+          }
+        });
+        
+        // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
+        const descuentosNoTotalNeto = conceptosValidos
+          .filter(c => {
+            if (!c || !c.isDescuento) return false;
+            let baseCalculoDescuento = null;
+            if (c.tipoConcepto === 'DESCUENTO_LYF') {
+              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === c.idReferencia);
+              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
+            } else if (c.tipoConcepto === 'DESCUENTO_UOCRA') {
+              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === c.idReferencia);
+              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
+            } else {
+              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === c.idReferencia);
+              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
+            }
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            return !usaTotalNeto; // Solo los que NO usan TOTAL_NETO
+          })
+          .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+        const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
+        
+        // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
+        conceptosValidos.forEach(concepto => {
+          if (concepto && concepto.isDescuento) {
+            // Buscar el concepto en el catálogo para obtener baseCalculo
+            let baseCalculoDescuento = null;
+            if (concepto.tipoConcepto === 'DESCUENTO_LYF') {
+              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
+            } else if (concepto.tipoConcepto === 'DESCUENTO_UOCRA') {
+              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
+            } else {
+              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === concepto.idReferencia);
+              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
+            }
+            
+            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
+            
+            if (usaTotalNeto) {
+              // Usar cantidad (unidades) como porcentaje sobre el neto preliminar
+              const cantidadComoPorcentaje = Number(concepto.unidades) || 0;
+              if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
+                concepto.total = -(netoPreliminar * cantidadComoPorcentaje / 100);
+              }
+            }
           }
         });
 
