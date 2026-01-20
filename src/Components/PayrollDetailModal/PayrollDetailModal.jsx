@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Printer, Download } from 'lucide-react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import * as api from '../../services/empleadosAPI';
+import { sortConceptos, isRemuneration, isDeduction } from '../../utils/conceptosUtils';
 import './PayrollDetailModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -384,40 +385,26 @@ export default function PayrollDetailModal({
               <table className="concepts-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '60px' }}>Código</th>
-                    <th style={{ width: '40%' }}>Concepto</th>
-                    <th style={{ width: '70px', textAlign: 'center' }}>Unidades</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}>Remuneraciones</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}>Descuentos</th>
+                    <th style={{ width: 'auto' }}>Concepto</th>
+                    <th style={{ width: '100px', textAlign: 'center' }}>Unidades</th>
+                    <th style={{ width: '150px', textAlign: 'right' }}>Remuneraciones</th>
+                    <th style={{ width: '150px', textAlign: 'right' }}>Descuentos</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {payrollDetails.conceptos
-                    .filter(concepto => concepto.tipoConcepto !== 'CATEGORIA_ZONA')
-                    .map((concepto, index) => {
-                      const isRemuneration = 
-                        concepto.tipoConcepto === 'CATEGORIA' || 
-                        concepto.tipoConcepto === 'CONCEPTO_LYF' || 
-                        concepto.tipoConcepto === 'CONCEPTO_UOCRA' ||
-                        concepto.tipoConcepto === 'TITULO_LYF' ||
-                        concepto.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
-                        concepto.tipoConcepto === 'BONIFICACION_AREA' ||
-                        concepto.tipoConcepto === 'HORA_EXTRA_LYF' ||
-                        concepto.tipoConcepto === 'AGUINALDO' ||
-                        concepto.tipoConcepto === 'VACACIONES';
-                      const isDeduction = 
-                        concepto.tipoConcepto === 'DESCUENTO' || 
-                        concepto.tipoConcepto === 'DESCUENTO_LYF' || 
-                        concepto.tipoConcepto === 'DESCUENTO_UOCRA';
+                  {sortConceptos(
+                    payrollDetails.conceptos.filter(concepto => concepto.tipoConcepto !== 'CATEGORIA_ZONA')
+                  ).map((concepto, index) => {
+                      const isRemunerationConcept = isRemuneration(concepto);
+                      const isDeductionConcept = isDeduction(concepto);
                       const total = Number(concepto.total || 0);
                       
                       // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
-                      const descuentoAmount = isDeduction ? Math.abs(total) : 0;
-                      const remuneracionAmount = isRemuneration && total > 0 ? total : 0;
+                      const descuentoAmount = isDeductionConcept ? Math.abs(total) : 0;
+                      const remuneracionAmount = isRemunerationConcept && total > 0 ? total : 0;
 
                       return (
                         <tr key={index}>
-                          <td className="concept-code">{concepto.idReferencia || concepto.id || index + 1}</td>
                           <td className="concept-name">{concepto.nombre || concepto.nombreConcepto}</td>
                           <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
                           <td className="concept-remuneration">
@@ -432,7 +419,7 @@ export default function PayrollDetailModal({
                 </tbody>
                 <tfoot>
                   <tr className="receipt-totals-row">
-                    <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
+                    <td colSpan="2" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
                       TOTALES:
                     </td>
                     <td className="receipt-total-remuneration" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
@@ -443,7 +430,7 @@ export default function PayrollDetailModal({
                     </td>
                   </tr>
                   <tr className="receipt-net-row">
-                    <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
+                    <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', borderTop: '2px solid #22c55e' }}>
                       TOTAL NETO A COBRAR:
                     </td>
                     <td className="receipt-net-amount" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem', fontSize: '1.1rem', color: '#22c55e', borderTop: '2px solid #22c55e' }}>
