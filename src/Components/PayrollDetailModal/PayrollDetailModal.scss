@@ -182,31 +182,32 @@
             border: 1px solid var(--border-color);
             color: var(--text-primary);
 
-            &.concept-code {
+            /*&.concept-code {
               font-weight: 600;
               text-align: center;
               width: 60px;
-            }
+            }*/
 
             &.concept-name {
               flex: 1;
+              min-width: 200px;
             }
 
             &.concept-units {
               text-align: center;
-              width: 70px;
+              width: 100px;
             }
 
             &.concept-remuneration {
               text-align: right;
-              width: 120px;
+              width: 150px;
               color: var(--success-color);
               font-weight: 600;
             }
 
             &.concept-deduction {
               text-align: right;
-              width: 120px;
+              width: 150px;
               color: var(--error-color);
               font-weight: 600;
             }

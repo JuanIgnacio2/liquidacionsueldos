@@ -139,19 +139,20 @@ export const getPagosByPeriodo = (periodo) =>
 export const getDashboardStats = () =>
     axiosClient.get(`/pagos/dashboard/mes-actual`).then((r)=>r.data);
 
-export const getResumeMonth = () =>
-    axiosClient.get(`/pagos/resumen-conceptos/mes-actual`).then((r)=>r.data);
-
-export const getResumeCustomMonth = (periodo) =>
-    axiosClient.get(`/pagos/resumen-conceptos/${periodo}`).then((r)=>r.data);
-
-export const getResumenEmpleado = (legajo, anio = null) => {
-    const params = anio ? { anio } : {};
-    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
+export const getResumenConceptosFiltrado = (gremio = null, anio = null, mes = null) => {
+    const params = {};
+    if (gremio) params.gremio = gremio;
+    if (anio) params.anio = anio;
+    if (mes) params.mes = mes;
+    return axiosClient.get('/pagos/resumen-conceptos/filtrado', { params }).then((r)=>r.data);
 };
 
-export const getResumenGremio = (gremio) =>
-    axiosClient.get(`/pagos/resumen-conceptos/gremio/${gremio}`).then((r)=>r.data);
+export const getResumenEmpleado = (legajo, anio = null, mes = null) => {
+    const params = {};
+    if (anio) params.anio = anio;
+    if (mes) params.mes = mes;
+    return axiosClient.get(`/pagos/resumen-conceptos/empleado/${legajo}`, { params }).then((r)=>r.data);
+};
 
 export const registrarActividad = (dto) =>
     axiosClient.post(`/actividad`, dto).then((r)=>r.data);
@@ -164,6 +165,15 @@ export const getActividadesRecientesTipo = (tipo) =>
 
 export const getActividadesRecientesUsuario = (usuario) =>
     axiosClient.get(`/actividad/reciente/usuario/${usuario}`).then((r)=>r.data);
+
+export const getActividadesPaginadas = (page = 0, size = 10, usuario = null, fechaDesde = null, fechaHasta = null, tipo = null) => {
+    const params = { page, size };
+    if (usuario) params.usuario = usuario;
+    if (fechaDesde) params.fechaDesde = fechaDesde;
+    if (fechaHasta) params.fechaHasta = fechaHasta;
+    if (tipo) params.tipo = tipo;
+    return axiosClient.get('/actividad/paginado', { params }).then((r) => r.data);
+};
 
 
 export const calcularAguinaldo = (legajo, aguinaldoNumero, anio) =>
