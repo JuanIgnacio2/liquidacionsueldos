@@ -7,7 +7,7 @@ import Convenios from './Pages/Convenios';
 import NotFound from './Pages/NotFound';
 import Empleados from './Pages/Empleados';
 import HistorialPagos from './Pages/HistorialPagos';
-import Reportes from './Pages/Reportes';
+import Resumenes from './Pages/Resumenes';
 import Login from './Pages/Login';
 import WaitingAuthorization from './Pages/WaitingAuthorization';
 import './styles/main.scss';
@@ -64,7 +64,7 @@ function AppRoutes() {
       } />
       <Route path="/reportes" element={
         <ProtectedRoute>
-          <Reportes />
+          <Resumenes />
         </ProtectedRoute>
       } />
       <Route path="/configuracion" element={
