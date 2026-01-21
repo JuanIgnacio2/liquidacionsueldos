@@ -1286,14 +1286,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     if (errors?.areas) setErrors(prev => ({ ...prev, areas: '' }));
   };
 
-  const selectedSet = new Set((formData.areas || []).map(Number));
-  const availableAreas = areas.filter(a => {
-    if (formData.gremio === "UOCRA") {
-      return !(formData.idZona && a.idZona === formData.idZona);
-    }
-    return !selectedSet.has(a.idArea || a.id);
-  });
-
   // Función helper para identificar "Bonif Antigüedad" específicamente
   const isBonifAntiguedad = (nombreConcepto) => {
     const nombreNormalizado = normalize(nombreConcepto || '');
@@ -1445,9 +1437,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
       const montoUnitario = (baseCalculo * porcentaje) / 100;
       return montoUnitario * unidades;
     }
-
-    // Manejo especial para conceptos que se calculan sobre el total bruto
-    const nombreNormalizado = normalize(concepto.nombre || '');
     
     // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
     const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
@@ -1629,19 +1618,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     const sueldoBruto = calculateSueldoBruto();
     const totalDescuentos = calculateTotalDescuentos();
     return sueldoBruto - totalDescuentos;
-  };
-
-  // Maneja el toggle de selección de conceptos adicionales
-  const handleConceptToggle = (conceptId) => {
-    setConceptosSeleccionados((prev) => {
-      const next = { ...prev };
-      if (next[conceptId]) {
-        delete next[conceptId];
-      } else {
-        next[conceptId] = { units: '1' }; // Iniciar con 1 unidad
-      }
-      return next;
-    });
   };
   
   // Maneja el cambio en las unidades de un concepto seleccionado

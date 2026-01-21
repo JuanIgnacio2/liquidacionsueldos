@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, FileText, Percent, List, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus } from 'lucide-react';
 import { Modal, ModalFooter } from '../Components/Modal/Modal';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -1074,10 +1074,6 @@ export default function ConvenioDetail() {
           if (!u || !u.headers?.length) {
             return <div style={{ padding: '1rem', color: 'var(--text-secondary)' }}>No hay datos de zonas para mostrar.</div>;
           }
-
-          const fmt = (n) => typeof n === 'number'
-            ? n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : '';
 
           return (
             <table className="uocra-table">
