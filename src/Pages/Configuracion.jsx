@@ -3,7 +3,6 @@ import { Lock, Save, Eye, EyeOff, Users, UserPlus, Trash2, Power, PowerOff } fro
 import { 
     changePassword,
     getListarUsuariosAdmin,
-    getUsuarioAdById,
     createUsuarioNew,
     updateUsuarioRol,
     updateUsuarioEstado,
@@ -303,15 +302,6 @@ export default function Configuracion() {
         } catch (error) {
             notify.error(error);
         }
-    };
-
-    const getRolDisplayName = (rol) => {
-        const roles = {
-            'NEW_USER': 'Nuevo Usuario',
-            'USER': 'Usuario',
-            'ADMINISTRATOR': 'Administrador'
-        };
-        return roles[rol] || rol;
     };
 
     return (
