@@ -1286,7 +1286,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     if (errors?.areas) setErrors(prev => ({ ...prev, areas: '' }));
   };
 
-
   // Función helper para identificar "Bonif Antigüedad" específicamente
   const isBonifAntiguedad = (nombreConcepto) => {
     const nombreNormalizado = normalize(nombreConcepto || '');
@@ -1438,9 +1437,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
       const montoUnitario = (baseCalculo * porcentaje) / 100;
       return montoUnitario * unidades;
     }
-
-    // Manejo especial para conceptos que se calculan sobre el total bruto
-    const nombreNormalizado = normalize(concepto.nombre || '');
     
     // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
     const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
@@ -1622,13 +1618,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     const sueldoBruto = calculateSueldoBruto();
     const totalDescuentos = calculateTotalDescuentos();
     return sueldoBruto - totalDescuentos;
-  };
-
-  // Calcula el salario total estipulado inicial (neto)
-  const calculateTotalSalary = () => {
-    const sueldoBruto = calculateSueldoBruto();
-    const totalDescuentos = calculateTotalDescuentos();
-    return roundTo2Decimals(sueldoBruto - totalDescuentos);
   };
   
   // Maneja el cambio en las unidades de un concepto seleccionado
