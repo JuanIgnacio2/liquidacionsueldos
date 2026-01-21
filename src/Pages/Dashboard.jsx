@@ -16,7 +16,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const notify = useNotification();
   const [activeEmployees, setActiveEmployees] = useState();
-  const [gremiosCount, setGremiosCount] = useState();
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showNewEmployeeModal, setShowNewEmployeeModal] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -56,10 +55,9 @@ export default function Dashboard() {
 
   const countGremios = async () => {
     try {
-      const count = await api.countConvenios();
-      setGremiosCount(count);
+      await api.countConvenios();
     } catch (error) {
-      notify.error(error);
+      notify.error('Error al contar gremios:' + error.message);
     }
   };
 
@@ -69,7 +67,7 @@ export default function Dashboard() {
       const ordenados = data.sort((a, b) => a.legajo - b.legajo);
       setEmployees(ordenados);
     } catch (error) {
-      notify.error(error);
+      notify.error('Error al cargar empleados:' + error.message);
     }
   };
 
@@ -78,7 +76,7 @@ export default function Dashboard() {
       const data = await api.getDashboardStats();
       setDashboardStats(data || null);
     } catch (error) {
-      notify.error("Error al cargar estadísticas del dashboard");
+      notify.error("Error al cargar estadísticas del dashboard:" + error.message);
     }
   };
 
@@ -88,7 +86,7 @@ export default function Dashboard() {
       const data = await api.getActividadesRecientes();
       setActividades(Array.isArray(data) ? data : []);
     } catch (error) {
-      notify.error("Error al cargar actividades recientes");
+      notify.error("Error al cargar actividades recientes:" + error.message);
       setActividades([]);
     } finally {
       setLoadingActivities(false);
@@ -136,7 +134,7 @@ export default function Dashboard() {
       setTotalPages(data.totalPages || 0);
       setTotalElements(data.totalElements || 0);
     } catch (error) {
-      notify.error("Error al cargar actividades");
+      notify.error("Error al cargar actividades:" + error.message);
       setActividadesPaginadas([]);
       setTotalPages(0);
       setTotalElements(0);
@@ -157,7 +155,7 @@ export default function Dashboard() {
       loadActividades(),
       ]);
       } catch (error) {
-        notify.error("Error al cargar datos del dashboard");
+        notify.error("Error al cargar datos del dashboard:" + error.message);
       }
       finally {
         setLoading(false);
@@ -231,7 +229,7 @@ export default function Dashboard() {
               setSelectedEmployeeForView(employeeData);
               setShowEmployeeViewModal(true);
             } catch (error) {
-              notify.error('No se pudo cargar la información del empleado');
+              notify.error('No se pudo cargar la información del empleado:' + error.message);
             }
           }
           break;
@@ -278,7 +276,7 @@ export default function Dashboard() {
               total_neto: detalle.total_neto || detalle.totalNeto
             });
           } catch (error) {
-            notify.error('No se pudo cargar la información de la liquidación');
+            notify.error('No se pudo cargar la información de la liquidación:' + error.message);
           } finally {
             setLoadingPayrollDetails(false);
           }
@@ -300,12 +298,12 @@ export default function Dashboard() {
           notify.log('Tipo de actividad no soportado para ver detalles');
       }
     } catch (error) {
-      notify.error('Error al cargar los detalles de la actividad');
+      notify.error('Error al cargar los detalles de la actividad:' + error.message);
     }
   };
 
   const handleProcessPayroll = (result) => {
-    notify.log("Procesamiento completado");
+    notify.success("Procesamiento completado");
     // Puedes agregar lógica adicional aquí si es necesario
     countActiveEmployees(); // Refrescar conteo
   };
@@ -321,7 +319,7 @@ export default function Dashboard() {
       await countActiveEmployees(); // Refrescar conteo
       setShowNewEmployeeModal(false);
     } catch (err) {
-      notify("Error al registrar empleado");
+      notify.error("Error al registrar empleado:" + err.message);
     }
   };
 
@@ -570,11 +568,11 @@ export default function Dashboard() {
         loadingDetails={loadingPayrollDetails}
         onPrint={() => {
           // Implementar impresión si es necesario
-          notify.log('Función de impresión no implementada');
+          notify.info('Función de impresión no implementada');
         }}
         onDownload={() => {
           // Implementar descarga si es necesario
-          notify.log('Función de descarga no implementada');
+          notify.info('Función de descarga no implementada');
         }}
       />
 

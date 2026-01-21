@@ -127,7 +127,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
   const [areas, setAreas] = useState([]);
   const [selectedAreaToAdd, setSelectedAreaToAdd] = useState('');
   const [categorias, setCategorias] = useState([]);
-  const [categoriaNoEncontrada, setCategoriaNoEncontrada] = useState(false);
   const [conceptos, setConceptos] = useState([]);
   const [conceptosSeleccionados, setConceptosSeleccionados] = useState({});
   const [selectedConceptToAdd, setSelectedConceptToAdd] = useState('');
@@ -153,13 +152,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     .toLowerCase();
 
   const findCategoriaById = (id) => categorias.find(c => String(getCatId(c)) === String(id));
-
-  // Función helper para obtener el tipo de concepto según el gremio
-  const getTipoConcepto = (gremio) => {
-    if (gremio === 'LUZ_Y_FUERZA') return 'CONCEPTO_LYF';
-    if (gremio === 'UOCRA') return 'CONCEPTO_UOCRA';
-    return 'BONIFICACION_FIJA'; // Fallback (no debería usarse con Convenio General)
-  };
 
   // Load employees al montar
   useEffect(() => {
@@ -221,7 +213,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
           const ordenadas = data.sort((a, b) => a.idCategoria - b.idCategoria);
           setCategorias(ordenadas); // guarda las categorías ordenadas en el estado
         } catch (err) {
-          notify.error("Error al cargar categorías");
+          notify.error("Error al cargar categorías" + err.message);
         }
       };
       loadCategorias();
@@ -649,7 +641,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             return { ...prev, salary: String(basico), categoria: getCatNombre(cat) };
           });
         }
-        setCategoriaNoEncontrada(false);
       }
       return;
     }

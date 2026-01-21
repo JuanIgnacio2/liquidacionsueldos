@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users, Percent, List, Plus, Edit, Trash2 } from 'lucide-react';
+import { FileText, Users } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
@@ -16,7 +16,6 @@ export default function Convenios() {
   const [employees, setEmployees] = useState([]);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedConvenio, setSelectedConvenio] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -119,7 +118,6 @@ export default function Convenios() {
   const closeModals = () => {
     setShowViewModal(false);
     setShowEditModal(false);
-    setShowUploadModal(false);
     setSelectedConvenio(null);
   };
 
