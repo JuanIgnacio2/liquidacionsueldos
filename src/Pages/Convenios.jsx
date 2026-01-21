@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Users, Percent, List, Plus, Edit, Trash2 } from 'lucide-react';
+import { FileText, Users } from 'lucide-react';
 import { ConvenioCard } from '../Components/ConvenioCard/ConvenioCard.jsx';
 import { Modal, ModalFooter } from '../Components/Modal/Modal.jsx';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';

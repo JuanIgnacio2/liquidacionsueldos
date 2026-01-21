@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
-import { Eye, Calendar, DollarSign, ArrowRight } from 'lucide-react';
+import { Eye, Calendar, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import * as api from '../../services/empleadosAPI';

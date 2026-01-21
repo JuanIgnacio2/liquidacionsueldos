@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, Users, Layers, XCircle, UserCheck, CheckCircle, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Plus, Edit, Eye, Filter, DollarSign, UserX, Users, XCircle, UserCheck, CheckCircle, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { EmployeeViewModal } from "../Components/EmployeeViewModal/EmployeeViewModal.jsx";
 import { NewEmployeeModal } from "../Components/NewEmployeeModal/NewEmployeeModal.jsx";
@@ -17,7 +17,6 @@ export default function Empleados() {
   const notify = useNotification();
   const confirm = useConfirm();
   const [employees, setEmployees] = useState([]);
-  const [areas, setAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showViewModal, setShowViewModal] = useState(false);
@@ -110,10 +109,8 @@ export default function Empleados() {
       setEmployees(norm);
       setTotalPages(totalPagesValue);
       setTotalElements(totalElementsValue);
-      setError("");
     } catch (err) {
-      setError(err.message);
-      notify.error(err);
+      notify.error('Error al cargar empleados:' + err.message);
     } finally {
       setLoading(false);
     }
@@ -141,17 +138,7 @@ export default function Empleados() {
     }
   };
 
-  const loadAreas = async () => {
-    try {
-      const data = await api.getAreas();
-      setAreas(data);
-    } catch (err) {
-      notify.error(err);
-    }
-  };
-
   useEffect(() => {
-    loadAreas();
     loadStats();
   }, []);
 
@@ -214,7 +201,7 @@ export default function Empleados() {
       }
       await loadEmployees(); // Refrescar lista
     } catch (err) {
-      notify.error(err);
+      notify.error('Error al guardar empleado:' + err.message);
     }
   };
 
@@ -242,7 +229,7 @@ export default function Empleados() {
         const norm = normalizeEmployees(allEmployees);
         setAllEmployeesForModal(norm);
       } catch (fallbackErr) {
-        notify.error("Error al cargar empleados para liquidación");
+        notify.error("Error al cargar empleados para liquidación:" + fallbackErr.message);
         return;
       }
     }
@@ -295,7 +282,7 @@ export default function Empleados() {
           }
           await loadEmployees(); // Refrescar lista
         } catch (error) {
-          notify.error(error);
+          notify.error('Error al dar de alta empleado:' + error.message);
         }
       }
     } else if (employee.estado === "ACTIVO") {
@@ -329,7 +316,7 @@ export default function Empleados() {
           }
           await loadEmployees(); // Refrescar lista
         } catch (error) {
-          notify.error(error);
+          notify.error('Error al dar de baja empleado:' + error.message);
         }
       }
     }

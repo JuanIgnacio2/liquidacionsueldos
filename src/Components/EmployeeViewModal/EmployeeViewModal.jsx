@@ -4,6 +4,7 @@ import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-r
 import * as api from "../../services/empleadosAPI";
 import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
+import { useNotification } from '../../Hooks/useNotification';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -102,6 +103,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   const [sueldoBruto, setSueldoBruto] = useState(0);
   const [totalDescuentos, setTotalDescuentos] = useState(0);
   const [sueldoNeto, setSueldoNeto] = useState(0);
+  const { notify } = useNotification();
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
@@ -140,45 +142,6 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         const descuentos = await api.getDescuentos();
         const areasData = await api.getAreas();
       
-        // Cargar conceptos manuales LYF si es Luz y Fuerza
-        let conceptosManualesLyF = [];
-        if (isLuzYFuerza) {
-          try {
-            conceptosManualesLyF = await api.getConceptosManualesLyF();
-          } catch (error) {
-            console.error('Error al cargar conceptos manuales LYF:', error);
-          }
-        }
-        
-        // Cargar horas extras LYF si es Luz y Fuerza
-        let horasExtrasLyF = [];
-        if (isLuzYFuerza) {
-          try {
-            horasExtrasLyF = await api.getHorasExtrasLyF();
-          } catch (error) {
-            console.error('Error al cargar horas extras LYF:', error);
-          }
-        }
-
-        let descuentosLyF = [];
-        if (isLuzYFuerza) {
-          try {
-            descuentosLyF = await api.getDescuentosLyF();
-          } catch (error) {
-            console.error('Error al cargar descuentos LYF:', error);
-          }
-        }
-        
-        let descuentosUocra = [];
-        if (isUocra) {
-          try {
-            descuentosUocra = await api.getDescuentosUocra();
-          } catch (error) {
-            console.error('Error al cargar descuentos UOCRA:', error);
-          }
-        }
-        
-        
         // Cargar conceptos manuales LYF si es Luz y Fuerza
         let conceptosManualesLyF = [];
         if (isLuzYFuerza) {
