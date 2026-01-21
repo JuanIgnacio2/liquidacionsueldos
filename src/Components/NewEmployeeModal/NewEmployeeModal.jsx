@@ -1145,10 +1145,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       if (cIsDescuento) return sum;
       if (c.tipo === 'HORA_EXTRA_LYF') return sum;
       
-      // Excluir conceptos que se calculan sobre total bruto (para evitar dependencia circular)
-      const cNombreNormalizado = normalize(c.nombre || '');
-      if (isConceptoCalculadoSobreTotalBruto(c.nombre)) return sum;
-      
       const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
       if (!u || u <= 0) return sum;
       
@@ -1255,9 +1251,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
       const montoUnitario = (baseCalculo * porcentaje) / 100;
       return montoUnitario * unidades;
     }
-
-    // Manejo especial para conceptos que se calculan sobre el total bruto
-    const nombreNormalizado = normalize(concepto.nombre || '');
     
     // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
     const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
@@ -1444,19 +1437,6 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
     const sueldoBruto = calculateSueldoBruto();
     const totalDescuentos = calculateTotalDescuentos();
     return sueldoBruto - totalDescuentos;
-  };
-
-  // Maneja el toggle de selección de conceptos adicionales
-  const handleConceptToggle = (conceptId) => {
-    setConceptosSeleccionados((prev) => {
-      const next = { ...prev };
-      if (next[conceptId]) {
-        delete next[conceptId];
-      } else {
-        next[conceptId] = { units: '1' }; // Iniciar con 1 unidad
-      }
-      return next;
-    });
   };
   
   // Maneja el cambio en las unidades de un concepto seleccionado
