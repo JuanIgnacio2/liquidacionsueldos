@@ -830,45 +830,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       const listaFinal = recalcularDescuentos(listaConConceptosEspeciales);
 
-      // Calcular asistencia inicial si es UOCRA
-      let listaConAsistencia = listaFinal;
-      const gremioNombre = employee.gremio?.nombre?.toUpperCase() || '';
-      if (gremioNombre === 'UOCRA') {
-        // Buscar conceptos de horas y asistencia
-        const horasNormales = listaFinal.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('Hs.Normales') || nombreUpper.includes('HORAS NORMALES');
-        });
-        
-        const horasExtras = listaFinal.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
-        });
-        
-        const horasExtrasDobles = listaFinal.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('HORAS EXTRAS DOBLES');
-        });
-        
-        const asistencia = listaFinal.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('ASISTENCIA');
-        });
-        
-        if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
-          const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
-          const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
-          const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
-          const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
-          
-          listaConAsistencia = listaFinal.map(c => {
-            if (c.uid === asistencia.uid) {
-              return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
-            }
-            return c;
-          });
-        }
-      }
+      // Calcular asistencia inicial si es UOCRA usando la función helper
+      const listaConAsistencia = calculateAsistencia(listaFinal, employee);
 
       setTotal(calcTotal(listaConAsistencia));
       setConceptos(listaConAsistencia);
@@ -1028,35 +991,36 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   };
 
   // Calcular asistencia automáticamente para UOCRA
-  const calculateAsistencia = () => {
-    const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+  // Acepta una lista de conceptos y retorna la lista actualizada con la asistencia calculada
+  const calculateAsistencia = (listaConceptos, empleado = selectedEmployee) => {
+    const gremioNombre = empleado?.gremio?.nombre?.toUpperCase() || '';
     const isUocra = gremioNombre === 'UOCRA';
     
-    if (!isUocra) return;
+    if (!isUocra) return listaConceptos;
     
     // Buscar conceptos de horas
-    const horasNormales = conceptos.find(c => {
+    const horasNormales = listaConceptos.find(c => {
       const nombreUpper = (c.nombre || '').toUpperCase();
       return nombreUpper.includes('HS.NORMALES') || nombreUpper.includes('HORAS NORMALES');
     });
     
-    const horasExtras = conceptos.find(c => {
+    const horasExtras = listaConceptos.find(c => {
       const nombreUpper = (c.nombre || '').toUpperCase();
       return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
     });
     
-    const horasExtrasDobles = conceptos.find(c => {
+    const horasExtrasDobles = listaConceptos.find(c => {
       const nombreUpper = (c.nombre || '').toUpperCase();
       return nombreUpper.includes('HORAS EXTRAS DOBLES');
     });
     
     // Buscar concepto de asistencia
-    const asistencia = conceptos.find(c => {
+    const asistencia = listaConceptos.find(c => {
       const nombreUpper = (c.nombre || '').toUpperCase();
       return nombreUpper.includes('ASISTENCIA');
     });
     
-    if (asistencia) {
+    if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
       // Calcular suma de las tres horas
       const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
       const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
@@ -1064,17 +1028,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
       
       // Actualizar cantidad de asistencia
-      if (asistencia.cantidad !== sumaAsistencia) {
-        const nuevos = conceptos.map(c => {
-          if (c.uid === asistencia.uid) {
-            return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
-          }
-          return c;
-        });
-        setConceptos(nuevos);
-        setTotal(calcTotal(nuevos));
-      }
+      return listaConceptos.map(c => {
+        if (c.uid === asistencia.uid) {
+          return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
+        }
+        return c;
+      });
     }
+    
+    return listaConceptos;
   };
 
   // Actualizar cantidad de un concepto
@@ -1199,53 +1161,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return concept;
     });
 
-    setConceptos(nuevosConDescuentos);
-    setTotal(calcTotal(nuevosConDescuentos));
+    // Calcular asistencia si es UOCRA
+    const listaConAsistencia = calculateAsistencia(nuevosConDescuentos);
     
-    // Recalcular asistencia si es UOCRA (usar setTimeout para asegurar que el estado se actualice)
-    setTimeout(() => {
-      const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
-      if (gremioNombre === 'UOCRA') {
-        const horasNormales = nuevosConDescuentos.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('HS.NORMALES') || nombreUpper.includes('HORAS NORMALES');
-        });
-        
-        const horasExtras = nuevosConDescuentos.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES');
-        });
-        
-        const horasExtrasDobles = nuevosConDescuentos.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('HORAS EXTRAS DOBLES');
-        });
-        
-        const asistencia = nuevosConDescuentos.find(c => {
-          const nombreUpper = (c.nombre || '').toUpperCase();
-          return nombreUpper.includes('ASISTENCIA');
-        });
-        
-        if (asistencia && (horasNormales || horasExtras || horasExtrasDobles)) {
-          const cantidadHorasNormales = Number(horasNormales?.cantidad || 0);
-          const cantidadHorasExtras = Number(horasExtras?.cantidad || 0);
-          const cantidadHorasExtrasDobles = Number(horasExtrasDobles?.cantidad || 0);
-          const sumaAsistencia = cantidadHorasNormales + cantidadHorasExtras + cantidadHorasExtrasDobles;
-          
-          if (asistencia.cantidad !== sumaAsistencia) {
-            const listaConAsistencia = nuevosConDescuentos.map(c => {
-              if (c.uid === asistencia.uid) {
-                return { ...c, cantidad: sumaAsistencia, total: (c.montoUnitario || 0) * sumaAsistencia };
-              }
-              return c;
-            });
-            
-            setConceptos(listaConAsistencia);
-            setTotal(calcTotal(listaConAsistencia));
-          }
-        }
-      }
-    }, 0);
+    setConceptos(listaConAsistencia);
+    setTotal(calcTotal(listaConAsistencia));
   };
 
   // Obtener gremios únicos de los empleados
@@ -1502,8 +1422,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       return item;
     });
 
-    setConceptos(nuevos);
-    setTotal(calcTotal(nuevos));
+    // Calcular asistencia si es UOCRA después de editar montos
+    const listaConAsistencia = calculateAsistencia(nuevos);
+    
+    setConceptos(listaConAsistencia);
+    setTotal(calcTotal(listaConAsistencia));
     cancelEditAmount();
   };
 
@@ -1525,7 +1448,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (result) {
       removeConcept(uid);
       const nuevos = conceptos.filter(c => c.uid !== uid);
-    setTotal(calcTotal(nuevos));
+      // Calcular asistencia si es UOCRA después de eliminar
+      const listaConAsistencia = calculateAsistencia(nuevos);
+      setConceptos(listaConAsistencia);
+      setTotal(calcTotal(listaConAsistencia));
     }
   };
 
@@ -1918,11 +1844,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   // Generar HTML completo del recibo
   const generateReceiptHTML = () => {
     const periodoDisplay = formatPeriodToMonthYear(payrollData.periodDisplay || periodo);
-    const fechaActual = new Date().toLocaleDateString('es-AR', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
 
     // Calcular totales para el recibo
     const { remunerations, deductions, netAmount } = calculateTotals();
@@ -2429,11 +2350,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   // Generar HTML del recibo sin el DOCTYPE y etiquetas html/head/body (solo el contenido)
   const generateReceiptContentHTML = () => {
     const periodoDisplay = formatPeriodToMonthYear(payrollData.periodDisplay || periodo);
-    const fechaActual = new Date().toLocaleDateString('es-AR', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
 
     // Calcular totales para el recibo
     const { remunerations, deductions, netAmount } = calculateTotals();
@@ -3263,11 +3179,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                         const next = [...conceptos, nuevo];
                         // Recalcular conceptos especiales después de agregar
-                        const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
                         const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
                         const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
-                        setConceptos(listaConConceptosEspeciales);
-                        setTotal(calcTotal(listaConConceptosEspeciales));
+                        // Calcular asistencia si es UOCRA
+                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
+                        setConceptos(listaConAsistencia);
+                        setTotal(calcTotal(listaConAsistencia));
                         setSelectedCatalogConcept('');
                         notify.success('Concepto agregado');
                         return;
@@ -3296,8 +3213,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      setConceptos(next);
-                      setTotal(calcTotal(next));
+                      // Calcular asistencia si es UOCRA
+                      const listaConAsistencia = calculateAsistencia(next);
+                      setConceptos(listaConAsistencia);
+                      setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
                       notify.success('Concepto agregado');
                       return;
@@ -3331,11 +3250,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                         const next = [...conceptos, nuevo];
                         // Recalcular conceptos especiales después de agregar
-                        const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
                         const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
                         const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
-                        setConceptos(listaConConceptosEspeciales);
-                        setTotal(calcTotal(listaConConceptosEspeciales));
+                        // Calcular asistencia si es UOCRA
+                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
+                        setConceptos(listaConAsistencia);
+                        setTotal(calcTotal(listaConAsistencia));
                         setSelectedCatalogConcept('');
                         notify.success('Título agregado');
                         return;
@@ -3364,8 +3284,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      setConceptos(next);
-                      setTotal(calcTotal(next));
+                      // Calcular asistencia si es UOCRA
+                      const listaConAsistencia = calculateAsistencia(next);
+                      setConceptos(listaConAsistencia);
+                      setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
                       notify.success('Título agregado');
                       return;
@@ -3394,8 +3316,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      setConceptos(next);
-                      setTotal(calcTotal(next));
+                      // Calcular asistencia si es UOCRA
+                      const listaConAsistencia = calculateAsistencia(next);
+                      setConceptos(listaConAsistencia);
+                      setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
                       notify.success('Concepto manual agregado');
                       return;
@@ -3404,8 +3328,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     if (pref === 'DESC') {
                       // Determinar qué catálogo de descuentos usar según el prefijo completo
                       let raw = null;
-                      const isLuz = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('LUZ') && selectedEmployee?.gremio?.nombre?.toUpperCase().includes('FUERZA');
-                      const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
                       
                       if (selectedCatalogConcept.startsWith('DESC_LYF_')) {
                         raw = descuentosLyFData.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === idNum);
@@ -3550,11 +3472,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           return listaActual;
                         };
                         const listaConDescuentos = recalcularDescuentos(next);
-                        setConceptos(listaConDescuentos);
-                        setTotal(calcTotal(listaConDescuentos));
+                        // Calcular asistencia si es UOCRA
+                        const listaConAsistencia = calculateAsistencia(listaConDescuentos);
+                        setConceptos(listaConAsistencia);
+                        setTotal(calcTotal(listaConAsistencia));
                       } else {
-                        setConceptos(next);
-                        setTotal(calcTotal(next));
+                        // Calcular asistencia si es UOCRA
+                        const listaConAsistencia = calculateAsistencia(next);
+                        setConceptos(listaConAsistencia);
+                        setTotal(calcTotal(listaConAsistencia));
                       }
                       setSelectedCatalogConcept('');
                       notify.success('Descuento agregado');
@@ -3601,8 +3527,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      setConceptos(next);
-                      setTotal(calcTotal(next));
+                      // Calcular asistencia si es UOCRA
+                      const listaConAsistencia = calculateAsistencia(next);
+                      setConceptos(listaConAsistencia);
+                      setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
                       notify.success('Hora extra agregada');
                       return;
