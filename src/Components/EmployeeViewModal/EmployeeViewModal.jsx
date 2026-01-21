@@ -4,6 +4,7 @@ import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-r
 import * as api from "../../services/empleadosAPI";
 import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
+import { useNotification } from '../../Hooks/useNotification';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -95,7 +96,6 @@ const calculateAntiguedad = (fechaIngreso) => {
 export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo, onHistorialLiquidaciones, onEditEmployee }) {
   const [conceptosAsignados, setConceptosAsignados] = useState([]);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
-  const [areas, setAreas] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [categoriaBasico, setCategoriaBasico] = useState(0);
   const [salarioBasico, setSalarioBasico] = useState(0);
@@ -103,6 +103,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
   const [sueldoBruto, setSueldoBruto] = useState(0);
   const [totalDescuentos, setTotalDescuentos] = useState(0);
   const [sueldoNeto, setSueldoNeto] = useState(0);
+  const { notify } = useNotification();
 
   useEffect(() => {
     const loadConceptosAsignados = async () => {
@@ -140,10 +141,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         
         const descuentos = await api.getDescuentos();
         const areasData = await api.getAreas();
-        
-        setAreas(areasData);
-        
-        
+      
         // Cargar conceptos manuales LYF si es Luz y Fuerza
         let conceptosManualesLyF = [];
         if (isLuzYFuerza) {
@@ -599,7 +597,7 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
         setTotalDescuentos(totalDescuentosCalculado);
         setSueldoNeto(sueldoNetoCalculado);
       } catch (error) {
-        console.error('Error al cargar conceptos asignados:', error);
+        notify.error('Error al cargar conceptos asignados:' + error.message);
         setConceptosAsignados([]);
       } finally {
         setLoadingConceptos(false);
