@@ -1342,62 +1342,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     return salarioBasico + bonoArea + otrasBonificaciones;
   };
 
-  // Función helper para identificar "Bonif Antigüedad" específicamente
-  const isBonifAntiguedad = (nombreConcepto) => {
-    const nombreNormalizado = normalize(nombreConcepto || '');
-    return (
-      nombreNormalizado.includes('bonif antiguedad') ||
-      nombreNormalizado.includes('bonif antigüedad')
-    );
-  };
-
-  // Función helper para identificar conceptos que se calculan sobre el total bruto
-  // (excluye "Bonif Antigüedad" que tiene su propio cálculo)
-  const isConceptoCalculadoSobreTotalBruto = (nombreConcepto) => {
-    const nombreNormalizado = normalize(nombreConcepto || '');
-    return (
-      nombreNormalizado.includes('suplemento antiguedad') ||
-      nombreNormalizado.includes('suplemento antigüedad') ||
-      nombreNormalizado.includes('art 50') ||
-      nombreNormalizado.includes('art 69') ||
-      nombreNormalizado.includes('art 70') ||
-      nombreNormalizado.includes('art 72')
-    );
-  };
-
-  // Función helper para identificar "Personal de turno" (usa totalRemunerativo directamente, no valorHora)
-  const isPersonalDeTurno = (nombreConcepto) => {
-    const nombreNormalizado = normalize(nombreConcepto || '');
-    return nombreNormalizado.includes('personal de turno') || nombreNormalizado.includes('personal turno');
-  };
-
-  // Calcula el total bruto (básico + bono área + bonificaciones, excluyendo conceptos especiales, horas extras y descuentos)
-  const calcularTotalBruto = () => {
-    const salarioBasico = Number(formData.salary) || 0;
-    const bonoArea = formData.gremio === 'LUZ_Y_FUERZA' ? (Number(formData.bonoArea) || 0) : 0;
-    
-    const otrasBonificaciones = Object.keys(conceptosSeleccionados).reduce((sum, conceptId) => {
-      const c = conceptos.find(cc => String(cc.id) === String(conceptId));
-      if (!c) return sum;
-      
-      const cIsDescuento = c.isDescuento || c.tipo === 'DESCUENTO';
-      if (cIsDescuento) return sum;
-      if (c.tipo === 'HORA_EXTRA_LYF') return sum;
-      
-      // Excluir conceptos que se calculan sobre total bruto (para evitar dependencia circular)
-      if (isConceptoCalculadoSobreTotalBruto(c.nombre)) return sum;
-      
-      const u = Number(conceptosSeleccionados[conceptId]?.units) || 0;
-      if (!u || u <= 0) return sum;
-      
-      // Calcular total de la bonificación (recursivo, pero sin incluir conceptos sobre total bruto)
-      const total = calculateConceptTotal(c, u, null, true); // Pasar flag para evitar recursión infinita
-      return sum + total;
-    }, 0);
-    
-    return salarioBasico + bonoArea + otrasBonificaciones;
-  };
-
   // Calcula el total de un concepto basado en el básico, porcentaje y unidades
   // Para descuentos, se calcula sobre el total de remuneraciones
   // Para HORA_EXTRA_LYF: se calcula usando valorHora * factor
@@ -1493,9 +1437,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
       const montoUnitario = (baseCalculo * porcentaje) / 100;
       return montoUnitario * unidades;
     }
-
-    // Manejo especial para conceptos que se calculan sobre el total bruto
-    const nombreNormalizado = normalize(concepto.nombre || '');
     
     // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
     const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
@@ -1670,13 +1611,6 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
     });
     
     return descuentosNoTotalNeto + descuentosConTotalNeto;
-  };
-
-  // Calcula el salario total estipulado inicial (neto)
-  const calculateTotalSalary = () => {
-    const sueldoBruto = calculateSueldoBruto();
-    const totalDescuentos = calculateTotalDescuentos();
-    return sueldoBruto - totalDescuentos;
   };
 
   // Calcula el salario total estipulado inicial (neto)
