@@ -129,6 +129,13 @@
   }
 }
 
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
 .form-input {
   width: 100%;
   padding: $spacing-3 $spacing-4;
@@ -158,6 +165,42 @@
   &.error {
     border-color: $color-danger;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  }
+}
+
+// Ajustar padding cuando el input está dentro del wrapper de contraseña
+.password-input-wrapper .form-input {
+  padding-right: $spacing-12;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: $spacing-3;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: $spacing-1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-gray-500;
+  transition: color 0.2s ease;
+  z-index: 1;
+
+  &:hover:not(:disabled) {
+    color: $color-green-primary;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:focus {
+    outline: none;
+    color: $color-green-primary;
   }
 }
 

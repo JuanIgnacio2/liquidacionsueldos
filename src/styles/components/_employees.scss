@@ -375,17 +375,94 @@
     .list-header {
       padding: $spacing-6;
       border-bottom: 1px solid $color-gray-100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: $spacing-4;
+      flex-wrap: wrap;
 
-      .list-title {
-        font-size: $font-size-2xl;
-        font-weight: 600;
-        color: $color-gray-900;
-        margin-bottom: $spacing-1;
+      .header-left {
+        flex: 1;
+        min-width: 200px;
+
+        .list-title {
+          font-size: $font-size-2xl;
+          font-weight: 600;
+          color: $color-gray-900;
+          margin-bottom: $spacing-1;
+        }
+
+        .list-description {
+          font-size: $font-size-sm;
+          color: $color-gray-500;
+        }
       }
 
-      .list-description {
-        font-size: $font-size-sm;
-        color: $color-gray-500;
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: $spacing-3;
+
+        .sort-controls {
+          display: flex;
+          align-items: center;
+          gap: $spacing-2;
+
+          .sort-label {
+            font-size: $font-size-sm;
+            font-weight: 500;
+            color: $color-gray-700;
+            white-space: nowrap;
+          }
+
+          .sort-select {
+            padding: $spacing-2 $spacing-3;
+            border: 1px solid $color-gray-300;
+            border-radius: $border-radius;
+            font-size: $font-size-sm;
+            color: $color-gray-900;
+            background-color: $color-white;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-width: 140px;
+
+            &:hover {
+              border-color: $color-gray-400;
+            }
+
+            &:focus {
+              outline: none;
+              border-color: $color-green-primary;
+              box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+            }
+          }
+
+          .sort-direction-btn {
+            padding: $spacing-2;
+            border: 1px solid $color-gray-300;
+            border-radius: $border-radius;
+            background-color: $color-white;
+            color: $color-gray-700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            font-size: $font-size-lg;
+            font-weight: 600;
+            transition: all 0.15s ease;
+
+            &:hover {
+              background-color: $color-gray-50;
+              border-color: $color-gray-400;
+            }
+
+            &:active {
+              background-color: $color-gray-100;
+            }
+          }
+        }
       }
     }
 
