@@ -5,6 +5,16 @@ import * as api from "../../services/empleadosAPI";
 import { sortConceptos, isDeduction } from '../../utils/conceptosUtils';
 import EmployeePayrollHistoryModal from '../EmployeePayrollHistoryModal/EmployeePayrollHistoryModal';
 import { useNotification } from '../../Hooks/useNotification';
+import {
+  roundTo2Decimals,
+  calculateTotalRemunerativo,
+  calculateHorasExtrasLyF,
+  calculateDescuentos,
+  calculateTotals,
+  isBonifAntiguedad,
+  isConceptoCalculadoSobreTotalBruto,
+  isPersonalDeTurno
+} from '../../utils/salaryCalculations';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
 const formatCurrencyAR = (value) => {
@@ -16,42 +26,6 @@ const formatCurrencyAR = (value) => {
   return `$${integerPart},${parts[1]}`;
 };
 
-// Función helper para normalizar strings
-const normalize = (s) =>
-  (s || '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-// Función helper para identificar "Bonif Antigüedad" específicamente
-const isBonifAntiguedad = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return (
-    nombreNormalizado.includes('bonif antiguedad') ||
-    nombreNormalizado.includes('bonif antigüedad')
-  );
-};
-
-// Función helper para identificar conceptos que se calculan sobre el total bruto
-// (excluye "Bonif Antigüedad" que tiene su propio cálculo)
-const isConceptoCalculadoSobreTotalBruto = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return (
-    nombreNormalizado.includes('suplemento antiguedad') ||
-    nombreNormalizado.includes('suplemento antigüedad') ||
-    nombreNormalizado.includes('art 50') ||
-    nombreNormalizado.includes('art 69') ||
-    nombreNormalizado.includes('art 70') ||
-    nombreNormalizado.includes('art 72')
-  );
-};
-
-// Función helper para identificar "Personal de turno" (usa totalRemunerativo directamente, no valorHora)
-const isPersonalDeTurno = (nombreConcepto) => {
-  const nombreNormalizado = normalize(nombreConcepto || '');
-  return nombreNormalizado.includes('personal de turno') || nombreNormalizado.includes('personal turno');
-};
 
 // Calcula la antigüedad del empleado en formato AA/MM (Años/Meses)
 const calculateAntiguedad = (fechaIngreso) => {
@@ -308,9 +282,9 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                 }
               }
             } else if (asignado.tipoConcepto === 'CATEGORIA_ZONA') {
-              // Mostrar categoría-zona solo para otros convenios
-              nombre = `Categoría-Zona ${asignado.idReferencia}`;
-              porcentaje = null;
+              // CATEGORIA_ZONA es solo para cálculos de referencia en UOCRA, no se muestra ni se suma
+              // Retornar null para que se filtre
+              return null;
             } else if (asignado.tipoConcepto === 'CONCEPTO_MANUAL_LYF') {
               concepto = conceptosManualesLyF.find(cm => 
                 (cm.idConceptosManualesLyF ?? cm.id) === asignado.idReferencia
@@ -340,12 +314,13 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             let total = 0;
             const esBonifAntiguedad = isBonifAntiguedad(nombre) && isLuzYFuerza;
             
-            // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
+            // Verificar si el concepto tiene baseCalculo = 'TOTAL_REMUNERATIVO' (reemplaza TOTAL_BRUTO)
             const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
-            const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
+            const usaTotalRemunerativo = baseCalculoConcepto === 'TOTAL_REMUNERATIVO' || baseCalculoConcepto === 'total_remunerativo' || 
+                                        baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto'; // Compatibilidad hacia atrás
             
             // Detectar conceptos especiales por nombre (compatibilidad hacia atrás)
-            const esConceptoEspecial = (isConceptoCalculadoSobreTotalBruto(nombre) || usaTotalBruto) && isLuzYFuerza;
+            const esConceptoEspecial = (isConceptoCalculadoSobreTotalBruto(nombre) || usaTotalRemunerativo) && isLuzYFuerza;
             
             if (asignado.tipoConcepto === 'HORA_EXTRA_LYF') {
               // Las horas extras se calcularán después, por ahora dejamos total en 0
@@ -362,9 +337,9 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
             } else if (esBonifAntiguedad && porcentaje) {
               // "Bonif Antigüedad": (basicoCat11 * 1.4) * porcentaje / 100 * unidades
               if (basicoCat11 > 0) {
-                const baseCalculo = basicoCat11 * 1.4;
-                const montoUnitario = (baseCalculo * porcentaje) / 100;
-                total = montoUnitario * unidades;
+                const baseCalculo = roundTo2Decimals(basicoCat11 * 1.4);
+                const montoUnitario = roundTo2Decimals((baseCalculo * porcentaje) / 100);
+                total = roundTo2Decimals(montoUnitario * unidades);
               }
             } else if (porcentaje && !isDescuento && !esConceptoEspecial) {
               // No calcular conceptos especiales aquí, se recalcularán después sobre el total bruto
@@ -384,8 +359,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               }
               
               if (baseCalculo > 0) {
-                const montoUnitario = (baseCalculo * porcentaje) / 100;
-                total = montoUnitario * unidades;
+                const montoUnitario = roundTo2Decimals((baseCalculo * porcentaje) / 100);
+                total = roundTo2Decimals(montoUnitario * unidades);
               }
             }
             // Los descuentos y conceptos especiales (excepto Bonif Antigüedad) se calcularán después sobre el total de remuneraciones/total bruto
@@ -402,195 +377,157 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
               _esConceptoEspecial: esConceptoEspecial, // Flag para identificar y recalcular después (excluye Bonif Antigüedad)
               _esBonifAntiguedad: esBonifAntiguedad, // Flag para identificar Bonif Antigüedad
               isConceptoManualLyF: asignado.tipoConcepto === 'CONCEPTO_MANUAL_LYF', // Flag para conceptos manuales LYF
-              _usaTotalBruto: usaTotalBruto // Flag para identificar conceptos que usan TOTAL_BRUTO
+              _usaTotalRemunerativo: usaTotalRemunerativo // Flag para identificar conceptos que usan TOTAL_REMUNERATIVO
             };
           })
         );
 
         // Filtrar nulls primero para evitar errores en los cálculos
-        const conceptosValidos = mappedConceptos.filter(Boolean);
+        let conceptosValidos = mappedConceptos.filter(Boolean);
+        
+        // Eliminar duplicados para UOCRA: si hay descuentos con el mismo idReferencia pero diferentes tipoConcepto (DESCUENTO vs DESCUENTO_UOCRA),
+        // mantener solo el que tiene tipoConcepto DESCUENTO_UOCRA
+        if (isUocra) {
+          const seenDescuentos = new Map();
+          const conceptosSinDuplicados = [];
+          
+          conceptosValidos.forEach(c => {
+            if (c && (c.tipoConcepto === 'DESCUENTO' || c.tipoConcepto === 'DESCUENTO_UOCRA')) {
+              const key = `${c.idReferencia}`;
+              if (seenDescuentos.has(key)) {
+                // Si ya existe, verificar cuál mantener
+                const existing = seenDescuentos.get(key);
+                if (existing.tipoConcepto === 'DESCUENTO' && c.tipoConcepto === 'DESCUENTO_UOCRA') {
+                  // Reemplazar DESCUENTO con DESCUENTO_UOCRA
+                  const index = conceptosSinDuplicados.findIndex(item => 
+                    item.idReferencia === existing.idReferencia && 
+                    (item.tipoConcepto === 'DESCUENTO' || item.tipoConcepto === 'DESCUENTO_UOCRA')
+                  );
+                  if (index !== -1) {
+                    conceptosSinDuplicados[index] = c;
+                    seenDescuentos.set(key, c);
+                  }
+                }
+                // Si el existente es DESCUENTO_UOCRA o ambos son del mismo tipo, no agregar este
+              } else {
+                // Primera vez que vemos este idReferencia
+                seenDescuentos.set(key, c);
+                conceptosSinDuplicados.push(c);
+              }
+            } else {
+              // No es un descuento, agregarlo directamente
+              conceptosSinDuplicados.push(c);
+            }
+          });
+          
+          conceptosValidos = conceptosSinDuplicados;
+        }
 
-        // --- Calcular horas extras para Luz y Fuerza ---
+        // --- Calcular conceptos para Luz y Fuerza con el nuevo flujo ---
         if (isLuzYFuerza) {
-          // Calcular total remunerativo (básico + bonificaciones, sin horas extras ni descuentos)
+          // PASO 1: Calcular TOTAL_REMUNERATIVO
+          const totalRemunerativo = calculateTotalRemunerativo(
+            conceptosValidos,
+            basicoEmpleado,
+            basicoCat11,
+            bonificacionesFijas
+          );
+
+          // PASO 2: Calcular CONCEPTO_LYF con baseCalculo TOTAL_REMUNERATIVO sobre ese total
+          conceptosValidos.forEach(concepto => {
+            if (concepto && concepto.tipoConcepto === 'CONCEPTO_LYF' && concepto._usaTotalRemunerativo && concepto.porcentaje && totalRemunerativo > 0) {
+              const montoUnitario = roundTo2Decimals((totalRemunerativo * concepto.porcentaje) / 100);
+              concepto.total = roundTo2Decimals(montoUnitario * concepto.unidades);
+            }
+          });
+          // PASO 3: Sumar CONCEPTOS_MANUALES_LYF (ya están calculados con monto fijo)
+          // No hay nada que hacer aquí, ya están calculados en el mapeo inicial
+
+          // PASO 4: Calcular HORA_EXTRA_LYF
+          calculateHorasExtrasLyF(
+            conceptosValidos,
+            basicoEmpleado,
+            basicoCat11,
+            horasExtrasLyF,
+            bonificacionesFijas
+          );
+        }
+
+        // Calcular total bruto para UOCRA y otros gremios (Luz y Fuerza ya está calculado arriba)
+        if (!isLuzYFuerza) {
           const totalBonificacionesArea = conceptosValidos
             .filter(c => c && c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
             .reduce((sum, c) => sum + c.total, 0);
-
+          
           const totalConceptosLyF = conceptosValidos
-            .filter(c => c && (c.tipoConcepto === 'CONCEPTO_LYF' || c.tipoConcepto === 'TITULO_LYF') && c.total > 0)
+            .filter(c => c && (c.tipoConcepto === 'CONCEPTO_LYF' || c.tipoConcepto === 'TITULO_LYF') && c.total > 0 && !c._esConceptoEspecial && !c._esBonifAntiguedad)
             .reduce((sum, c) => sum + c.total, 0);
-
+          
+          // Incluir conceptos UOCRA en el total bruto (excluir CATEGORIA_ZONA)
+          const totalConceptosUocra = conceptosValidos
+            .filter(c => c && c.tipoConcepto === 'CONCEPTO_UOCRA' && c.total > 0 && !c._esConceptoEspecial && c.tipoConcepto !== 'CATEGORIA_ZONA')
+            .reduce((sum, c) => sum + c.total, 0);
+          
+          // Incluir "Bonif Antigüedad" en el total bruto (ya calculado con su fórmula especial)
+          const totalBonifAntiguedad = conceptosValidos
+            .filter(c => c && c._esBonifAntiguedad && c.total > 0 && c.tipoConcepto !== 'CATEGORIA_ZONA')
+            .reduce((sum, c) => sum + c.total, 0);
+          
+          const totalHorasExtras = conceptosValidos
+            .filter(c => c && c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0 && c.tipoConcepto !== 'CATEGORIA_ZONA')
+            .reduce((sum, c) => sum + c.total, 0);
+          
           const totalConceptosManualesLyF = conceptosValidos
-            .filter(c => c && c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' && c.total > 0)
+            .filter(c => c && c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' && c.total > 0 && c.tipoConcepto !== 'CATEGORIA_ZONA')
             .reduce((sum, c) => sum + c.total, 0);
-            
-          const totalRemunerativo = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalConceptosManualesLyF;
+          
+          const totalBruto = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalConceptosUocra + totalHorasExtras + totalBonifAntiguedad + totalConceptosManualesLyF;
 
-          // Calcular valor hora
-          const valorHora = totalRemunerativo / 156;
-
-          // Recalcular horas extras
-          conceptosValidos.forEach((c) => {
-            if (c && c.tipoConcepto === 'HORA_EXTRA_LYF') {
-              // Buscar el factor en el catálogo de horas extras
-              const horaExtra = horasExtrasLyF.find(he => 
-                (he.idHoraExtra ?? he.id) === c.idReferencia
-              );
-              
-              // Obtener el factor del catálogo o usar fallback
-              const factor = horaExtra 
-                ? (Number(horaExtra.factor) || (c.idReferencia === 1 ? 1.5 : 2))
-                : (c.idReferencia === 1 ? 1.5 : 2);
-              
-              // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-              let montoUnitario;
-              if (isPersonalDeTurno(c.nombre)) {
-                montoUnitario = totalRemunerativo * factor;
-              } else {
-                montoUnitario = valorHora * factor;
-              }
-              
-              c.total = montoUnitario * (Number(c.unidades) || 1);
+          // Recalcular conceptos especiales sobre el total bruto (solo para otros gremios, no Luz y Fuerza)
+          conceptosValidos.forEach(concepto => {
+            if (concepto && concepto._esConceptoEspecial && concepto.porcentaje && totalBruto > 0) {
+              const montoUnitario = roundTo2Decimals((totalBruto * concepto.porcentaje) / 100);
+              concepto.total = roundTo2Decimals(montoUnitario * concepto.unidades);
             }
           });
         }
 
-        // Calcular total bruto (básico + bonificaciones + áreas + horas extras, excluyendo conceptos especiales y descuentos)
-        const totalBonificacionesArea = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'BONIFICACION_AREA' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalConceptosLyF = conceptosValidos
-          .filter(c => c && (c.tipoConcepto === 'CONCEPTO_LYF' || c.tipoConcepto === 'TITULO_LYF') && c.total > 0 && !c._esConceptoEspecial && !c._esBonifAntiguedad)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        // Incluir "Bonif Antigüedad" en el total bruto (ya calculado con su fórmula especial)
-        const totalBonifAntiguedad = conceptosValidos
-          .filter(c => c && c._esBonifAntiguedad && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalHorasExtras = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'HORA_EXTRA_LYF' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalConceptosManualesLyF = conceptosValidos
-          .filter(c => c && c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        // Usar basicoEmpleado (variable local) en lugar del estado
-        // Incluir "Bonif Antigüedad" en el total bruto (ya calculado con su fórmula especial)
-        const totalBruto = basicoEmpleado + totalBonificacionesArea + totalConceptosLyF + totalHorasExtras + totalBonifAntiguedad + totalConceptosManualesLyF;
-
-        // Recalcular conceptos especiales sobre el total bruto
-        conceptosValidos.forEach(concepto => {
-          if (concepto && concepto._esConceptoEspecial && concepto.porcentaje && totalBruto > 0) {
-            const montoUnitario = (totalBruto * concepto.porcentaje) / 100;
-            concepto.total = montoUnitario * concepto.unidades;
-          }
-        });
-
-        // Calcular total de remuneraciones (incluyendo conceptos especiales ahora recalculados)
-        const totalConceptosEspeciales = conceptosValidos
-          .filter(c => c && c._esConceptoEspecial && c.total > 0)
-          .reduce((sum, c) => sum + c.total, 0);
-        
-        const totalRemuneraciones = totalBruto + totalConceptosEspeciales;
+        // Calcular total de remuneraciones usando la misma lógica que ProcessPayrollModal
+        // Después de recalcular conceptos especiales, sumar todos los conceptos que no son descuentos
+        let totalRemuneraciones = 0;
+        if (isUocra) {
+          // Para UOCRA, el básico no está en la lista, sumarlo por separado
+          totalRemuneraciones = roundTo2Decimals(basicoEmpleado + 
+            conceptosValidos
+              .filter(c => c && c.tipoConcepto !== 'DESCUENTO' && c.tipoConcepto !== 'DESCUENTO_LYF' && c.tipoConcepto !== 'DESCUENTO_UOCRA' && c.tipoConcepto !== 'CATEGORIA_ZONA')
+              .reduce((sum, c) => roundTo2Decimals(sum + (c.total || 0)), 0));
+        } else {
+          // Para Luz y Fuerza, el básico ya debería estar incluido en conceptosValidos como CATEGORIA
+          // Pero como no se mapea, sumarlo por separado también
+          totalRemuneraciones = roundTo2Decimals(basicoEmpleado + 
+            conceptosValidos
+              .filter(c => c && c.tipoConcepto !== 'DESCUENTO' && c.tipoConcepto !== 'DESCUENTO_LYF' && c.tipoConcepto !== 'DESCUENTO_UOCRA')
+              .reduce((sum, c) => roundTo2Decimals(sum + (c.total || 0)), 0));
+        }
 
         // Recalcular descuentos según baseCalculo o porcentaje tradicional
-        // PASO 1: Calcular primero los descuentos que NO usan TOTAL_NETO
-        conceptosValidos.forEach(concepto => {
-          if (concepto && concepto.isDescuento) {
-            // Buscar el concepto en el catálogo para obtener baseCalculo
-            let baseCalculoDescuento = null;
-            if (concepto.tipoConcepto === 'DESCUENTO_LYF') {
-              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
-            } else if (concepto.tipoConcepto === 'DESCUENTO_UOCRA') {
-              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
-            } else {
-              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
-            }
-            
-            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            
-            // Solo calcular los que NO usan TOTAL_NETO en este paso
-            if (usaTotalBruto) {
-              // Usar cantidad (unidades) como porcentaje sobre TOTAL_BRUTO
-              const cantidadComoPorcentaje = Number(concepto.unidades) || 0;
-              if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-                concepto.total = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-              }
-            } else if (!usaTotalNeto && concepto.porcentaje && totalRemuneraciones > 0) {
-              // Comportamiento tradicional: usar porcentaje del catálogo
-              const montoUnitario = (totalRemuneraciones * concepto.porcentaje) / 100;
-              concepto.total = -(montoUnitario * concepto.unidades);
-            }
-            // Si usa TOTAL_NETO, se calculará después
-          }
-        });
-        
-        // PASO 2: Calcular neto preliminar (remuneraciones - descuentos que no usan TOTAL_NETO)
-        const descuentosNoTotalNeto = conceptosValidos
-          .filter(c => {
-            if (!c || !c.isDescuento) return false;
-            let baseCalculoDescuento = null;
-            if (c.tipoConcepto === 'DESCUENTO_LYF') {
-              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === c.idReferencia);
-              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
-            } else if (c.tipoConcepto === 'DESCUENTO_UOCRA') {
-              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === c.idReferencia);
-              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
-            } else {
-              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === c.idReferencia);
-              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
-            }
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            return !usaTotalNeto; // Solo los que NO usan TOTAL_NETO
-          })
-          .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
-        const netoPreliminar = totalRemuneraciones - descuentosNoTotalNeto;
-        
-        // PASO 3: Calcular descuentos que usan TOTAL_NETO sobre el neto preliminar
-        conceptosValidos.forEach(concepto => {
-          if (concepto && concepto.isDescuento) {
-            // Buscar el concepto en el catálogo para obtener baseCalculo
-            let baseCalculoDescuento = null;
-            if (concepto.tipoConcepto === 'DESCUENTO_LYF') {
-              const descuentoLyF = descuentosLyF.find(d => (d.idDescuentoLyF ?? d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuentoLyF?.baseCalculo ?? descuentoLyF?.base_calculo;
-            } else if (concepto.tipoConcepto === 'DESCUENTO_UOCRA') {
-              const descuentoUocra = descuentosUocra.find(d => (d.idDescuentoUocra ?? d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuentoUocra?.baseCalculo ?? descuentoUocra?.base_calculo;
-            } else {
-              const descuento = descuentos.find(d => (d.idDescuento ?? d.id) === concepto.idReferencia);
-              baseCalculoDescuento = descuento?.baseCalculo ?? descuento?.base_calculo;
-            }
-            
-            const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            
-            if (usaTotalNeto) {
-              // Usar cantidad (unidades) como porcentaje sobre el neto preliminar
-              const cantidadComoPorcentaje = Number(concepto.unidades) || 0;
-              if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-                concepto.total = -(netoPreliminar * cantidadComoPorcentaje / 100);
-              }
-            }
-          }
+        calculateDescuentos(conceptosValidos, totalRemuneraciones, {
+          descuentos,
+          descuentosLyF,
+          descuentosUocra
         });
 
-        // Establecer conceptos asignados (ya filtrados)
-        setConceptosAsignados(conceptosValidos);
+        // Filtrar CATEGORIA_ZONA para UOCRA (no se muestra, solo es para cálculos de referencia)
+        const conceptosParaMostrar = conceptosValidos.filter(c => 
+          c && c.tipoConcepto !== 'CATEGORIA_ZONA'
+        );
         
-        // Calcular y guardar totales para el resumen
-        const sueldoBrutoCalculado = totalRemuneraciones;
-        const totalDescuentosCalculado = conceptosValidos
-          .filter(c => c && c.isDescuento && c.total < 0)
-          .reduce((sum, c) => sum + Math.abs(c.total), 0);
-        const sueldoNetoCalculado = sueldoBrutoCalculado - totalDescuentosCalculado;
+        // Establecer conceptos asignados (ya filtrados, sin CATEGORIA_ZONA)
+        setConceptosAsignados(conceptosParaMostrar);
+        
+        // Calcular y guardar totales para el resumen usando la misma lógica que ProcessPayrollModal.calculateTotals
+        const { sueldoBruto: sueldoBrutoCalculado, totalDescuentos: totalDescuentosCalculado, sueldoNeto: sueldoNetoCalculado } = 
+          calculateTotals(conceptosParaMostrar, basicoEmpleado);
         
         // Guardar en estado para usar en el resumen
         setSueldoBruto(sueldoBrutoCalculado);

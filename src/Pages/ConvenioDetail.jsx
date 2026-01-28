@@ -513,8 +513,25 @@ export default function ConvenioDetail() {
 
     try {
       if (selectedConceptoManual) {
+        // Obtener el ID del concepto manual (probar diferentes campos posibles)
+        const conceptoId = selectedConceptoManual.idConceptosManualesLyF || 
+                          selectedConceptoManual.idConceptoManualLyF || 
+                          selectedConceptoManual.id;
+        
+        if (!conceptoId || conceptoId === 'undefined' || conceptoId === undefined) {
+          notify.error('No se pudo identificar el ID del concepto a actualizar');
+          return;
+        }
+        
+        // Asegurar que el ID sea un número
+        const idNumero = Number(conceptoId);
+        if (isNaN(idNumero) || idNumero <= 0) {
+          notify.error('ID del concepto inválido');
+          return;
+        }
+        
         // Actualizar concepto existente
-        await api.updateConceptoManualLyF(selectedConceptoManual.idConceptoManualLyF || selectedConceptoManual.id, {
+        await api.updateConceptoManualLyF(idNumero, {
           nombre: conceptoManualNombre.trim(),
           monto: monto
         });
@@ -1035,11 +1052,16 @@ export default function ConvenioDetail() {
                     </thead>
                     <tbody>
                       {(Array.isArray(data.conceptosManualesLyF) ? data.conceptosManualesLyF : [])
+                        .sort((a, b) => {
+                          const idA = a?.idConceptosManualesLyF || a?.idConceptoManualLyF || a?.id || 0;
+                          const idB = b?.idConceptosManualesLyF || b?.idConceptoManualLyF || b?.id || 0;
+                          return Number(idA) - Number(idB);
+                        })
                         .map((cm, i) => {
                           const nombre = cm?.nombre || cm?.descripcion || `Concepto Manual ${i+1}`;
                           const monto = Number(cm?.monto || cm?.valor || 0);
                           return (
-                            <tr key={cm?.idConceptoManualLyF || cm?.id || i}>
+                            <tr key={cm?.idConceptosManualesLyF || cm?.idConceptoManualLyF || cm?.id || i}>
                               <td>{nombre}</td>
                               <td className="monto-cell">{formatCurrencyAR(monto)}</td>
                               <td className="actions-cell">

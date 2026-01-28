@@ -4,13 +4,15 @@ import { useAuth } from '../context/AuthContext';
 import { login } from '../services/authService';
 import { registerUser } from '../services/empleadosAPI';
 import { useNotification } from '../Hooks/useNotification';
-import { DollarSign, User, Lock, Mail, UserCircle } from 'lucide-react';
+import { DollarSign, User, Lock, Mail, UserCircle, Eye, EyeOff } from 'lucide-react';
 import '../styles/components/_login.scss';
 
 const Login = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   
   // Formulario de login
   const [loginData, setLoginData] = useState({
@@ -188,6 +190,8 @@ const Login = () => {
     setErrors({});
     setLoginData({ username: '', password: '' });
     setRegisterData({ username: '', password: '', nombre: '', apellido: '', email: '' });
+    setShowLoginPassword(false);
+    setShowRegisterPassword(false);
   };
 
   return (
@@ -232,14 +236,25 @@ const Login = () => {
                 <Lock className="label-icon" />
                 Contraseña
               </label>
-              <input
-                type="password"
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                value={loginData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder="Ingresa tu contraseña"
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  className={`form-input ${errors.password ? 'error' : ''}`}
+                  value={loginData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder="Ingresa tu contraseña"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  disabled={loading}
+                  aria-label={showLoginPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {errors.password && <span className="error-message">{errors.password}</span>}
             </div>
 
@@ -322,14 +337,25 @@ const Login = () => {
                 <Lock className="label-icon" />
                 Contraseña *
               </label>
-              <input
-                type="password"
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                value={registerData.password}
-                onChange={(e) => handleInputChange('password', e.target.value, true)}
-                placeholder="Mínimo 6 caracteres"
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  type={showRegisterPassword ? 'text' : 'password'}
+                  className={`form-input ${errors.password ? 'error' : ''}`}
+                  value={registerData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value, true)}
+                  placeholder="Mínimo 6 caracteres"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                  disabled={loading}
+                  aria-label={showRegisterPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showRegisterPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {errors.password && <span className="error-message">{errors.password}</span>}
             </div>
 

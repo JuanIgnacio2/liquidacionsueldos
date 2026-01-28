@@ -507,8 +507,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           const nombreConcepto = concepto?.nombre ?? concepto?.descripcion ?? asignado.nombre ?? asignado.descripcion ?? 'Concepto';
           const nombreNormalizado = normalize(nombreConcepto);
           
-          // Verificar si el concepto tiene baseCalculo = 'TOTAL_BRUTO' (nuevo campo)
+          // Verificar si el concepto tiene baseCalculo = 'TOTAL_REMUNERATIVO' o 'TOTAL_BRUTO'
           const baseCalculoConcepto = concepto?.baseCalculo ?? concepto?.base_calculo;
+          const usaTotalRemunerativo = baseCalculoConcepto === 'TOTAL_REMUNERATIVO' || baseCalculoConcepto === 'total_remunerativo';
           const usaTotalBruto = baseCalculoConcepto === 'TOTAL_BRUTO' || baseCalculoConcepto === 'total_bruto';
           
           // Detectar conceptos especiales por nombre (compatibilidad hacia atrás)
@@ -539,6 +540,25 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               montoUnitario: montoUnitario,
               cantidad: unidades,
               total: total,
+            };
+          }
+          
+          // Si es un concepto que usa TOTAL_REMUNERATIVO, guardar estructura pero calcular ANTES de horas extras
+          if (usaTotalRemunerativo && isLuzYFuerza) {
+            const porcentaje = concepto?.porcentaje ?? asignado.porcentaje ?? asignado.porcentajeBonificacion ?? 0;
+            const unidades = Number(asignado.unidades) || 1;
+            
+            // Guardar estructura, se recalculará ANTES de horas extras con el total remunerativo
+            return {
+              uid: uidCounter.current++,
+              id: asignado.idReferencia,
+              tipo: asignado.tipoConcepto,
+              nombre: nombreConcepto,
+              montoUnitario: 0, // Se calculará después
+              porcentaje: Number(porcentaje) || null,
+              cantidad: unidades,
+              total: 0, // Se calculará después
+              _usaTotalRemunerativo: true, // Flag para identificar y recalcular ANTES de horas extras
             };
           }
           
@@ -667,72 +687,236 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         ? [...bonificacionesMapped, ...descuentosMapped]
         : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
 
-      // Calcular horas extras DESPUÉS de todas las bonificaciones
+      // Función para calcular TOTAL_REMUNERATIVO (para conceptos con baseCalculo TOTAL_REMUNERATIVO)
+      // Incluye: básico + bono área + títulos + conceptos con BASICO_CATEGORIA_11 (incluyendo "Bonif Antigüedad")
+      const calcularTotalRemunerativo = (items) => {
+        if (!isLuzYFuerza) return 0;
+        
+        const basicoEmpleado = basicoValue || 0;
+        const totalBonificacionesArea = bonosDeAreas.reduce((sum, b) => sum + (b.total || 0), 0);
+        
+        const totalTitulosLyF = items
+          .filter(c => c && c.tipo === 'TITULO_LYF' && c.total > 0)
+          .reduce((sum, c) => sum + (c.total || 0), 0);
+        
+        const totalConceptosLyFCat11 = items
+          .filter(c => {
+            if (!c || c.tipo !== 'CONCEPTO_LYF' || c.total <= 0) return false;
+            // Incluir conceptos con BASICO_CATEGORIA_11 o sin baseCalculo (incluyendo "Bonif Antigüedad")
+            // Excluir los que usan TOTAL_REMUNERATIVO o TOTAL_BRUTO
+            const cBaseCalculo = c.baseCalculo ?? c.base_calculo;
+            const cUsaTotalRemunerativo = cBaseCalculo === 'TOTAL_REMUNERATIVO' || cBaseCalculo === 'total_remunerativo';
+            const cUsaTotalBruto = cBaseCalculo === 'TOTAL_BRUTO' || cBaseCalculo === 'total_bruto';
+            return !cUsaTotalRemunerativo && !cUsaTotalBruto;
+          })
+          .reduce((sum, c) => sum + (c.total || 0), 0);
+        
+        return basicoEmpleado + totalBonificacionesArea + totalTitulosLyF + totalConceptosLyFCat11;
+      };
+
+      // PASO 1: Calcular conceptos con TOTAL_REMUNERATIVO ANTES de horas extras
+      let listaConTotalRemunerativo = listaSinHoras.map(item => {
+        if (item._usaTotalRemunerativo && item.porcentaje) {
+          const totalRemunerativo = calcularTotalRemunerativo(listaSinHoras);
+          if (totalRemunerativo > 0) {
+            const montoUnitario = (totalRemunerativo * item.porcentaje / 100);
+            return {
+              ...item,
+              montoUnitario: Number(montoUnitario) || 0,
+              total: (Number(montoUnitario) || 0) * (Number(item.cantidad) || 1),
+              _usaTotalRemunerativo: undefined // Remover flag después de calcular
+            };
+          }
+        }
+        return item;
+      });
+
+      // Calcular horas extras DESPUÉS de calcular conceptos con TOTAL_REMUNERATIVO
+      // La lógica debe ser consistente con `calculateHorasExtrasLyF` de `salaryCalculations.js`
       const calcularHorasExtras = (items) => {
         if (!isLuzYFuerza || horasExtrasAsignadas.length === 0) return [];
 
-        // Calcular total remunerativo (básico + bonificaciones, sin horas extras, descuentos ni conceptos especiales)
-        const totalRemunerativo = items
-          .filter(c => c.tipo !== 'DESCUENTO' && c.tipo !== 'HORA_EXTRA_LYF' && !c._esConceptoEspecial)
-          .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+        // 1) Calcular total ANTES de horas extras:
+        //    básico del empleado + bonificaciones de área + conceptos LYF (incluyendo "Bonif Antigüedad"),
+        //    títulos LYF y conceptos manuales LYF. NO incluye horas extras ni descuentos.
+        const totalAntesHorasExtras = (basicoValue || 0) +
+          items
+            .filter(c =>
+              c &&
+              (c.tipo === 'BONIFICACION_AREA' ||
+               c.tipo === 'CONCEPTO_LYF' ||
+               c.tipo === 'TITULO_LYF' ||
+               c.tipo === 'CONCEPTO_MANUAL_LYF')
+            )
+            .reduce(
+              (sum, c) =>
+                sum +
+                (c.total || ((Number(c.montoUnitario) || 0) * (Number(c.cantidad) || 1))),
+              0
+            );
 
-        // Calcular valor hora
-        const valorHora = totalRemunerativo / 156;
+        if (totalAntesHorasExtras <= 0) return [];
 
-        // Mapear horas extras asignadas
-        return horasExtrasAsignadas.map((asignado) => {
-          const horaExtra = horasExtrasLyF.find(he => 
-            (he.idHoraExtra ?? he.id) === asignado.idReferencia
+        // Separar horas extras "Personal de Turno" del resto
+        const horasExtrasPersonalTurno = horasExtrasAsignadas.filter((asignado) => {
+          const horaExtraPT = horasExtrasLyF.find(
+            (he) => (he.idHoraExtra ?? he.id) === asignado.idReferencia
+          );
+          const nombreConceptoPT =
+            horaExtraPT
+              ? (horaExtraPT.descripcion ??
+                 horaExtraPT.codigo ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'))
+              : (asignado.nombre ??
+                 asignado.descripcion ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'));
+          return isPersonalDeTurno(nombreConceptoPT);
+        });
+
+        const horasExtrasResto = horasExtrasAsignadas.filter((asignado) => {
+          const horaExtraPT = horasExtrasLyF.find(
+            (he) => (he.idHoraExtra ?? he.id) === asignado.idReferencia
+          );
+          const nombreConceptoPT =
+            horaExtraPT
+              ? (horaExtraPT.descripcion ??
+                 horaExtraPT.codigo ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'))
+              : (asignado.nombre ??
+                 asignado.descripcion ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'));
+          return !isPersonalDeTurno(nombreConceptoPT);
+        });
+
+        const horasExtrasCalculadas = [];
+
+        // 2) Calcular primero "Personal de Turno" usando totalAntesHorasExtras * factor
+        horasExtrasPersonalTurno.forEach((asignado) => {
+          const horaExtra = horasExtrasLyF.find(
+            (he) => (he.idHoraExtra ?? he.id) === asignado.idReferencia
           );
 
-          const nombreConcepto = horaExtra 
-            ? (horaExtra.descripcion ?? horaExtra.codigo ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'))
-            : (asignado.nombre ?? asignado.descripcion ?? (asignado.idReferencia === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles'));
-          
-          const factor = horaExtra 
-            ? (Number(horaExtra.factor) || (asignado.idReferencia === 1 ? 1.5 : 2))
-            : (asignado.idReferencia === 1 ? 1.5 : 2);
-          const unidades = Number(asignado.unidades) || 1;
+          const nombreConcepto =
+            horaExtra
+              ? (horaExtra.descripcion ??
+                 horaExtra.codigo ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'))
+              : (asignado.nombre ??
+                 asignado.descripcion ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'));
 
-          // Para "Personal de turno": usar totalRemunerativo directamente, no valorHora
-          let montoUnitario;
-          if (isPersonalDeTurno(nombreConcepto)) {
-            montoUnitario = totalRemunerativo * factor;
-          } else {
-            montoUnitario = valorHora * factor;
-          }
-          
+          const factor =
+            horaExtra
+              ? (Number(horaExtra.factor) || (asignado.idReferencia === 1 ? 1.5 : 2))
+              : (asignado.idReferencia === 1 ? 1.5 : 2);
+
+          const unidades = Number(asignado.unidades) || 1;
+          const montoUnitario = totalAntesHorasExtras * factor;
           const total = montoUnitario * unidades;
 
-          if (!horaExtra) {
-            // Fallback si no se encuentra en el catálogo
-            return {
-              uid: uidCounter.current++,
-              id: asignado.idReferencia,
-              tipo: 'HORA_EXTRA_LYF',
-              nombre: nombreConcepto,
-              montoUnitario: Number(montoUnitario) || 0,
-              factor: factor,
-              cantidad: unidades,
-              total: Number(total) || 0,
-            };
-          }
-
-          return {
-            uid: uidCounter.current++,
-            id: horaExtra.idHoraExtra ?? horaExtra.id ?? asignado.idReferencia,
-            tipo: 'HORA_EXTRA_LYF',
-            nombre: nombreConcepto,
-            montoUnitario: Number(montoUnitario) || 0,
-            factor: Number(factor),
-            cantidad: unidades,
-            total: Number(total) || 0,
-          };
+          horasExtrasCalculadas.push(
+            horaExtra
+              ? {
+                  uid: uidCounter.current++,
+                  id: horaExtra.idHoraExtra ?? horaExtra.id ?? asignado.idReferencia,
+                  tipo: 'HORA_EXTRA_LYF',
+                  nombre: nombreConcepto,
+                  montoUnitario: Number(montoUnitario) || 0,
+                  factor: Number(factor),
+                  cantidad: unidades,
+                  total: Number(total) || 0,
+                }
+              : {
+                  uid: uidCounter.current++,
+                  id: asignado.idReferencia,
+                  tipo: 'HORA_EXTRA_LYF',
+                  nombre: nombreConcepto,
+                  montoUnitario: Number(montoUnitario) || 0,
+                  factor: factor,
+                  cantidad: unidades,
+                  total: Number(total) || 0,
+                }
+          );
         });
+
+        // 3) Sumar "Personal de Turno" al total y calcular el resto de horas extras
+        const totalPersonalTurno = horasExtrasCalculadas.reduce(
+          (sum, c) => sum + (c.total || 0),
+          0
+        );
+        const totalConPersonalTurno = totalAntesHorasExtras + totalPersonalTurno;
+
+        const valorHoraActualizado = totalConPersonalTurno / 156;
+
+        horasExtrasResto.forEach((asignado) => {
+          const horaExtra = horasExtrasLyF.find(
+            (he) => (he.idHoraExtra ?? he.id) === asignado.idReferencia
+          );
+
+          const nombreConcepto =
+            horaExtra
+              ? (horaExtra.descripcion ??
+                 horaExtra.codigo ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'))
+              : (asignado.nombre ??
+                 asignado.descripcion ??
+                 (asignado.idReferencia === 1
+                   ? 'Horas Extras Simples'
+                   : 'Horas Extras Dobles'));
+
+          const factor =
+            horaExtra
+              ? (Number(horaExtra.factor) || (asignado.idReferencia === 1 ? 1.5 : 2))
+              : (asignado.idReferencia === 1 ? 1.5 : 2);
+
+          const unidades = Number(asignado.unidades) || 1;
+          const montoUnitario = valorHoraActualizado * factor;
+          const total = montoUnitario * unidades;
+
+          horasExtrasCalculadas.push(
+            horaExtra
+              ? {
+                  uid: uidCounter.current++,
+                  id: horaExtra.idHoraExtra ?? horaExtra.id ?? asignado.idReferencia,
+                  tipo: 'HORA_EXTRA_LYF',
+                  nombre: nombreConcepto,
+                  montoUnitario: Number(montoUnitario) || 0,
+                  factor: Number(factor),
+                  cantidad: unidades,
+                  total: Number(total) || 0,
+                }
+              : {
+                  uid: uidCounter.current++,
+                  id: asignado.idReferencia,
+                  tipo: 'HORA_EXTRA_LYF',
+                  nombre: nombreConcepto,
+                  montoUnitario: Number(montoUnitario) || 0,
+                  factor: factor,
+                  cantidad: unidades,
+                  total: Number(total) || 0,
+                }
+          );
+        });
+
+        return horasExtrasCalculadas;
       };
 
-      const horasExtrasMapped = calcularHorasExtras(listaSinHoras);
-      const listaConHoras = [...listaSinHoras, ...horasExtrasMapped];
+      const horasExtrasMapped = calcularHorasExtras(listaConTotalRemunerativo);
+      const listaConHoras = [...listaConTotalRemunerativo, ...horasExtrasMapped];
 
       // Recalcular conceptos especiales usando la función auxiliar
       const listaConConceptosEspeciales = recalcularConceptosEspeciales(listaConHoras, isUocra, basicoValue);
@@ -764,21 +948,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
             const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
             const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
-            
+
             // Solo calcular los que NO usan TOTAL_NETO en este paso
-            if (usaTotalBruto) {
-              // Usar cantidad como porcentaje sobre TOTAL_BRUTO
-              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-              if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-                const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-                return {
-                  ...item,
-                  montoUnitario: Math.abs(nuevoTotal),
-                  total: nuevoTotal
-                };
-              }
-            } else if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
-              // Comportamiento tradicional: usar porcentaje del catálogo
+            if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
+              // Para TODOS los descuentos que usan TOTAL_BRUTO o sin baseCalculo:
+              // usar SIEMPRE el porcentaje (catálogo), NO la cantidad.
               const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
               const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
               return {
@@ -809,14 +983,29 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
             const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
             
-            if (usaTotalNeto) {
-              // Usar cantidad como porcentaje sobre el neto preliminar
-              const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-              if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-                const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+            if (usaTotalNeto && netoPreliminar > 0) {
+              const nombreDescuento = (item.nombre || '').toLowerCase();
+              const esCuotaAlimentaria = nombreDescuento.includes('cuota') && nombreDescuento.includes('alimentaria');
+
+              if (esCuotaAlimentaria) {
+                // "Cuota Alimentaria": usa CANTIDAD como porcentaje sobre el neto preliminar
+                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+                if (cantidadComoPorcentaje > 0) {
+                  const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+                  return {
+                    ...item,
+                    // montoUnitario no tiene sentido como unitario aquí, usamos el total absoluto
+                    montoUnitario: Math.abs(nuevoTotal),
+                    total: nuevoTotal
+                  };
+                }
+              } else if (item.porcentaje) {
+                // Otros descuentos con TOTAL_NETO: usan porcentaje del catálogo
+                const montoUnitario = (netoPreliminar * item.porcentaje / 100);
+                const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
                 return {
                   ...item,
-                  montoUnitario: Math.abs(nuevoTotal),
+                  montoUnitario: Number(montoUnitario) || 0,
                   total: nuevoTotal
                 };
               }
@@ -3554,9 +3743,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span>Acciones</span>
               </div>
 
-              {conceptos
-                .filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
-                .map(concept => (
+              {sortConceptos(
+                conceptos.filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
+              ).map(concept => (
                 <div key={concept.uid} className="concept-row">
                   <div className="concept-cell">
                     {concept.isManual ? (
@@ -3569,11 +3758,24 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       />
                     ) : (
                       <span>
-                        {concept.nombre} 
-                        {concept.tipo === 'CONCEPTO_MANUAL_LYF' 
-                          ? ' (-)' 
-                          : concept.porcentaje ? `(${concept.porcentaje}%)` : ''
-                        }
+                        {concept.nombre}
+                        {/* Espacio entre nombre y porcentaje, salvo cuando no corresponde mostrarlo */}
+                        {(() => {
+                          const nombreLower = (concept.nombre || '').toLowerCase();
+                          const esCuotaAlimentaria =
+                            nombreLower.includes('cuota') && nombreLower.includes('alimentaria');
+
+                          if (concept.tipo === 'CONCEPTO_MANUAL_LYF') {
+                            return ' (-)';
+                          }
+
+                          // No mostrar porcentaje para "Cuota Alimentaria"
+                          if (esCuotaAlimentaria) {
+                            return '';
+                          }
+
+                          return concept.porcentaje ? ` (${concept.porcentaje}%)` : '';
+                        })()}
                       </span>
                     )}
                   </div>
