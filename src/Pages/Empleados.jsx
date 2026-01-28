@@ -38,6 +38,8 @@ export default function Empleados() {
   const [totalActivos, setTotalActivos] = useState(0);
   const [totalBaja, setTotalBaja] = useState(0);
   const [allEmployeesForModal, setAllEmployeesForModal] = useState([]);
+  const [sortField, setSortField] = useState('legajo'); // 'legajo', 'antiguedad', 'apellido', 'categoria'
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' o 'desc'
 
   const normalizeEmployees = (rows) =>
     rows.map((e) => ({
@@ -66,6 +68,69 @@ export default function Empleados() {
     if (estado === "ACTIVO") return "ACTIVO";
     if (estado === "DADO_DE_BAJA") return "DADO_DE_BAJA";
     return null;
+  };
+
+  // Calcular antigüedad en años desde fecha de ingreso
+  const calculateAntiguedad = (fechaIngreso) => {
+    if (!fechaIngreso) return 0;
+    try {
+      const fechaIngresoDate = new Date(fechaIngreso);
+      const fechaActual = new Date();
+      
+      if (Number.isNaN(fechaIngresoDate.getTime())) return 0;
+      
+      // Calcular diferencia en años
+      let años = fechaActual.getFullYear() - fechaIngresoDate.getFullYear();
+      const meses = fechaActual.getMonth() - fechaIngresoDate.getMonth();
+      
+      // Ajustar si el mes actual es menor que el mes de ingreso
+      if (meses < 0) {
+        años--;
+      } else if (meses === 0) {
+        // Si es el mismo mes, comparar días
+        if (fechaActual.getDate() < fechaIngresoDate.getDate()) {
+          años--;
+        }
+      }
+      
+      return años;
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  // Función para ordenar empleados
+  const sortEmployees = (employeesList, field, direction) => {
+    const sorted = [...employeesList].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (field) {
+        case 'legajo':
+          comparison = (a.legajo || 0) - (b.legajo || 0);
+          break;
+        case 'antiguedad':
+          const antiguedadA = calculateAntiguedad(a.inicioActividad);
+          const antiguedadB = calculateAntiguedad(b.inicioActividad);
+          comparison = antiguedadB - antiguedadA; // Mayor antigüedad primero
+          break;
+        case 'apellido':
+          const apellidoA = (a.apellido || '').toLowerCase();
+          const apellidoB = (b.apellido || '').toLowerCase();
+          comparison = apellidoA.localeCompare(apellidoB, 'es');
+          break;
+        case 'categoria':
+          const categoriaA = (a.categoriaNombre || '').toLowerCase();
+          const categoriaB = (b.categoriaNombre || '').toLowerCase();
+          comparison = categoriaA.localeCompare(categoriaB, 'es');
+          break;
+        default:
+          return 0;
+      }
+      
+      return direction === 'asc' ? comparison : -comparison;
+    });
+    
+    return sorted;
   };
 
   const loadEmployees = async () => {
@@ -106,7 +171,11 @@ export default function Empleados() {
       }
       
       const norm = normalizeEmployees(employeesData);
-      setEmployees(norm);
+      
+      // Aplicar ordenamiento
+      const sorted = sortEmployees(norm, sortField, sortDirection);
+      
+      setEmployees(sorted);
       setTotalPages(totalPagesValue);
       setTotalElements(totalElementsValue);
     } catch (err) {
@@ -145,7 +214,7 @@ export default function Empleados() {
   // Cargar empleados cuando cambian los filtros, búsqueda o paginación
   useEffect(() => {
     loadEmployees();
-  }, [page, size, filterEstado, filterGremio, search]);
+  }, [page, size, filterEstado, filterGremio, search, sortField, sortDirection]);
 
   // Resetear a página 0 cuando cambian los filtros o búsqueda
   useEffect(() => {
@@ -553,13 +622,46 @@ export default function Empleados() {
       {/* Employee List */}
       <div className="card employees-list">
         <div className="card-header list-header">
-          <h2 className="list-title section-title-effect">
-            Lista de Empleados
-          </h2>
-          <p className="list-description">
-            {totalElements} empleados encontrados
-            {totalPages > 1 && ` (Página ${page + 1} de ${totalPages})`}
-          </p>
+          <div className="header-left">
+            <h2 className="list-title section-title-effect">
+              Lista de Empleados
+            </h2>
+            <p className="list-description">
+              {totalElements} empleados encontrados
+              {totalPages > 1 && ` (Página ${page + 1} de ${totalPages})`}
+            </p>
+          </div>
+          <div className="header-right">
+            <div className="sort-controls">
+              <label htmlFor="sort-field" className="sort-label">
+                Ordenar por:
+              </label>
+              <select
+                id="sort-field"
+                className="sort-select"
+                value={sortField}
+                onChange={(e) => {
+                  setSortField(e.target.value);
+                  setPage(0); // Resetear a primera página al cambiar ordenamiento
+                }}
+              >
+                <option value="legajo">Legajo</option>
+                <option value="antiguedad">Antigüedad</option>
+                <option value="apellido">Apellido</option>
+                <option value="categoria">Categoría</option>
+              </select>
+              <button
+                className="sort-direction-btn"
+                onClick={() => {
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                  setPage(0); // Resetear a primera página al cambiar dirección
+                }}
+                title={sortDirection === 'asc' ? 'Ascendente' : 'Descendente'}
+              >
+                {sortDirection === 'asc' ? '↑' : '↓'}
+              </button>
+            </div>
+          </div>
         </div>
         <div className="card-content list-content">
           <div className="employee-list">

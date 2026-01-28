@@ -238,12 +238,12 @@ export default function PayrollDetailModal({
 
     const remunerations = payrollDetails.conceptos
       .filter(c => 
-        c.tipoConcepto === 'CATEGORIA' || 
-        c.tipoConcepto === 'CONCEPTO_LYF' || 
-        c.tipoConcepto === 'CONCEPTO_UOCRA' ||
+      c.tipoConcepto === 'CATEGORIA' || 
+      c.tipoConcepto === 'CONCEPTO_LYF' || 
+      c.tipoConcepto === 'CONCEPTO_UOCRA' ||
         c.tipoConcepto === 'TITULO_LYF' ||
         c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
-        c.tipoConcepto === 'BONIFICACION_AREA' ||
+      c.tipoConcepto === 'BONIFICACION_AREA' ||
         c.tipoConcepto === 'CATEGORIA_ZONA' ||
         c.tipoConcepto === 'HORA_EXTRA_LYF' ||
         c.tipoConcepto === 'AGUINALDO' ||
@@ -253,10 +253,10 @@ export default function PayrollDetailModal({
 
     const deductions = payrollDetails.conceptos
       .filter(c => 
-        c.tipoConcepto === 'DESCUENTO' || 
+      c.tipoConcepto === 'DESCUENTO' ||
         c.tipoConcepto === 'DESCUENTO_LYF' || 
         c.tipoConcepto === 'DESCUENTO_UOCRA'
-      )
+    )
       .reduce((sum, c) => sum + Math.abs(Number(c.total) || 0), 0);
 
     const netAmount = remunerations - deductions;
@@ -329,20 +329,20 @@ export default function PayrollDetailModal({
               <div className="company-logo">
                 <div className="logo-box">
                   <img src="/logo192.png" alt="Logo Empresa" className="logo-image" />
-                </div>
               </div>
+            </div>
 
               <div className="company-info">
                 <div className="company-name">COOP. DE SERV. PUB. 25 DE MAYO LTDA</div>
                 <div className="company-detail">Domicilio: Ramirez 367</div>
                 <div className="company-detail highlight">C.U.I.T.: 30-54569238-0</div>
-              </div>
+            </div>
 
               <div className="receipt-title">
                 <span className="title-main">RECIBO DE HABERES</span>
                 <span className="title-number">Ley nº 20.744</span>
-              </div>
             </div>
+          </div>
 
             {/* INFORMACIÓN DEL EMPLEADO */}
             <div className="employee-info-section">
@@ -381,42 +381,42 @@ export default function PayrollDetailModal({
             </div>
 
             {/* TABLA DE CONCEPTOS */}
-            {payrollDetails.conceptos && payrollDetails.conceptos.length > 0 ? (
-              <table className="concepts-table">
-                <thead>
-                  <tr>
+          {payrollDetails.conceptos && payrollDetails.conceptos.length > 0 ? (
+            <table className="concepts-table">
+              <thead>
+                <tr>
                     <th style={{ width: 'auto' }}>Concepto</th>
                     <th style={{ width: '100px', textAlign: 'center' }}>Unidades</th>
                     <th style={{ width: '150px', textAlign: 'right' }}>Remuneraciones</th>
                     <th style={{ width: '150px', textAlign: 'right' }}>Descuentos</th>
-                  </tr>
-                </thead>
-                <tbody>
+                </tr>
+              </thead>
+              <tbody>
                   {sortConceptos(
                     payrollDetails.conceptos.filter(concepto => concepto.tipoConcepto !== 'CATEGORIA_ZONA')
                   ).map((concepto, index) => {
                       const isRemunerationConcept = isRemuneration(concepto);
                       const isDeductionConcept = isDeduction(concepto);
-                      const total = Number(concepto.total || 0);
+                  const total = Number(concepto.total || 0);
                       
                       // Para descuentos, el total puede venir negativo o positivo, siempre mostrar el valor absoluto
                       const descuentoAmount = isDeductionConcept ? Math.abs(total) : 0;
                       const remuneracionAmount = isRemunerationConcept && total > 0 ? total : 0;
 
-                      return (
-                        <tr key={index}>
+                  return (
+                    <tr key={index}>
                           <td className="concept-name">{concepto.nombre || concepto.nombreConcepto}</td>
                           <td className="concept-units">{concepto.unidades || concepto.cantidad || 0}</td>
                           <td className="concept-remuneration">
                             {remuneracionAmount > 0 ? formatCurrencyAR(remuneracionAmount) : ''}
-                          </td>
+                      </td>
                           <td className="concept-deduction">
                             {descuentoAmount > 0 ? formatCurrencyAR(descuentoAmount) : ''}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
                 <tfoot>
                   <tr className="receipt-totals-row">
                     <td colSpan="2" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1rem 0.75rem' }}>
@@ -438,12 +438,12 @@ export default function PayrollDetailModal({
                     </td>
                   </tr>
                 </tfoot>
-              </table>
-            ) : (
-              <div style={{ padding: '2rem', textAlign: 'center' }}>
-                <p>No se encontraron conceptos para esta liquidación.</p>
-              </div>
-            )}
+            </table>
+          ) : (
+            <div style={{ padding: '2rem', textAlign: 'center' }}>
+              <p>No se encontraron conceptos para esta liquidación.</p>
+            </div>
+          )}
 
             {/* LUGAR Y FECHA DE PAGO */}
             <div className="payment-details">
@@ -485,13 +485,13 @@ export default function PayrollDetailModal({
                 placeholder="Escriba el monto en palabras..."
                 style={{ width: '100%', textTransform: 'uppercase' }}
               />
-            </div>
+          </div>
 
             {/* PIE DEL RECIBO */}
-            <div className="receipt-footer">
+          <div className="receipt-footer">
               <p className="footer-text">
                 El presente es duplicado del recibo original que obra en nuestro poder. Firmado por el empleado.
-              </p>
+            </p>
               <div className="signature-section">
                 <div className="signature-block">
                   <div className="line"></div>
