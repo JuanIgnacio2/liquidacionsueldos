@@ -4,8 +4,9 @@ import { Search, Users, Download, Printer, X, CheckCircle, User, Calendar, Badge
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
-import { sortConceptos } from '../../utils/conceptosUtils';
+import { sortConceptos, buildConceptPayload } from '../../utils/conceptosUtils';
 import html2pdf from 'html2pdf.js';
+import { BaeCalculationSection } from '../BaeCalculationSection/BaeCalculationSection';
 import './ProcessPayrollModal.scss';
 
 // Función helper para formatear moneda en formato argentino ($100.000,00)
@@ -52,6 +53,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptosManualesLyFData, setConceptosManualesLyFData] = useState([]);
   const [descuentosLyFData, setDescuentosLyFData] = useState([]);
   const [descuentosUocraData, setDescuentosUocraData] = useState([]);
+  const [conceptosGeneralesData, setConceptosGeneralesData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
   const [amountInWords, setAmountInWords] = useState('');
   const uidCounter = useRef(1);
@@ -73,13 +75,25 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
   const [liquidacionesEstado, setLiquidacionesEstado] = useState(new Map()); // Map<legajo, {estado: 'completada'|'pendiente', fechaPago: string|null}>
   // Estados para aguinaldo
-  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo' o 'vacaciones'
+  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo', 'vacaciones' o 'bae'
   const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
   const [aguinaldoAnio, setAguinaldoAnio] = useState(new Date().getFullYear());
   const [aguinaldoCalculo, setAguinaldoCalculo] = useState(null);
   // Estados para vacaciones
   const [anioVacaciones, setAnioVacaciones] = useState(new Date().getFullYear());
   const [vacacionesCalculo, setVacacionesCalculo] = useState(null);
+
+  // Persistir conceptos por tipo de liquidación y restaurarlos al volver al modo normal
+  useEffect(() => {
+    if (lastLiquidacionTypeRef.current && lastLiquidacionTypeRef.current !== liquidacionType) {
+      conceptosPorTipoRef.current[lastLiquidacionTypeRef.current] = conceptos;
+    }
+
+    const conceptosPrevios = conceptosPorTipoRef.current[liquidacionType] || [];
+    setConceptos(conceptosPrevios);
+    setTotal(calcTotal(conceptosPrevios));
+    lastLiquidacionTypeRef.current = liquidacionType;
+  }, [liquidacionType]);
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -452,6 +466,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       // Guardar catálogos para uso posterior
       setDescuentosData(descuentos);
+      setConceptosGeneralesData(Array.isArray(conceptosGenerales) ? conceptosGenerales : []);
       setCatalogBonificaciones(bonificacionesFijas || []);
       setHorasExtrasLyFData(horasExtrasLyF || []);
       setTitulosLyFData(titulosLyF || []);
@@ -703,11 +718,37 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         })
         .filter(Boolean);
 
+      const conceptosGeneralesMapped = conceptosAsignados
+        .filter((asignado) => asignado.tipoConcepto === 'CONCEPTO_GENERAL')
+        .map((asignado) => {
+          const cg = (conceptosGenerales || []).find(
+            (c) => (c.idConceptoGeneral ?? c.id) === asignado.idReferencia
+          );
+          const nombre = cg?.nombre ?? cg?.descripcion ?? asignado.nombre ?? 'Concepto general';
+          const unidades = Number(asignado.unidades) || 1;
+          const montoUnitario = Number(asignado.montoUnitario ?? asignado.monto ?? 0);
+          const totalAsignado = Number(asignado.total);
+          const total =
+            totalAsignado > 0 ? totalAsignado : (montoUnitario > 0 ? montoUnitario * unidades : 0);
+
+          return {
+            uid: uidCounter.current++,
+            id: asignado.idReferencia,
+            tipo: 'CONCEPTO_GENERAL',
+            nombre,
+            porcentaje: null,
+            montoUnitario: montoUnitario || (unidades ? total / unidades : 0),
+            cantidad: unidades,
+            total,
+          };
+        })
+        .filter(Boolean);
+
       /* Lista final de conceptos (sin horas extras todavía) */
       // Para UOCRA, no incluir el concepto básico en la lista
       const listaSinHoras = isUocra 
-        ? [...bonificacionesMapped, ...descuentosMapped]
-        : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...descuentosMapped];
+        ? [...bonificacionesMapped, ...conceptosGeneralesMapped, ...descuentosMapped]
+        : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...conceptosGeneralesMapped, ...descuentosMapped];
 
       // Función para calcular TOTAL_REMUNERATIVO (para conceptos con baseCalculo TOTAL_REMUNERATIVO)
       // Incluye: básico + bono área + títulos + conceptos con BASICO_CATEGORIA_11 (incluyendo "Bonif Antigüedad")
@@ -1054,6 +1095,47 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Cargar liquidaciones del mes actual para mostrar estado
   useEffect(() => {
+        if (isOpen && initialEmployee) {
+          // Solo seleccionar si el empleado inicial es diferente al seleccionado actualmente
+          if (!selectedEmployee || selectedEmployee.legajo !== initialEmployee.legajo) {
+            handleSelectEmployee(initialEmployee);
+          }
+        } else if (!isOpen) {
+          // Reset cuando el modal se cierra
+          setCurrentStep('search');
+          setSearchTerm('');
+          setFilterGremio('');
+          setFilterEstado('');
+          setSelectedEmployee(null);
+          setConceptos([]);
+          setTotal(0);
+          setBasicSalary(0);
+          setDescuentosData([]);
+          setProcessedLegajos(new Set());
+          setLiquidacionesEstado(new Map());
+          setQuincena(1);
+          setLiquidacionType('normal');
+          setAguinaldoNumero(1);
+          setAguinaldoAnio(new Date().getFullYear());
+          setAguinaldoCalculo(null);
+          setAnioVacaciones(new Date().getFullYear());
+          setVacacionesCalculo(null);
+          // Reset período
+          const initialPeriod = getInitialPeriod();
+          setPeriodo(initialPeriod);
+          const [anio, mes] = initialPeriod.split('-');
+          if (anio && mes) {
+            setPeriodoAnio(Number(anio));
+            setPeriodoMes(mes);
+          }
+          // Limpiar conceptos por tipo
+          conceptosPorTipoRef.current = { normal: [], bae: [], aguinaldo: [], vacaciones: [] };
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [isOpen, initialEmployee]);
+
+  // Cargar liquidaciones del mes actual para mostrar estado
+  useEffect(() => {
     const loadCurrentMonthLiquidaciones = async () => {
       if (!isOpen) return;
       
@@ -1159,8 +1241,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
   // Determinar si un concepto puede tener cantidad editable
   const canEditQuantity = (concept) => {
-    // Conceptos manuales LYF siempre tienen cantidad 1 (no editables)
-    if (concept.tipo === 'CONCEPTO_MANUAL_LYF') {
+    // Conceptos manuales LYF y generales: cantidad fija 1 (no editables)
+    if (concept.tipo === 'CONCEPTO_MANUAL_LYF' || concept.tipo === 'CONCEPTO_GENERAL') {
       return false;
     }
     // Aguinaldo no es editable
@@ -1524,8 +1606,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           const cantidad = c.cantidad || 1;
           return { ...c, montoUnitario: value, total: -(value * cantidad) };
         }
-        // Para CONCEPTO_MANUAL_LYF: cantidad siempre 1
-        const cantidad = c.tipo === 'CONCEPTO_MANUAL_LYF' ? 1 : (c.cantidad || 1);
+        // Para CONCEPTO_MANUAL_LYF y CONCEPTO_GENERAL: cantidad siempre 1
+        const cantidad =
+          c.tipo === 'CONCEPTO_MANUAL_LYF' || c.tipo === 'CONCEPTO_GENERAL'
+            ? 1
+            : (c.cantidad || 1);
         return { ...c, montoUnitario: value, total: (value * cantidad) };
       }
       return c;
@@ -1679,6 +1764,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         c.tipo === 'CONCEPTO_UOCRA' || 
         c.tipo === 'TITULO_LYF' ||
         c.tipo === 'CONCEPTO_MANUAL_LYF' ||
+        c.tipo === 'CONCEPTO_GENERAL' ||
         c.tipo === 'HORA_EXTRA_LYF' || 
         c.tipo === 'AGUINALDO' || 
         c.tipo === 'VACACIONES'
@@ -1738,6 +1824,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       // Solo el concepto de SAC, sin descuentos ni otros conceptos
       setConceptos([conceptoAguinaldo]);
+      conceptosPorTipoRef.current.aguinaldo = [conceptoAguinaldo];
       setTotal(montoAguinaldo);
       notify.success('Cálculo de aguinaldo realizado correctamente');
     } catch (error) {
@@ -1771,6 +1858,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       // Solo el concepto de vacaciones, sin descuentos ni otros conceptos
       setConceptos([conceptoVacaciones]);
+      conceptosPorTipoRef.current.vacaciones = [conceptoVacaciones];
       setTotal(montoVacaciones);
       notify.success('Cálculo de vacaciones realizado correctamente');
     } catch (error) {
@@ -1959,12 +2047,10 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         legajo: selectedEmployee.legajo,
         periodoPago: periodoPago,
         fechaLiquidacion: fechaLiquidacion, // Fecha actual de liquidación
-        conceptos: conceptos.map((c) => ({
-        tipoConcepto: c.tipo,
-        idReferencia: c.id,
-        unidades: c.cantidad,
-      })),
+        conceptos: conceptos.map((c) => buildConceptPayload(c)),
     };
+
+    console.log('Payload liquidación enviado:', JSON.stringify(payload, null, 2));
 
     // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
     payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
@@ -2080,6 +2166,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
          concept.tipo === 'CONCEPTO_UOCRA' ||
          concept.tipo === 'TITULO_LYF' ||
          concept.tipo === 'CONCEPTO_MANUAL_LYF' ||
+         concept.tipo === 'CONCEPTO_GENERAL' ||
          concept.tipo === 'HORA_EXTRA_LYF' ||
          concept.tipo === 'AGUINALDO' ||
          concept.tipo === 'VACACIONES') && concept.total > 0
@@ -2586,6 +2673,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
          concept.tipo === 'CONCEPTO_UOCRA' ||
          concept.tipo === 'TITULO_LYF' ||
          concept.tipo === 'CONCEPTO_MANUAL_LYF' ||
+         concept.tipo === 'CONCEPTO_GENERAL' ||
          concept.tipo === 'HORA_EXTRA_LYF' ||
          concept.tipo === 'AGUINALDO' ||
          concept.tipo === 'VACACIONES') && concept.total > 0
@@ -2955,8 +3043,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     setLiquidacionType(e.target.value);
                     setAguinaldoCalculo(null);
                     setVacacionesCalculo(null);
-                    setConceptos([]);
-                    setTotal(0);
                   }}
                 />
                 <span>Liquidación Normal</span>
@@ -2971,8 +3057,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     setLiquidacionType(e.target.value);
                     setAguinaldoCalculo(null);
                     setVacacionesCalculo(null);
-                    setConceptos([]);
-                    setTotal(0);
                   }}
                 />
                 <span>Aguinaldo</span>
@@ -2987,11 +3071,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     setLiquidacionType(e.target.value);
                     setAguinaldoCalculo(null);
                     setVacacionesCalculo(null);
-                    setConceptos([]);
-                    setTotal(0);
                   }}
                 />
                 <span>Vacaciones</span>
+              </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="liquidacionType"
+                  value="bae"
+                  checked={liquidacionType === 'bae'}
+                  onChange={(e) => {
+                    setLiquidacionType(e.target.value);
+                    setAguinaldoCalculo(null);
+                    setVacacionesCalculo(null);
+                  }}
+                />
+                <span>BAE (cálculo anual)</span>
               </label>
             </div>
           </div>
@@ -3240,6 +3336,14 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             )}
           </div>
 
+          {/* Mostrar sección de cálculo de BAE solo cuando se selecciona BAE */}
+          {liquidacionType === 'bae' && (
+            <BaeCalculationSection
+              employees={employees}
+              selectedEmployee={selectedEmployee}
+            />
+          )}
+
           {liquidacionType === 'normal' && (
           <div className="concepts-section">
             <div className="section-header">
@@ -3326,6 +3430,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     return <option key={`HE_${id}`} value={`HE_${id}`}>{`${he.descripcion ?? he.codigo ?? (id === 1 ? 'Horas Extras Simples' : 'Horas Extras Dobles')} (Factor ${factor}x)`}</option>;
                   })}
 
+                  {/* Conceptos generales (desde el 3.º; los dos primeros no se listan) */}
+                  {conceptosGeneralesData.slice(2).map((cg) => {
+                    const id = cg.idConceptoGeneral ?? cg.id;
+                    const exists = conceptos.some(ct => ct.id === id && ct.tipo === 'CONCEPTO_GENERAL');
+                    if (exists) return null;
+                    return (
+                      <option key={`CGEN_${id}`} value={`CGEN_${id}`}>
+                        {cg.nombre ?? cg.descripcion ?? 'Concepto general'}
+                      </option>
+                    );
+                  })}
+
                 </select>
 
                 <button
@@ -3356,6 +3472,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         }
                       } else if (pref === 'HE') {
                         return c.id === idNum && c.tipo === 'HORA_EXTRA_LYF';
+                      } else if (pref === 'CGEN') {
+                        return c.id === idNum && c.tipo === 'CONCEPTO_GENERAL';
                       }
                       return false;
                     });
@@ -3706,6 +3824,36 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       return;
                     }
 
+                    if (pref === 'CGEN') {
+                      const raw = conceptosGeneralesData.find(
+                        (cg) => (cg.idConceptoGeneral ?? cg.id) === idNum
+                      );
+                      if (!raw) {
+                        notify.error('Concepto general no encontrado en el catálogo');
+                        setSelectedCatalogConcept('');
+                        return;
+                      }
+
+                      const nuevo = {
+                        uid: uidCounter.current++,
+                        id: idNum,
+                        tipo: 'CONCEPTO_GENERAL',
+                        nombre: raw.nombre ?? raw.descripcion ?? 'Concepto general',
+                        porcentaje: null,
+                        montoUnitario: 0,
+                        cantidad: 1,
+                        total: 0,
+                      };
+
+                      const next = [...conceptos, nuevo];
+                      const listaConAsistencia = calculateAsistencia(next);
+                      setConceptos(listaConAsistencia);
+                      setTotal(calcTotal(listaConAsistencia));
+                      setSelectedCatalogConcept('');
+                      notify.success('Concepto general agregado (ingrese el importe)');
+                      return;
+                    }
+
                     if (pref === 'HE') {
                       const raw = horasExtrasLyFData.find(he => (he.idHoraExtra ?? he.id) === idNum);
                       if (!raw) {
@@ -3795,7 +3943,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           const esCuotaAlimentaria =
                             nombreLower.includes('cuota') && nombreLower.includes('alimentaria');
 
-                          if (concept.tipo === 'CONCEPTO_MANUAL_LYF') {
+                          if (concept.tipo === 'CONCEPTO_MANUAL_LYF' || concept.tipo === 'CONCEPTO_GENERAL') {
                             return ' (-)';
                           }
 
@@ -3841,7 +3989,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       concept.tipo === 'HORA_EXTRA_LYF' ||
                       concept.tipo === 'AGUINALDO' ||
                       concept.tipo === 'VACACIONES' ||
-                      concept.tipo === 'CONCEPTO_MANUAL_LYF') && (
+                      concept.tipo === 'CONCEPTO_MANUAL_LYF' ||
+                      concept.tipo === 'CONCEPTO_GENERAL') && (
                       <div className="amount-editable-wrapper">
                         {editingAmountId === concept.uid ? (
                           <div className="amount-edit-controls">
@@ -4041,6 +4190,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         concept.tipo === 'CONCEPTO_UOCRA' ||
                         concept.tipo === 'TITULO_LYF' ||
                         concept.tipo === 'CONCEPTO_MANUAL_LYF' ||
+                        concept.tipo === 'CONCEPTO_GENERAL' ||
                         concept.tipo === 'HORA_EXTRA_LYF' ||
                         concept.tipo === 'AGUINALDO' ||
                         concept.tipo === 'VACACIONES') && concept.total > 0
@@ -4169,12 +4319,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <CheckCircle className="h-4 w-4 mr-2" />
                 {isProcessing ? 'Liquidando...' : 'Liquidar Vacaciones'}
               </button>
-            ) : (
+            ) : liquidacionType !== 'bae' ? (
             <button className="btn btn-primary" onClick={generatePayroll} disabled={isProcessing}>
               <CheckCircle className="h-4 w-4 mr-2" />
               Generar Recibo
             </button>
-            )}
+            ) : null}
           </>
         )}
 
