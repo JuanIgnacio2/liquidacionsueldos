@@ -259,59 +259,6 @@
     }
   }
 
-  .bae-cuota-summary {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(245, 158, 11, 0.05));
-    padding: $spacing-4;
-    border-radius: $border-radius-lg;
-    border: 1px solid rgba(34, 197, 94, 0.2);
-
-    .total-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: $spacing-3;
-      padding: $spacing-2 0;
-      border-bottom: 1px solid rgba(34, 197, 94, 0.1);
-
-      .amount {
-        font-weight: 600;
-
-        &.positive,
-        &.final {
-          color: $color-green-primary;
-        }
-
-        &.negative {
-          color: $color-danger;
-        }
-      }
-    }
-
-    .total-item.final {
-      font-size: $font-size-lg;
-      font-weight: 700;
-      padding-top: $spacing-3;
-      border-top: 2px solid $color-green-primary;
-      border-bottom: none;
-      margin-top: $spacing-2;
-
-      .amount.final {
-        font-size: $font-size-xl;
-      }
-    }
-  }
-
-  .bae-summary-note {
-    display: flex;
-    justify-content: space-between;
-    gap: $spacing-3;
-    margin-bottom: $spacing-2;
-    padding-bottom: $spacing-3;
-    border-bottom: 1px solid rgba(34, 197, 94, 0.15);
-    color: $color-gray-600;
-    font-size: $font-size-sm;
-  }
-
   .bae-muted {
     font-size: $font-size-sm;
     color: $color-gray-500;
