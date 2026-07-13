@@ -23,7 +23,8 @@ export const isRemuneration = (concepto) => {
     tipo === 'HORA_EXTRA_LYF' ||
     tipo === 'AGUINALDO' ||
     tipo === 'VACACIONES' ||
-    tipo === 'CATEGORIA_ZONA'
+    tipo === 'CATEGORIA_ZONA' ||
+    tipo === 'CONCEPTO_GENERAL'
   );
 };
 
@@ -43,6 +44,33 @@ export const isDeduction = (concepto) => {
     tipo === 'DESCUENTO_UOCRA' ||
     concepto.isDescuento === true
   );
+};
+
+/**
+ * Construye el payload de un concepto para enviarlo al backend
+ * incluyendo el monto unitario y el total calculado.
+ * @param {Object} concepto - El concepto a serializar
+ * @returns {Object} - Payload listo para enviar al backend
+ */
+export const buildConceptPayload = (concepto = {}) => {
+  const tipoConcepto = concepto.tipoConcepto || concepto.tipo;
+  const cantidad = Number.isFinite(Number(concepto.cantidad ?? concepto.unidades))
+    ? Number(concepto.cantidad ?? concepto.unidades)
+    : 1;
+  const montoUnitario = Number.isFinite(Number(concepto.montoUnitario ?? concepto.monto))
+    ? Number(concepto.montoUnitario ?? concepto.monto)
+    : 0;
+  const total = Number.isFinite(Number(concepto.total))
+    ? Number(concepto.total)
+    : montoUnitario * (cantidad || 1);
+
+  return {
+    tipoConcepto,
+    idReferencia: concepto.idReferencia ?? concepto.id ?? null,
+    unidades: cantidad || 1,
+    montoUnitario,
+    total,
+  };
 };
 
 /**

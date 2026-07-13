@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Award, CheckCircle, Eye, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
-import { buildConceptPayload } from '../../utils/conceptosUtils';
-import { buildSpecialPayrollDeductions, roundTo2Decimals } from '../../utils/salaryCalculations';
 
 const formatMoneyAR = (value) => {
   const n = Number(value ?? 0);
@@ -31,19 +29,6 @@ function formatFecha(fecha) {
 function estadoEsActivo(estado) {
   const s = String(estado ?? '').toUpperCase();
   return s === 'ACTIVO' || s === 'ACTIVE';
-}
-
-function estadoPermiteLiquidar(estado) {
-  const s = String(estado ?? '').toUpperCase();
-  return estadoEsActivo(s) || s === 'EN_PAGO';
-}
-
-const getMesActual = () => new Date().toISOString().slice(0, 7);
-
-function esLuzYFuerza(empleado) {
-  const gremio = empleado?.gremioNombre || empleado?.gremio?.nombre || empleado?.gremio || '';
-  const gremioNormalizado = String(gremio).toUpperCase();
-  return gremioNormalizado.includes('LUZ') && gremioNormalizado.includes('FUERZA');
 }
 
 /** Año calendario del BAE (en 2026 se calcula el BAE de 2025). */
@@ -74,9 +59,8 @@ function BaeDetallePanel({ bae, titulo = 'Detalle del BAE' }) {
   );
 }
 
-export function BaeCalculationSection({ employees, selectedEmployee = null, descuentos = [], onLiquidado }) {
+export function BaeCalculationSection({ employees, selectedEmployee = null }) {
   const notify = useNotification();
-  const empleadosLuzYFuerza = (employees || []).filter(esLuzYFuerza);
   const legajoEmpleado = selectedEmployee?.legajo != null ? String(selectedEmployee.legajo) : '';
   const [legajoSel, setLegajoSel] = useState(legajoEmpleado);
   const [anio, setAnio] = useState(getAnioBaePorDefecto());
@@ -87,32 +71,6 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
   const [loadingHist, setLoadingHist] = useState(false);
   const [accionId, setAccionId] = useState(null);
   const [editingBaeId, setEditingBaeId] = useState(null);
-  const [periodoCuota, setPeriodoCuota] = useState(getMesActual());
-  const [montoCuotaLiq, setMontoCuotaLiq] = useState('');
-  const [restanteBae, setRestanteBae] = useState(null);
-  const [loadingLiq, setLoadingLiq] = useState(false);
-
-  const puedeLiquidar = !!baeDetalle?.idBae && estadoPermiteLiquidar(baeDetalle.estado) && !editingBaeId;
-
-  useEffect(() => {
-    if (!puedeLiquidar) {
-      setRestanteBae(null);
-      setMontoCuotaLiq('');
-      return undefined;
-    }
-    let cancelado = false;
-    const cuotaBase = roundTo2Decimals(Number(baeDetalle.montoTotal ?? 0) / 12);
-    setMontoCuotaLiq(String(cuotaBase));
-    api.obtenerRestanteBae(baeDetalle.idBae)
-      .then((restante) => {
-        if (cancelado) return;
-        const r = Number(restante);
-        setRestanteBae(Number.isFinite(r) ? r : null);
-        if (Number.isFinite(r)) setMontoCuotaLiq(String(Math.min(cuotaBase, r)));
-      })
-      .catch(() => { if (!cancelado) setRestanteBae(null); });
-    return () => { cancelado = true; };
-  }, [puedeLiquidar, baeDetalle?.idBae, baeDetalle?.montoTotal, baeDetalle?.montoCuota]);
 
   const sincronizarDetalle = useCallback((lista) => {
     if (!Array.isArray(lista) || lista.length === 0) {
@@ -183,8 +141,7 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
     }
     setLoadingCalc(true);
     try {
-      // El backend recibe el año de pago y calcula el BAE del año anterior.
-      const dto = await api.calcularBae(Number(legajoSel), anioNum + 1, Number(porcentajeCumplimiento));
+      const dto = await api.calcularBae(Number(legajoSel), anioNum, Number(porcentajeCumplimiento));
       setBaeDetalle(dto);
       limpiarEdicion();
       notify.success('BAE calculado correctamente');
@@ -252,44 +209,6 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
     }
   };
 
-  const montoCuotaNum = Number(montoCuotaLiq) || 0;
-  const descuentosCuota = buildSpecialPayrollDeductions(montoCuotaNum, descuentos, 'bae');
-  const totalDescuentosCuota = descuentosCuota.reduce((s, d) => s + Math.abs(d.total || 0), 0);
-
-  const handleLiquidarCuota = async () => {
-    if (!puedeLiquidar) return;
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodoCuota)) {
-      notify.error('Seleccione un período válido');
-      return;
-    }
-    if (montoCuotaNum <= 0) {
-      notify.error('El monto de la cuota debe ser mayor a cero');
-      return;
-    }
-    if (restanteBae != null && montoCuotaNum > restanteBae) {
-      notify.error(`El monto supera el saldo pendiente ($${formatMoneyAR(restanteBae)})`);
-      return;
-    }
-    const ok = window.confirm(`¿Liquidar Cuota BAE de $${formatMoneyAR(montoCuotaNum)} para el período ${periodoCuota}?`);
-    if (!ok) return;
-    setLoadingLiq(true);
-    try {
-      const result = await api.liquidarBae({
-        idBae: baeDetalle.idBae,
-        periodoPago: periodoCuota,
-        monto: roundTo2Decimals(montoCuotaNum),
-        conceptos: descuentos.map((d) => buildConceptPayload(d)),
-      });
-      notify.success('Cuota BAE liquidada correctamente');
-      await cargarHistorial();
-      if (onLiquidado) onLiquidado(result);
-    } catch (error) {
-      notify.error(error);
-    } finally {
-      setLoadingLiq(false);
-    }
-  };
-
   const handleEditar = (row) => {
     if (!row?.idBae || estadoEsActivo(row.estado)) return;
     setEditingBaeId(row.idBae);
@@ -305,10 +224,6 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
     }
   };
 
-  if (selectedEmployee && !esLuzYFuerza(selectedEmployee)) {
-    return null;
-  }
-
   return (
     <div className="card bae-section-card">
       <div className="card-header list-header">
@@ -317,7 +232,7 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
           Bono de eficiencia anual (BAE)
         </h2>
         <p className="list-description">
-          Cálculo anual y liquidación de la <strong>Cuota BAE</strong> (con descuentos) sobre un BAE activo.
+          Cálculo y registro. El pago mensual se liquida con el concepto <strong>Cuota BAE</strong> en la liquidación normal.
         </p>
       </div>
       <div className="card-content">
@@ -336,7 +251,7 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
                 onChange={(e) => setLegajoSel(e.target.value)}
               >
                 <option value="">— Seleccionar —</option>
-                {empleadosLuzYFuerza.map((emp) => (
+                {(employees || []).map((emp) => (
                   <option key={emp.legajo} value={emp.legajo}>
                     {emp.legajo} — {emp.apellido || ''} {emp.nombre || ''}
                   </option>
@@ -418,63 +333,6 @@ export function BaeCalculationSection({ employees, selectedEmployee = null, desc
             bae={baeDetalle}
             titulo={estadoEsActivo(baeDetalle.estado) ? 'BAE activo' : 'Detalle del BAE'}
           />
-        )}
-
-        {puedeLiquidar && (
-          <div className="bae-resultado">
-            <h3 className="bae-resultado-titulo">Liquidar Cuota BAE</h3>
-            <div className="bae-form">
-              <label className="bae-field">
-                <span>Período de pago</span>
-                <input
-                  type="month"
-                  className="bae-input"
-                  value={periodoCuota}
-                  onChange={(e) => setPeriodoCuota(e.target.value)}
-                />
-              </label>
-              <label className="bae-field">
-                <span>Monto de la cuota (editable)</span>
-                <input
-                  type="number"
-                  className="bae-input"
-                  min="0.01"
-                  step="0.01"
-                  value={montoCuotaLiq}
-                  onChange={(e) => setMontoCuotaLiq(e.target.value)}
-                />
-              </label>
-            </div>
-            <div className="bae-cuota-summary">
-              <div className="bae-summary-note">
-                <span>Saldo pendiente</span>
-                <strong>{restanteBae != null ? `$${formatMoneyAR(restanteBae)}` : '—'}</strong>
-              </div>
-              <div className="total-item">
-                <span>Cuota BAE:</span>
-                <span className="amount positive">${formatMoneyAR(montoCuotaNum)}</span>
-              </div>
-              {descuentosCuota.map((d) => (
-                <div className="total-item" key={d.uid}>
-                  <span>{d.nombre}:</span>
-                  <span className="amount negative">-${formatMoneyAR(Math.abs(d.total))}</span>
-                </div>
-              ))}
-              <div className="total-item">
-                <span>Total descuentos:</span>
-                <span className="amount negative">${formatMoneyAR(totalDescuentosCuota)}</span>
-              </div>
-              <div className="total-item final">
-                <span>Neto a cobrar:</span>
-                <span className="amount final">${formatMoneyAR(montoCuotaNum - totalDescuentosCuota)}</span>
-              </div>
-            </div>
-            <div className="bae-actions">
-              <button type="button" className="action-btn primary" onClick={handleLiquidarCuota} disabled={loadingLiq}>
-                {loadingLiq ? 'Liquidando…' : 'Liquidar Cuota BAE'}
-              </button>
-            </div>
-          </div>
         )}
 
         {legajoSel && (

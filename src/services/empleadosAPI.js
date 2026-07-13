@@ -189,6 +189,26 @@ export const calcularVacaciones = (legajo, anioVacaciones) =>
     
 export const liquidarVacaciones = (dto) =>
     axiosClient.post('/vacaciones/liquidar', dto).then((r)=>r.data);
+
+/** Bono de eficiencia anual (BAE): cálculo y registro en backend; el cobro mensual va por concepto "Cuota BAE" en la liquidación normal. */
+export const calcularBae = (legajo, anio, porcentajeCumplimiento) =>
+    axiosClient.post('/pagos/bae/calcular', null, {
+        params: { legajo, anio, porcentajeCumplimiento },
+    }).then((r) => r.data);
+
+export const obtenerBaeEmpleado = (legajo) =>
+    axiosClient.get(`/pagos/bae/${legajo}`).then((r) => r.data);
+
+export const activarBae = (idBae) =>
+    axiosClient.put(`/pagos/bae/${idBae}/activar`).then((r) => r.data);
+
+export const actualizarBae = (idBae, porcentajeCumplimiento) =>
+    axiosClient.put(`/pagos/bae/${idBae}`, null, {
+        params: { porcentajeCumplimiento },
+    }).then((r) => r.data);
+
+export const eliminarBae = (idBae) =>
+    axiosClient.delete(`/pagos/bae/${idBae}`).then((r) => r.data);
     
 export const loginUser = (usuario, password) =>
         axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
