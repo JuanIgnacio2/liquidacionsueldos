@@ -7,10 +7,10 @@ import {
   Calculator, 
   ChevronLeft, 
   ChevronRight,
-  DollarSign,
   LogOut,
   Settings
 } from 'lucide-react';
+import cooperativaLogo from '../../image/Coop._25_de_Mayo__logo_solo_-removebg-preview.png';
 import { useAuth } from '../../context/AuthContext';
 import { getUser as getUserAPI } from '../../services/empleadosAPI';
 import '../../styles/components/_sidebar.scss';
@@ -85,12 +85,20 @@ export default function Sidebar() {
         <div className="header-content">
           {!collapsed && (
             <div className="brand">
-              <DollarSign className="brand-icon" />
+              <img
+                src={cooperativaLogo}
+                alt="Cooperativa 25 de Mayo"
+                className="brand-icon brand-logo"
+              />
               <h1 className="brand-text">Liq. Sueldos</h1>
             </div>
           )}
           {collapsed && (
-            <DollarSign className="brand-icon" />
+            <img
+              src={cooperativaLogo}
+              alt="Cooperativa 25 de Mayo"
+              className="brand-icon brand-logo"
+            />
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}

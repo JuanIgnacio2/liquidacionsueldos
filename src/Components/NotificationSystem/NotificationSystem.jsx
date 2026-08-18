@@ -1,13 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, AlertCircle, Info, X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './NotificationSystem.scss';
 
 let notificationId = 0;
 const MAX_STACK = 5;
+const DUPLICATE_INTERVAL_MS = 1500;
+
+export const createNotificationKey = (message, type = 'info') => {
+  return `${String(type || 'info').toLowerCase()}:${String(message ?? '').trim().toLowerCase()}`;
+};
+
+export const shouldDisplayNotification = (message, type = 'info', existingNotifications = []) => {
+  const nextKey = createNotificationKey(message, type);
+  return !existingNotifications.some(notification => createNotificationKey(notification.message, notification.type) === nextKey);
+};
 
 export const NotificationSystem = () => {
   const [notifications, setNotifications] = useState([]);
+  const lastNotificationRef = useRef(new Map());
 
   const removeNotification = (id) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
@@ -16,19 +27,34 @@ export const NotificationSystem = () => {
   useEffect(() => {
     // Función global para agregar notificaciones
     window.showNotification = (message, type = 'info', duration = 4000) => {
+      const normalizedMessage = String(message ?? '').trim();
+      const key = createNotificationKey(normalizedMessage, type);
+      const now = Date.now();
+      const lastSeen = lastNotificationRef.current.get(key) || 0;
+
+      if (now - lastSeen < DUPLICATE_INTERVAL_MS) {
+        return;
+      }
+
+      lastNotificationRef.current.set(key, now);
       const id = ++notificationId;
 
-    setNotifications(prev => {
-      // 👉 limitar stack: eliminar la más vieja si supero MAX_STACK
-      let updated = [ { id, message, type, duration }, ...prev ];
+      setNotifications(prev => {
+        const isDuplicate = prev.some(notification => createNotificationKey(notification.message, notification.type) === key);
+        if (isDuplicate) {
+          return prev;
+        }
 
-      if (updated.length > MAX_STACK) {
-        updated = updated.slice(0, MAX_STACK);
-      }
-      return updated;
-    });
+        // 👉 limitar stack: eliminar la más vieja si supero MAX_STACK
+        let updated = [{ id, message: normalizedMessage, type, duration }, ...prev];
 
-      
+        if (updated.length > MAX_STACK) {
+          updated = updated.slice(0, MAX_STACK);
+        }
+
+        return updated;
+      });
+
       if (duration > 0) {
         setTimeout(() => {
           removeNotification(id);
