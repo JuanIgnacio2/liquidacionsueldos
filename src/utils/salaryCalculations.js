@@ -47,6 +47,94 @@ export const isPersonalDeTurno = (nombreConcepto) => {
   return nombreNormalizado.includes('personal de turno') || nombreNormalizado.includes('personal turno');
 };
 
+export const canEditConceptQuantity = (concept, gremioNombre = '') => {
+  if (!concept) return false;
+
+  if (concept.tipo === 'CONCEPTO_MANUAL_LYF' || concept.tipo === 'CONCEPTO_GENERAL') {
+    return false;
+  }
+
+  if (concept.tipo === 'AGUINALDO') {
+    return false;
+  }
+
+  const gremioUpper = (gremioNombre || '').toUpperCase();
+  const isLuzYFuerza = gremioUpper.includes('LUZ') && gremioUpper.includes('FUERZA');
+  const isUocra = gremioUpper === 'UOCRA';
+
+  if (isLuzYFuerza) {
+    if (concept.tipo !== 'HORA_EXTRA_LYF') {
+      return false;
+    }
+
+    return concept.id === 1 || concept.id === 2 || isPersonalDeTurno(concept.nombre);
+  }
+
+  if (isUocra) {
+    const nombreUpper = (concept.nombre || '').toUpperCase();
+    if (nombreUpper.includes('HS.NORMALES') ||
+        nombreUpper.includes('HORAS NORMALES') ||
+        nombreUpper.includes('HORAS EXTRAS DOBLES') ||
+        nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return false;
+};
+
+export const buildAguinaldoConcepts = (montoAguinaldo, descuentos = []) => {
+  const aguinaldo = Number(montoAguinaldo) || 0;
+  const descuentosNormalizados = (Array.isArray(descuentos) ? descuentos : [])
+    .filter((descuento) => descuento && ['DESCUENTO', 'DESCUENTO_LYF', 'DESCUENTO_UOCRA'].includes(descuento.tipo))
+    .map((descuento, index) => {
+      const porcentaje = Number(descuento.porcentaje) || 0;
+      const montoUnitarioDescuento = Number(descuento.montoUnitario) || 0;
+      const cantidadDescuento = Number(descuento.cantidad) || 1;
+      
+      // Si tiene porcentaje, aplicarlo sobre el monto del aguinaldo
+      let totalDescuento = 0;
+      if (porcentaje > 0) {
+        // Calcular el descuento como porcentaje del aguinaldo
+        totalDescuento = roundTo2Decimals((aguinaldo * porcentaje) / 100);
+      } else if (montoUnitarioDescuento > 0) {
+        // Si no tiene porcentaje pero tiene montoUnitario fijo, usarlo
+        totalDescuento = roundTo2Decimals(montoUnitarioDescuento * cantidadDescuento);
+      } else {
+        // Usar el total original si existe
+        const totalOriginal = Number(descuento.total) || 0;
+        totalDescuento = totalOriginal;
+      }
+      
+      // Normalizar como valor negativo para descuentos
+      const totalNormalizado = totalDescuento < 0 ? totalDescuento : -Math.abs(totalDescuento);
+
+      return {
+        ...descuento,
+        uid: descuento.uid ?? `descuento-aguinaldo-${index}`,
+        porcentaje: porcentaje,
+        montoUnitario: Math.abs(totalDescuento),
+        cantidad: 1,
+        total: totalNormalizado,
+      };
+    });
+
+  return [
+    {
+      uid: 'aguinaldo-principal',
+      id: 'AGUINALDO',
+      tipo: 'AGUINALDO',
+      nombre: 'Sueldo Anual Complementario (aguinaldo)',
+      montoUnitario: aguinaldo,
+      cantidad: 1,
+      total: aguinaldo,
+    },
+    ...descuentosNormalizados,
+  ];
+};
+
 /**
  * Calcula el total de un concepto individual basado en su tipo y configuración
  * @param {Object} concepto - El concepto a calcular

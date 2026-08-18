@@ -7,10 +7,10 @@ import {
   Calculator, 
   ChevronLeft, 
   ChevronRight,
-  DollarSign,
   LogOut,
   Settings
 } from 'lucide-react';
+import cooperativaLogo from '../../image/Coop._25_de_Mayo__logo_solo_-removebg-preview.png';
 import { useAuth } from '../../context/AuthContext';
 import { getUser as getUserAPI } from '../../services/empleadosAPI';
 import '../../styles/components/_sidebar.scss';
