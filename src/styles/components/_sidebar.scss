@@ -50,7 +50,15 @@
         .brand-icon {
           width: 2rem;
           height: 2rem;
+          object-fit: contain;
+          display: block;
           color: $color-yellow-primary;
+        }
+
+        .brand-logo {
+          border-radius: 0.375rem;
+          background: rgba(255, 255, 255, 0.08);
+          padding: 0.125rem;
         }
 
         .brand-text {

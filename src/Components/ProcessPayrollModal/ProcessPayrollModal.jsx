@@ -5,6 +5,7 @@ import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
 import { sortConceptos, buildConceptPayload } from '../../utils/conceptosUtils';
+import { canEditConceptQuantity, buildAguinaldoConcepts } from '../../utils/salaryCalculations';
 import html2pdf from 'html2pdf.js';
 import { BaeCalculationSection } from '../BaeCalculationSection/BaeCalculationSection';
 import './ProcessPayrollModal.scss';
@@ -56,6 +57,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [conceptosGeneralesData, setConceptosGeneralesData] = useState([]);
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
   const [amountInWords, setAmountInWords] = useState('');
+  const [descuentosAsignados, setDescuentosAsignados] = useState([]);
   const uidCounter = useRef(1);
   // Normalizar el período inicial a formato YYYY-MM
   const getInitialPeriod = () => {
@@ -345,6 +347,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     setConceptos([]);
     setTotal(0);
     setSelectedCatalogConcept('');
+    setDescuentosAsignados([]);
 
     try {
       const gremio = employee.gremio?.nombre?.toUpperCase() ?? '';
@@ -749,6 +752,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const listaSinHoras = isUocra 
         ? [...bonificacionesMapped, ...conceptosGeneralesMapped, ...descuentosMapped]
         : [basico, ...bonosDeAreas, ...bonificacionesMapped, ...conceptosGeneralesMapped, ...descuentosMapped];
+
+      // Guardar descuentos asignados al empleado para usarlos en aguinaldo y otras liquidaciones
+      setDescuentosAsignados(descuentosMapped);
 
       // Función para calcular TOTAL_REMUNERATIVO (para conceptos con baseCalculo TOTAL_REMUNERATIVO)
       // Incluye: básico + bono área + títulos + conceptos con BASICO_CATEGORIA_11 (incluyendo "Bonif Antigüedad")
@@ -1240,48 +1246,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   }, [isOpen, initialEmployee]);
 
   // Determinar si un concepto puede tener cantidad editable
-  const canEditQuantity = (concept) => {
-    // Conceptos manuales LYF y generales: cantidad fija 1 (no editables)
-    if (concept.tipo === 'CONCEPTO_MANUAL_LYF' || concept.tipo === 'CONCEPTO_GENERAL') {
-      return false;
-    }
-    // Aguinaldo no es editable
-    if (concept.tipo === 'AGUINALDO') {
-      return false;
-    }
-    
-    const gremioNombre = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
-    const isLuzYFuerza = gremioNombre.includes('LUZ') && gremioNombre.includes('FUERZA');
-    const isUocra = gremioNombre === 'UOCRA';
-    
-    // Para Luz y Fuerza: solo HORA_EXTRA_LYF con id 1 (simples) o 2 (dobles)
-    if (isLuzYFuerza) {
-      if (concept.tipo === 'HORA_EXTRA_LYF' && (concept.id === 1 || concept.id === 2)) {
-        return true;
-      }
-      return false;
-    }
-    
-    // Para UOCRA: Hs. Normales, Horas Extras, Horas Extras Dobles (asistencia se calcula automáticamente)
-    if (isUocra) {
-      const nombreUpper = (concept.nombre || '').toUpperCase();
-      // Identificar conceptos de horas por nombre
-      if (nombreUpper.includes('HS.NORMALES') || 
-          nombreUpper.includes('HORAS NORMALES') ||
-          nombreUpper.includes('HORAS EXTRAS DOBLES') ||
-          nombreUpper.includes('HORAS EXTRAS') && !nombreUpper.includes('DOBLES')) {
-        return true;
-      }
-      // Asistencia NO es editable (se calcula automáticamente)
-      if (nombreUpper.includes('ASISTENCIA')) {
-        return false;
-      }
-      return false;
-    }
-    
-    // Para otros gremios: no editable
-    return false;
-  };
+  const canEditQuantity = (concept) => canEditConceptQuantity(concept, selectedEmployee?.gremio?.nombre);
 
   // Calcular asistencia automáticamente para UOCRA
   // Acepta una lista de conceptos y retorna la lista actualizada con la asistencia calculada
@@ -1808,24 +1773,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const calculo = await api.calcularAguinaldo(selectedEmployee.legajo, aguinaldoNumero, aguinaldoAnio);
       setAguinaldoCalculo(calculo);
       
-      // Crear un solo concepto "Sueldo Anual Complementario (aguinaldo)" con el monto de aguinaldo
       const montoAguinaldo = calculo.aguinaldo || 0;
-      
-      // Concepto único de aguinaldo (remuneración) - solo el SAC
-      const conceptoAguinaldo = {
-        uid: uidCounter.current++,
-        id: 'AGUINALDO',
-        tipo: 'AGUINALDO',
-        nombre: 'Sueldo Anual Complementario (aguinaldo)',
-        montoUnitario: montoAguinaldo,
-        cantidad: 1,
-        total: montoAguinaldo,
-      };
-      
-      // Solo el concepto de SAC, sin descuentos ni otros conceptos
-      setConceptos([conceptoAguinaldo]);
-      conceptosPorTipoRef.current.aguinaldo = [conceptoAguinaldo];
-      setTotal(montoAguinaldo);
+      // Usar los descuentos asignados al empleado, no los del estado conceptos (que está vacío en modo aguinaldo)
+      const listaAguinaldo = buildAguinaldoConcepts(montoAguinaldo, descuentosAsignados);
+
+      setConceptos(listaAguinaldo);
+      conceptosPorTipoRef.current.aguinaldo = listaAguinaldo;
+      setTotal(calcTotal(listaAguinaldo));
       notify.success('Cálculo de aguinaldo realizado correctamente');
     } catch (error) {
       notify.error(error);
@@ -3145,9 +3099,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     <span className="result-label">Aguinaldo:</span>
                     <span className="result-value">{formatCurrencyAR(aguinaldoCalculo.aguinaldo || 0)}</span>
                   </div>
+                  <div className="result-row">
+                    <span className="result-label">Descuentos:</span>
+                    <span className="result-value">{formatCurrencyAR(deductions)}</span>
+                  </div>
                   <div className="result-row result-divider">
                     <span className="result-label">Total Aguinaldo:</span>
-                    <span className="result-value">{formatCurrencyAR(aguinaldoCalculo.totalAguinaldo || aguinaldoCalculo.aguinaldo || 0)}</span>
+                    <span className="result-value">{formatCurrencyAR(netAmount)}</span>
                   </div>
                 </div>
               )}
@@ -3344,11 +3302,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             />
           )}
 
-          {liquidacionType === 'normal' && (
+          {(liquidacionType === 'normal' || liquidacionType === 'aguinaldo') && (
           <div className="concepts-section">
             <div className="section-header">
               <div className="header-left">
-                <h3>Conceptos de Liquidación</h3>
+                <h3>{liquidacionType === 'aguinaldo' ? 'Conceptos del Aguinaldo' : 'Conceptos de Liquidación'}</h3>
                 <div className="concepts-counter">
                   <Badge className="counter-icon" />
                   <span>{conceptos.length} conceptos</span>
@@ -4087,7 +4045,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
             <div className="totals-summary">
               <div className="total-item">
-                <span>Total Remuneraciones:</span>
+                <span>{liquidacionType === 'aguinaldo' ? 'Total Aguinaldo:' : 'Total Remuneraciones:'}</span>
                 <span className="amount positive">{formatCurrencyAR(remunerations)}</span>
               </div>
               <div className="total-item">
@@ -4095,7 +4053,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <span className="amount negative">{formatCurrencyAR(deductions)}</span>
               </div>
               <div className="total-item final">
-                <span>NETO A COBRAR:</span>
+                <span>{liquidacionType === 'aguinaldo' ? 'NETO DEL AGUINALDO:' : 'NETO A COBRAR:'}</span>
                 <span className="amount final">{formatCurrencyAR(netAmount)}</span>
               </div>
             </div>
