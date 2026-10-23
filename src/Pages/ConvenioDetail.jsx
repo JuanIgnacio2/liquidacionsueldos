@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus, History } from 'lucide-react';
 import { Modal, ModalFooter } from '../Components/Modal/Modal';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -26,6 +26,13 @@ export default function ConvenioDetail() {
   const [selectedConceptoManual, setSelectedConceptoManual] = useState(null);
   const [conceptoManualNombre, setConceptoManualNombre] = useState('');
   const [conceptoManualMonto, setConceptoManualMonto] = useState('');
+  const [historialConvenios, setHistorialConvenios] = useState([]);
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('actual');
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [showNuevoHistorialModal, setShowNuevoHistorialModal] = useState(false);
+  const [nuevoHistorialPeriodo, setNuevoHistorialPeriodo] = useState('');
+  const [nuevoHistorialDescripcion, setNuevoHistorialDescripcion] = useState('');
+  const [historialActivo, setHistorialActivo] = useState(null);
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -218,6 +225,7 @@ export default function ConvenioDetail() {
       try {
         const raw = await api.getConveniosNombre(controller);
         const norm = normalizeConvenioDetail(raw, controller);
+        norm.description = raw?.descripcion ?? '';
         setConvenio(norm);
         // Usar una copia profunda para que `editableData` no comparta referencias con `convenio`
         // Convertir a formato sin puntos para edición (000000,00)
@@ -240,6 +248,12 @@ export default function ConvenioDetail() {
           });
         }
         setEditableData(cloned);
+        const historial = await api.getHistorialConvenio().catch(() => []);
+        setHistorialConvenios(
+          (Array.isArray(historial) ? historial : [])
+            .filter((item) => String(item.gremio || '').toLowerCase() === controller)
+            .sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)))
+        );
     } catch (error) {
         notify.error(error);
   }
@@ -299,6 +313,95 @@ export default function ConvenioDetail() {
     }
   }, [controller]);
 
+  const getHistorialId = (row) => row?.idHistorial ?? row?.id ?? null;
+
+  const toHistorialUpdatePayload = (data) => ({
+    descripcion: data?.description || null,
+    basicos: controller === 'lyf'
+      ? buildLyfPayload(data)
+      : buildUocraPayload(data, data === editableData ? convenio : data),
+  });
+
+  const aplicarDetalleConvenio = (detalle, resumen, periodo) => {
+    const rawConvenio = detalle?.convenio ?? detalle;
+    const norm = normalizeConvenioDetail(rawConvenio, controller);
+    norm.description = detalle?.descripcion ?? resumen?.descripcion ?? '';
+    norm.periodo = detalle?.periodo ?? resumen?.periodo ?? periodo;
+    setConvenio(norm);
+    setEditableData(JSON.parse(JSON.stringify(norm)));
+    setHistorialActivo(resumen ? { ...resumen, ...detalle, idHistorial: getHistorialId(resumen) } : null);
+    setPeriodoSeleccionado(periodo);
+    setIsEditing(false);
+  };
+
+  const cargarVersionConvenio = async (periodo, resumenOverride = null) => {
+    if (periodo === 'actual') {
+      setCargandoHistorial(true);
+      try {
+        const raw = await api.getConveniosNombre(controller);
+        aplicarDetalleConvenio(raw, null, 'actual');
+      } catch (error) {
+        notify.error(error);
+      } finally {
+        setCargandoHistorial(false);
+      }
+      return;
+    }
+
+    setCargandoHistorial(true);
+    try {
+      const resumen = resumenOverride || historialConvenios.find((item) => item.periodo === periodo);
+      const idHistorial = getHistorialId(resumen);
+      if (!idHistorial) throw new Error('No se encontró la versión histórica seleccionada');
+
+      const detalle = await api.getHistorialConvenioById(idHistorial);
+      aplicarDetalleConvenio(detalle, { ...resumen, idHistorial }, periodo);
+    } catch (error) {
+      notify.error(error);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
+  const handleCrearHistorial = async () => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nuevoHistorialPeriodo)) {
+      notify.error('El período debe tener formato AAAA-MM');
+      return;
+    }
+
+    try {
+      const descripcion = nuevoHistorialDescripcion.trim() || null;
+      const creado = await api.createHistorialConvenio({
+        gremio: controller,
+        periodo: nuevoHistorialPeriodo,
+        descripcion,
+      });
+      const idHistorial = getHistorialId(creado);
+      if (!idHistorial) throw new Error('El backend no devolvió el identificador del historial');
+
+      await api.updateHistorialConvenio(idHistorial, toHistorialUpdatePayload(editableData));
+      const historial = await api.getHistorialConvenio().catch(() => []);
+      setHistorialConvenios(
+        (Array.isArray(historial) ? historial : [])
+          .filter((item) => String(item.gremio || '').toLowerCase() === controller)
+          .sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)))
+      );
+      setShowNuevoHistorialModal(false);
+      setNuevoHistorialPeriodo('');
+      setNuevoHistorialDescripcion('');
+      notify.success('Nueva versión del convenio creada correctamente');
+      await cargarVersionConvenio(nuevoHistorialPeriodo, {
+        ...creado,
+        idHistorial,
+        gremio: controller,
+        periodo: nuevoHistorialPeriodo,
+        descripcion,
+      });
+    } catch (error) {
+      notify.error(error);
+    }
+  };
+
   const handleEdit = () => {
     setIsEditing(true);
   };
@@ -307,13 +410,16 @@ export default function ConvenioDetail() {
   const saveConvenio = async () => {
     try {
       const usuario = localStorage.getItem('usuario') || 'Sistema';
-      
-      if (controller === 'lyf') {
-        const payload = buildLyfPayload(editableData);
-        await api.updateBasicoLyF(payload);
+
+      if (historialActivo?.idHistorial) {
+        await api.updateHistorialConvenio(
+          historialActivo.idHistorial,
+          toHistorialUpdatePayload(editableData)
+        );
+      } else if (controller === 'lyf') {
+        await api.updateBasicoLyF(buildLyfPayload(editableData));
       } else if (controller === 'uocra') {
-        const payload = buildUocraPayload(editableData, convenio);
-        await api.updateBasicoUocra(payload);
+        await api.updateBasicoUocra(buildUocraPayload(editableData, convenio));
       }
       
       // Registrar actividad de modificación de convenio (opcional, no debe afectar el guardado)
@@ -373,7 +479,9 @@ export default function ConvenioDetail() {
         });
       }
       setEditableData(editClone);
-      notify.success('Convenio actualizado exitosamente');
+      notify.success(historialActivo?.idHistorial
+        ? 'Versión histórica actualizada exitosamente'
+        : 'Convenio actualizado exitosamente');
     } catch (error) {
       console.error('Error guardando convenio:', error);
       notify.error(error);
@@ -817,6 +925,28 @@ export default function ConvenioDetail() {
           </div>
 
           <div className="header-actions">
+            <div className="convenio-version-selector">
+              <History className="action-icon" />
+              <select
+                value={periodoSeleccionado}
+                onChange={(e) => cargarVersionConvenio(e.target.value)}
+                disabled={cargandoHistorial || isEditing}
+                aria-label="Seleccionar período del convenio"
+              >
+                <option value="actual">Actual</option>
+                {historialConvenios.map((item) => (
+                  <option key={getHistorialId(item) || item.periodo} value={item.periodo}>
+                    {item.periodo}{item.descripcion ? ` - ${item.descripcion}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!isEditing && (
+              <button className="action-btn save" onClick={() => setShowNuevoHistorialModal(true)}>
+                <Plus className="action-icon" />
+                Nueva versión
+              </button>
+            )}
             {isEditing ? (
               <>
                 <button className="action-btn save" onClick={handleSave}>
@@ -1215,6 +1345,50 @@ export default function ConvenioDetail() {
           </button>
           <button className="btn btn-primary" onClick={handleSaveConceptoManual}>
             {selectedConceptoManual ? 'Actualizar' : 'Crear'}
+          </button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        isOpen={showNuevoHistorialModal}
+        onClose={() => setShowNuevoHistorialModal(false)}
+        title="Crear nueva versión del convenio"
+        size="medium"
+      >
+        <div className="concepto-form">
+          <div className="form-group">
+            <label htmlFor="historial-periodo">Período</label>
+            <input
+              id="historial-periodo"
+              type="month"
+              className="form-input"
+              value={nuevoHistorialPeriodo}
+              onChange={(e) => setNuevoHistorialPeriodo(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="historial-descripcion">Descripción</label>
+            <input
+              id="historial-descripcion"
+              type="text"
+              className="form-input"
+              value={nuevoHistorialDescripcion}
+              onChange={(e) => setNuevoHistorialDescripcion(e.target.value)}
+              placeholder="Ej.: Escala salarial marzo 2026"
+            />
+          </div>
+          <p className="historial-form-hint">
+            La nueva versión se copiará desde la escala que está visualizando y luego podrá editar sus básicos.
+          </p>
+        </div>
+
+        <ModalFooter>
+          <button className="btn btn-secondary" onClick={() => setShowNuevoHistorialModal(false)}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" onClick={handleCrearHistorial}>
+            Crear versión
           </button>
         </ModalFooter>
       </Modal>

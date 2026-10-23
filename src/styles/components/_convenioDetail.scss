@@ -139,6 +139,40 @@
           display: flex;
           gap: 1rem;
           flex-wrap: wrap;
+
+          .convenio-version-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.65rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #fff;
+
+            .action-icon {
+              width: 18px;
+              height: 18px;
+              color: var(--primary-color);
+            }
+
+            select {
+              min-width: 180px;
+              border: 0;
+              background: transparent;
+              color: var(--text-primary);
+              font-size: 0.9rem;
+              cursor: pointer;
+
+              &:focus {
+                outline: none;
+              }
+
+              &:disabled {
+                cursor: not-allowed;
+                opacity: 0.65;
+              }
+            }
+          }
   
           .action-btn {
             display: flex;
@@ -213,6 +247,13 @@
           }
         }
       }
+    }
+
+    .historial-form-hint {
+      margin-top: 1rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.4;
     }
   
     // Salary Table Container

@@ -325,7 +325,7 @@ export default function Liquidacion() {
                 <History className="action-icon" />
               </button>
               <button className="action-btn secondary" onClick={() => setShowCompletarPagosModal(true)}>
-                <span>Completar Pagos Masivo</span>
+                <span>Liquidar Pagos Masivo</span>
                 <Users className="action-icon" />
               </button>
             </div>
