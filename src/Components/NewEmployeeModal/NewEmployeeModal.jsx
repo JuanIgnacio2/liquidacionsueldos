@@ -961,6 +961,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             tipoConcepto = 'CONCEPTO_LYF';
           } else if (concepto.tipo === 'CONCEPTO_MANUAL_LYF') {
             tipoConcepto = 'CONCEPTO_MANUAL_LYF';
+          } else if (concepto.tipo === 'TITULO_LYF') { 
+            tipoConcepto = 'TITULO_LYF';
           } else {
             tipoConcepto = 'BONIFICACION_FIJA';
           }
@@ -970,7 +972,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
             legajo: Number(formData.legajo),
             tipoConcepto: tipoConcepto,
             idReferencia: Number(concepto.originalId), // ID original sin prefijo
-            unidades: Number(units) // Para CONCEPTO_MANUAL_LYF siempre será 1
+            unidades: Number(units),
           });
         }
       });

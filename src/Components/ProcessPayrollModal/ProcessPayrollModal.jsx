@@ -5,7 +5,7 @@ import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
 import { sortConceptos, buildConceptPayload } from '../../utils/conceptosUtils';
-import { canEditConceptQuantity, buildAguinaldoConcepts } from '../../utils/salaryCalculations';
+import { canEditConceptQuantity, buildAguinaldoConcepts, buildVacacionesConcepts } from '../../utils/salaryCalculations';
 import html2pdf from 'html2pdf.js';
 import { BaeCalculationSection } from '../BaeCalculationSection/BaeCalculationSection';
 import './ProcessPayrollModal.scss';
@@ -42,6 +42,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     bae: [],
     aguinaldo: [],
     vacaciones: [],
+    turismoSocial: [],
   });
   const lastLiquidacionTypeRef = useRef('normal');
   const [total, setTotal] = useState(0);
@@ -63,6 +64,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [remunerationAssigned, setRemunerationAssigned] = useState(0);
   const [amountInWords, setAmountInWords] = useState('');
   const [descuentosAsignados, setDescuentosAsignados] = useState([]);
+  const [turismoSocialMonto, setTurismoSocialMonto] = useState('');
+  const [fechaPagoTurismoSocial, setFechaPagoTurismoSocial] = useState(getTodayDate);
+  const turismoSocialMontoEditadoRef = useRef(false);
   const uidCounter = useRef(1);
   // Normalizar el período inicial a formato YYYY-MM
   const getInitialPeriod = () => {
@@ -82,7 +86,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
   const [processedLegajos, setProcessedLegajos] = useState(new Set()); // Set de legajos procesados en el mes actual
   const [liquidacionesEstado, setLiquidacionesEstado] = useState(new Map()); // Map<legajo, {estado: 'completada'|'pendiente', fechaPago: string|null}>
   // Estados para aguinaldo
-  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo', 'vacaciones' o 'bae'
+  const [liquidacionType, setLiquidacionType] = useState('normal'); // 'normal', 'aguinaldo', 'vacaciones', 'turismoSocial' o 'bae'
   const [aguinaldoNumero, setAguinaldoNumero] = useState(1); // 1 o 2
   const [aguinaldoAnio, setAguinaldoAnio] = useState(new Date().getFullYear());
   const [aguinaldoCalculo, setAguinaldoCalculo] = useState(null);
@@ -99,8 +103,37 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const conceptosPrevios = conceptosPorTipoRef.current[liquidacionType] || [];
     setConceptos(conceptosPrevios);
     setTotal(calcTotal(conceptosPrevios));
+    if (liquidacionType === 'turismoSocial') {
+      const conceptoTurismo = conceptosPrevios.find((concepto) => concepto.tipo === 'CONCEPTO_MANUAL_LYF');
+      setTurismoSocialMonto(conceptoTurismo?.total ? String(conceptoTurismo.total) : '');
+    }
     lastLiquidacionTypeRef.current = liquidacionType;
   }, [liquidacionType]);
+
+  useEffect(() => {
+    if (liquidacionType !== 'turismoSocial' || turismoSocialMontoEditadoRef.current) return;
+    if (conceptosPorTipoRef.current.turismoSocial.length > 0) return;
+
+    const conceptoTurismo = conceptosManualesLyFData.find((concepto) =>
+      normalize(concepto.nombre ?? concepto.descripcion).includes('turismo social')
+    );
+    const monto = Number(conceptoTurismo?.monto ?? conceptoTurismo?.valor);
+    if (!Number.isFinite(monto)) return;
+
+    const lista = monto > 0 ? [{
+      uid: 'turismo-social',
+      id: conceptoTurismo.idConceptosManualesLyF ?? conceptoTurismo.idConceptoManualLyF ?? conceptoTurismo.id,
+      tipo: 'CONCEPTO_MANUAL_LYF',
+      nombre: conceptoTurismo.nombre ?? conceptoTurismo.descripcion ?? 'Turismo social',
+      montoUnitario: monto,
+      cantidad: 1,
+      total: monto,
+    }] : [];
+    conceptosPorTipoRef.current.turismoSocial = lista;
+    setTurismoSocialMonto(String(monto));
+    setConceptos(lista);
+    setTotal(calcTotal(lista));
+  }, [liquidacionType, conceptosManualesLyFData]);
 
   // Función para formatear el nombre del gremio
   const formatGremioNombre = (gremioNombre) => {
@@ -170,6 +203,13 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
+
+  const getVacacionesConceptoGeneralId = () => {
+    const conceptoVacaciones = conceptosGeneralesData.find((concepto) =>
+      normalize(concepto.nombre ?? concepto.descripcion).includes('vacacion')
+    );
+    return conceptoVacaciones?.idConceptoGeneral ?? conceptoVacaciones?.id ?? 2;
+  };
 
   // Función helper para identificar "Personal de turno" (usa totalRemunerativo directamente, no valorHora)
   const isPersonalDeTurno = (nombreConcepto) => {
@@ -344,6 +384,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       bae: [],
       aguinaldo: [],
       vacaciones: [],
+      turismoSocial: [],
     };
     lastLiquidacionTypeRef.current = 'normal';
     setLiquidacionType('normal');
@@ -353,6 +394,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     setTotal(0);
     setSelectedCatalogConcept('');
     setDescuentosAsignados([]);
+    setTurismoSocialMonto('');
+    turismoSocialMontoEditadoRef.current = false;
 
     try {
       const gremio = employee.gremio?.nombre?.toUpperCase() ?? '';
@@ -1140,7 +1183,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             setPeriodoMes(mes);
           }
           // Limpiar conceptos por tipo
-          conceptosPorTipoRef.current = { normal: [], bae: [], aguinaldo: [], vacaciones: [] };
+          conceptosPorTipoRef.current = { normal: [], bae: [], aguinaldo: [], vacaciones: [], turismoSocial: [] };
+          setTurismoSocialMonto('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [isOpen, initialEmployee]);
@@ -1784,7 +1828,17 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       
       const montoAguinaldo = calculo.aguinaldo || 0;
       // Usar los descuentos asignados al empleado, no los del estado conceptos (que está vacío en modo aguinaldo)
-      const listaAguinaldo = buildAguinaldoConcepts(montoAguinaldo, descuentosAsignados);
+      const conceptoGeneralAguinaldo = conceptosGeneralesData.find((concepto) =>
+        normalize(concepto.nombre ?? concepto.descripcion).includes('sueldo anual complementario')
+      ) || conceptosGeneralesData.find((concepto) =>
+        normalize(concepto.nombre ?? concepto.descripcion).includes('aguinaldo')
+      );
+      const idConceptoGeneralAguinaldo = conceptoGeneralAguinaldo?.idConceptoGeneral ?? conceptoGeneralAguinaldo?.id ?? 1;
+      const listaAguinaldo = buildAguinaldoConcepts(
+        montoAguinaldo,
+        descuentosAsignados,
+        idConceptoGeneralAguinaldo
+      );
 
       setConceptos(listaAguinaldo);
       conceptosPorTipoRef.current.aguinaldo = listaAguinaldo;
@@ -1806,23 +1860,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       const calculo = await api.calcularVacaciones(selectedEmployee.legajo, parseInt(anioVacaciones, 10));
       setVacacionesCalculo(calculo);
       // Crear concepto de vacaciones con el monto calculado
-      const montoVacaciones = calculo.baseCalculo || calculo.vacaciones || calculo.totalVacaciones || calculo.monto || 0;
-      
-      // Concepto único de vacaciones (remuneración)
-      const conceptoVacaciones = {
-        uid: uidCounter.current++,
-        id: 'VACACIONES',
-        tipo: 'VACACIONES',
-        nombre: 'Bono de Vacaciones',
-        montoUnitario: montoVacaciones,
-        cantidad: 1,
-        total: montoVacaciones,
-      };
-      
-      // Solo el concepto de vacaciones, sin descuentos ni otros conceptos
-      setConceptos([conceptoVacaciones]);
-      conceptosPorTipoRef.current.vacaciones = [conceptoVacaciones];
-      setTotal(montoVacaciones);
+      const montoVacaciones = Number(
+        calculo.vacaciones ?? calculo.totalVacaciones ?? calculo.monto ?? calculo.baseCalculo ?? 0
+      );
+      const listaVacaciones = buildVacacionesConcepts(
+        montoVacaciones,
+        descuentosAsignados,
+        getVacacionesConceptoGeneralId()
+      );
+
+      setConceptos(listaVacaciones);
+      conceptosPorTipoRef.current.vacaciones = listaVacaciones;
+      setTotal(calcTotal(listaVacaciones));
       notify.success('Cálculo de vacaciones realizado correctamente');
     } catch (error) {
       notify.error(error);
@@ -1860,9 +1909,11 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     try {
     const payload = {
       legajo: selectedEmployee.legajo,
-          aguinaldoNumero: aguinaldoNumero,
-          anio: aguinaldoAnio,
-        };
+      aguinaldoNumero,
+      anio: aguinaldoAnio,
+      conceptos: conceptos.map((concepto) => buildConceptPayload(concepto)),
+      fechaPago: fechaPago && fechaPago.trim() !== '' ? fechaPago : null,
+    };
 
         const result = await api.liquidarAguinaldo(payload);
         const usuario = localStorage.getItem('usuario') || 'Sistema';
@@ -1870,7 +1921,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         setPayrollData({
           ...payrollData,
           periodDisplay: `Aguinaldo ${aguinaldoNumero} - ${aguinaldoAnio}`,
-          totalNeto: result.total_neto || aguinaldoCalculo.totalNeto
+          totalNeto: result.total_neto ?? result.totalNeto ?? aguinaldoCalculo.total_neto ?? aguinaldoCalculo.totalNeto ?? netAmount
         });
         // Registrar actividad de liquidación (manejar errores de forma independiente para no afectar el flujo principal)
         try {
@@ -1923,22 +1974,38 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       setIsProcessing(true);
 
       try {
-          const payload = {
+        const montoVacaciones = Number(
+          vacacionesCalculo.vacaciones ??
+          vacacionesCalculo.totalVacaciones ??
+          vacacionesCalculo.monto ??
+          vacacionesCalculo.baseCalculo ??
+          0
+        );
+        const conceptosVacaciones = buildVacacionesConcepts(
+          montoVacaciones,
+          descuentosAsignados,
+          getVacacionesConceptoGeneralId()
+        );
+        const netoVacaciones = conceptosVacaciones.reduce((total, concepto) => total + concepto.total, 0);
+        const payload = {
           legajo: selectedEmployee.legajo,
           anioVacaciones: parseInt(anioVacaciones, 10),
+          conceptos: conceptosVacaciones.map((concepto) => buildConceptPayload(concepto)),
         };
-
+        
         const result = await api.liquidarVacaciones(payload);
         const usuario = localStorage.getItem('usuario') || 'Sistema';
-        
-        const montoVacaciones = vacacionesCalculo.vacaciones || vacacionesCalculo.totalVacaciones || vacacionesCalculo.monto || 0;
+
+        setConceptos(conceptosVacaciones);
+        conceptosPorTipoRef.current.vacaciones = conceptosVacaciones;
+        setTotal(calcTotal(conceptosVacaciones));
         
         setPayrollData({
           ...payrollData,
           periodDisplay: `Vacaciones - ${anioVacaciones}`,
-          totalNeto: result.total_neto || montoVacaciones
+          totalNeto: netoVacaciones
         });
-
+        
         // Registrar actividad de liquidación (manejar errores de forma independiente para no afectar el flujo principal)
         try {
           await api.registrarActividad({
@@ -1959,6 +2026,67 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         if (onProcess) {
           onProcess(result);
         }
+      } catch (error) {
+        notify.error(error);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    if (liquidacionType === 'turismoSocial') {
+      const gremio = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+      const monto = Number(turismoSocialMonto);
+      if (!gremio.includes('LUZ') || !gremio.includes('FUERZA')) {
+        notify.error('Turismo social solo está disponible para empleados de Luz y Fuerza');
+        return;
+      }
+      if (!Number.isFinite(monto) || monto <= 0) {
+        notify.error('Ingrese un importe válido para Turismo social');
+        return;
+      }
+      const confirmado = await confirmAction({
+        title: 'Liquidar Turismo social',
+        message: `¿Está seguro de liquidar Turismo social por ${formatCurrencyAR(monto)} para ${selectedEmployee.nombre} ${selectedEmployee.apellido}?`,
+        confirmText: 'Liquidar Turismo social',
+        cancelText: 'Cancelar',
+        type: 'warning',
+        confirmButtonVariant: 'primary',
+        cancelButtonVariant: 'secondary'
+      });
+
+      if (!confirmado) return;
+      setIsProcessing(true);
+      try {
+        const periodoTurismoSocial = String(new Date().getFullYear());
+        const result = await api.pagoTurismoSocial({
+          legajo: selectedEmployee.legajo,
+          monto,
+          periodoPago: periodoTurismoSocial,
+          fechaPago: fechaPagoTurismoSocial,
+        });
+        const usuario = localStorage.getItem('usuario') || 'Sistema';
+        setPayrollData({
+          ...payrollData,
+          periodDisplay: periodoTurismoSocial,
+          totalNeto: monto,
+        });
+
+        try {
+          await api.registrarActividad({
+            usuario,
+            accion: 'Liquidación procesada',
+            descripcion: `Se liquidó Turismo social del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
+            referenciaTipo: 'LIQUIDAR',
+            referenciaId: result?.idPago || result?.id || selectedEmployee.legajo,
+          });
+        } catch (actividadError) {
+          console.warn('Error al registrar actividad de liquidación:', actividadError);
+        }
+
+        notify.success('Turismo social liquidado exitosamente');
+        setCurrentStep('preview');
+        if (onProcess) onProcess(result);
       } catch (error) {
         notify.error(error);
       } finally {
@@ -2012,8 +2140,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         fechaLiquidacion: fechaLiquidacion, // Fecha actual de liquidación
         conceptos: conceptos.map((c) => buildConceptPayload(c)),
     };
-
-    console.log('Payload liquidación enviado:', JSON.stringify(payload, null, 2));
 
     // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
     payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
@@ -2378,9 +2504,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
       return `
         <tr>
-          <td class="concept-code">${concept.id || '—'}</td>
           <td class="concept-name">${concept.nombre}</td>
-          <td class="concept-units">${concept.cantidad || 1}</td>
           <td class="concept-remuneration">${remuneracion}</td>
           <td class="concept-deduction">${descuento}</td>
         </tr>
@@ -2391,9 +2515,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     const basicoUocraRow = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA') && basicSalary > 0
       ? `
         <tr>
-          <td class="concept-code">—</td>
           <td class="concept-name">Básico</td>
-          <td class="concept-units">1</td>
           <td class="concept-remuneration">${formatCurrencyAR(basicSalary)}</td>
           <td class="concept-deduction"></td>
         </tr>
@@ -2755,11 +2877,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     <table class="concepts-table">
       <thead>
         <tr>
-          <th style="width: 60px">Código</th>
           <th style="width: 40%">Concepto</th>
-          <th style="width: 70px; text-align: center">Unidades</th>
-          <th style="width: 120px; text-align: right">Remuneraciones</th>
-          <th style="width: 120px; text-align: right">Descuentos</th>
+          <th style="width: 30%; text-align: right">Sueldo neto</th>
+          <th style="width: 30%; text-align: right">Descuentos</th>
         </tr>
       </thead>
       <tbody>
@@ -2768,7 +2888,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       </tbody>
       <tfoot>
         <tr class="receipt-totals-row">
-          <td colspan="3" style="text-align: right; font-weight: bold; padding: 15px 10px">
+          <td colspan="1" style="text-align: right; font-weight: bold; padding: 15px 10px">
             TOTALES:
           </td>
           <td class="receipt-total-remuneration" style="text-align: right; font-weight: bold; padding: 15px 10px">
@@ -2779,7 +2899,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           </td>
         </tr>
         <tr class="receipt-net-row">
-          <td colspan="4" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e">
+          <td colspan="2" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e">
             TOTAL NETO A COBRAR:
           </td>
           <td class="receipt-net-amount" style="text-align: right; font-weight: bold; padding: 15px 10px; font-size: 14px; color: #22c55e; border-top: 2px solid #22c55e">
@@ -2960,11 +3080,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         <table class="concepts-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
           <thead style="background: #22c55e; color: white;">
             <tr>
-              <th style="width: 60px; padding: 10px; text-align: left; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Código</th>
               <th style="width: 40%; padding: 10px; text-align: left; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Concepto</th>
-              <th style="width: 70px; padding: 10px; text-align: center; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Unidades</th>
-              <th style="width: 120px; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Remuneraciones</th>
-              <th style="width: 120px; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Descuentos</th>
+              <th style="width: 30%; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Sueldo neto</th>
+              <th style="width: 30%; padding: 10px; text-align: right; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2);">Descuentos</th>
             </tr>
           </thead>
           <tbody>
@@ -2973,12 +3091,12 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
           </tbody>
           <tfoot>
             <tr class="receipt-totals-row">
-              <td colspan="3" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb;">TOTALES:</td>
+              <td colspan="1" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb;">TOTALES:</td>
               <td class="receipt-total-remuneration" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb; color: #22c55e;">${formatCurrencyAR(remunerations)}</td>
               <td class="receipt-total-deduction" style="text-align: right; font-weight: bold; padding: 15px 10px; border: 1px solid #e5e7eb; color: #ef4444;">${formatCurrencyAR(deductions)}</td>
             </tr>
             <tr class="receipt-net-row">
-              <td colspan="4" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e; border: 1px solid #e5e7eb; font-size: 13px;">TOTAL NETO A COBRAR:</td>
+              <td colspan="2" style="text-align: right; font-weight: bold; padding: 15px 10px; border-top: 2px solid #22c55e; border: 1px solid #e5e7eb; font-size: 13px;">TOTAL NETO A COBRAR:</td>
               <td class="receipt-net-amount" style="text-align: right; font-weight: bold; padding: 15px 10px; font-size: 14px; color: #22c55e; border-top: 2px solid #22c55e; border: 1px solid #e5e7eb;">${formatCurrencyAR(netAmount)}</td>
             </tr>
           </tfoot>
@@ -3271,20 +3389,48 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 />
                 <span>Vacaciones</span>
               </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="liquidacionType"
-                  value="bae"
-                  checked={liquidacionType === 'bae'}
-                  onChange={(e) => {
-                    setLiquidacionType(e.target.value);
-                    setAguinaldoCalculo(null);
-                    setVacacionesCalculo(null);
-                  }}
-                />
-                <span>BAE (cálculo anual)</span>
-              </label>
+              {(() => {
+                const gremio = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+                const esLuzYFuerza = gremio.includes('LUZ') && gremio.includes('FUERZA');
+
+                return esLuzYFuerza ? (
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="liquidacionType"
+                      value="turismoSocial"
+                      checked={liquidacionType === 'turismoSocial'}
+                      onChange={(e) => {
+                        setLiquidacionType(e.target.value);
+                        setAguinaldoCalculo(null);
+                        setVacacionesCalculo(null);
+                      }}
+                    />
+                    <span>Turismo social</span>
+                  </label>
+                ) : null;
+              })()}
+              {(() => {
+                const gremio = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
+                const esLuzYFuerza = gremio.includes('LUZ') && gremio.includes('FUERZA');
+
+                return esLuzYFuerza ? (
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="liquidacionType"
+                      value="bae"
+                      checked={liquidacionType === 'bae'}
+                      onChange={(e) => {
+                        setLiquidacionType(e.target.value);
+                        setAguinaldoCalculo(null);
+                        setVacacionesCalculo(null);
+                      }}
+                    />
+                    <span>BAE (cálculo anual)</span>
+                  </label>
+                ) : null;
+              })()}
             </div>
           </div>
 
@@ -3324,6 +3470,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     }}
                     min="2000"
                     max="2100"
+                  />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="fecha-pago-aguinaldo">Fecha de pago</label>
+                  <input
+                    id="fecha-pago-aguinaldo"
+                    type="date"
+                    value={fechaPago}
+                    onChange={(e) => setFechaPago(e.target.value)}
                   />
                 </div>
               </div>
@@ -3386,7 +3541,23 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 <div className="vacaciones-result">
                   <div className="result-row">
                     <span className="result-label">Bono de Vacaciones:</span>
-                    <span className="result-value">{formatCurrencyAR(vacacionesCalculo.baseCalculo || vacacionesCalculo.vacaciones || vacacionesCalculo.totalVacaciones || vacacionesCalculo.monto || 0)}</span>
+                    <span className="result-value">{formatCurrencyAR(vacacionesCalculo.vacaciones ?? vacacionesCalculo.totalVacaciones ?? vacacionesCalculo.monto ?? vacacionesCalculo.baseCalculo ?? 0)}</span>
+                  </div>
+                  {conceptos
+                    .filter((concepto) => ['DESCUENTO', 'DESCUENTO_LYF', 'DESCUENTO_UOCRA'].includes(concepto.tipo))
+                    .map((concepto) => (
+                      <div className="result-row" key={concepto.uid}>
+                        <span className="result-label">{concepto.nombre}:</span>
+                        <span className="result-value">{formatCurrencyAR(Math.abs(concepto.total || 0))}</span>
+                      </div>
+                    ))}
+                  <div className="result-row">
+                    <span className="result-label">Total descuentos:</span>
+                    <span className="result-value">{formatCurrencyAR(deductions)}</span>
+                  </div>
+                  <div className="result-divider">
+                    <span className="result-label">Neto a cobrar:</span>
+                    <span className="result-value">{formatCurrencyAR(netAmount)}</span>
                   </div>
                   {vacacionesCalculo.diasVacaciones && (
                     <div className="result-divider">
@@ -3396,6 +3567,62 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {liquidacionType === 'turismoSocial' && (
+            <div className="vacaciones-section">
+              <div className="vacaciones-field">
+                <label htmlFor="turismo-social-monto">Importe de Turismo social</label>
+                <input
+                  id="turismo-social-monto"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={turismoSocialMonto}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    turismoSocialMontoEditadoRef.current = true;
+                    setTurismoSocialMonto(value);
+                    const monto = Number(value) || 0;
+                    const lista = monto > 0 ? [{
+                      uid: 'turismo-social',
+                      id: 'TURISMO_SOCIAL',
+                      tipo: 'CONCEPTO_MANUAL_LYF',
+                      nombre: 'Turismo social',
+                      montoUnitario: monto,
+                      cantidad: 1,
+                      total: monto,
+                    }] : [];
+                    conceptosPorTipoRef.current.turismoSocial = lista;
+                    setConceptos(lista);
+                    setTotal(monto);
+                  }}
+                  placeholder="Ingrese el importe"
+                />
+              </div>
+              <div className="fecha-pago-wrapper">
+                <label htmlFor="fecha-pago-turismo-social" className="fecha-pago-label">
+                  Fecha de pago
+                </label>
+                <input
+                  id="fecha-pago-turismo-social"
+                  type="date"
+                  value={fechaPagoTurismoSocial}
+                  onChange={(e) => setFechaPagoTurismoSocial(e.target.value)}
+                  className="fecha-pago-input"
+                />
+              </div>
+              <div className="vacaciones-result">
+                <div className="result-row">
+                  <span className="result-label">Concepto:</span>
+                  <span className="result-value">Turismo social</span>
+                </div>
+                <div className="result-divider">
+                  <span className="result-label">Total a pagar:</span>
+                  <span className="result-value">{formatCurrencyAR(Number(turismoSocialMonto) || 0)}</span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -4368,10 +4595,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <table className="concepts-table">
               <thead>
                 <tr>
-                  <th className="th-code">Código</th>
                   <th className="th-concept">Concepto</th>
-                  <th className="th-units">Unidades</th>
-                  <th className="th-remuneration">Remuneraciones</th>
+                  <th className="th-remuneration">Sueldo neto</th>
                   <th className="th-deduction">Descuentos</th>
                 </tr>
               </thead>
@@ -4380,7 +4605,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   conceptos.filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
                 ).map(concept => (
                   <tr key={concept.id}>
-                    <td className="concept-code">{concept.id}</td>
                     <td className="concept-name">{concept.nombre}</td>
                     <td className="concept-remuneration">
                       {(concept.tipo === 'CATEGORIA' ||
@@ -4416,7 +4640,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               </tbody>
               <tfoot>
                 <tr className="receipt-totals-row">
-                  <td colSpan="3">
+                  <td colSpan="1">
                     TOTALES:
                   </td>
                   <td className="receipt-total-remuneration">
@@ -4427,7 +4651,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                   </td>
                 </tr>
                 <tr className="receipt-net-row">
-                  <td colSpan="4">
+                  <td colSpan="2">
                     TOTAL NETO A COBRAR:
                   </td>
                   <td className="receipt-net-amount">
@@ -4506,6 +4730,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 {isProcessing ? 'Liquidando...' : 'Liquidar Aguinaldo'}
+              </button>
+            ) : liquidacionType === 'turismoSocial' ? (
+              <button
+                className="btn btn-primary"
+                onClick={generatePayroll}
+                disabled={isProcessing || !(Number(turismoSocialMonto) > 0)}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {isProcessing ? 'Liquidando...' : 'Liquidar Turismo social'}
               </button>
             ) : liquidacionType === 'vacaciones' ? (
               <button 
