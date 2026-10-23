@@ -85,53 +85,65 @@ export const canEditConceptQuantity = (concept, gremioNombre = '') => {
   return false;
 };
 
-export const buildAguinaldoConcepts = (montoAguinaldo, descuentos = []) => {
-  const aguinaldo = Number(montoAguinaldo) || 0;
-  const descuentosNormalizados = (Array.isArray(descuentos) ? descuentos : [])
+const buildSpecialPayrollDeductions = (montoBase, descuentos, uidPrefix) =>
+  (Array.isArray(descuentos) ? descuentos : [])
     .filter((descuento) => descuento && ['DESCUENTO', 'DESCUENTO_LYF', 'DESCUENTO_UOCRA'].includes(descuento.tipo))
     .map((descuento, index) => {
       const porcentaje = Number(descuento.porcentaje) || 0;
       const montoUnitarioDescuento = Number(descuento.montoUnitario) || 0;
       const cantidadDescuento = Number(descuento.cantidad) || 1;
-      
-      // Si tiene porcentaje, aplicarlo sobre el monto del aguinaldo
       let totalDescuento = 0;
+
       if (porcentaje > 0) {
-        // Calcular el descuento como porcentaje del aguinaldo
-        totalDescuento = roundTo2Decimals((aguinaldo * porcentaje) / 100);
+        totalDescuento = roundTo2Decimals((montoBase * porcentaje) / 100);
       } else if (montoUnitarioDescuento > 0) {
-        // Si no tiene porcentaje pero tiene montoUnitario fijo, usarlo
         totalDescuento = roundTo2Decimals(montoUnitarioDescuento * cantidadDescuento);
       } else {
-        // Usar el total original si existe
-        const totalOriginal = Number(descuento.total) || 0;
-        totalDescuento = totalOriginal;
+        totalDescuento = Number(descuento.total) || 0;
       }
-      
-      // Normalizar como valor negativo para descuentos
-      const totalNormalizado = totalDescuento < 0 ? totalDescuento : -Math.abs(totalDescuento);
 
       return {
         ...descuento,
-        uid: descuento.uid ?? `descuento-aguinaldo-${index}`,
-        porcentaje: porcentaje,
+        uid: descuento.uid ?? `descuento-${uidPrefix}-${index}`,
+        porcentaje,
         montoUnitario: Math.abs(totalDescuento),
         cantidad: 1,
-        total: totalNormalizado,
+        total: totalDescuento < 0 ? totalDescuento : -Math.abs(totalDescuento),
       };
     });
+
+export const buildAguinaldoConcepts = (montoAguinaldo, descuentos = [], idConceptoGeneral = 1) => {
+  const aguinaldo = Number(montoAguinaldo) || 0;
+  const descuentosNormalizados = buildSpecialPayrollDeductions(aguinaldo, descuentos, 'aguinaldo');
 
   return [
     {
       uid: 'aguinaldo-principal',
-      id: 'AGUINALDO',
-      tipo: 'AGUINALDO',
+      id: idConceptoGeneral,
+      tipo: 'CONCEPTO_GENERAL',
       nombre: 'Sueldo Anual Complementario (aguinaldo)',
       montoUnitario: aguinaldo,
       cantidad: 1,
       total: aguinaldo,
     },
     ...descuentosNormalizados,
+  ];
+};
+
+export const buildVacacionesConcepts = (montoVacaciones, descuentos = [], idConceptoGeneral = 2) => {
+  const vacaciones = Number(montoVacaciones) || 0;
+
+  return [
+    {
+      uid: 'vacaciones-principal',
+      id: idConceptoGeneral,
+      tipo: 'CONCEPTO_GENERAL',
+      nombre: 'Bono de Vacaciones',
+      montoUnitario: vacaciones,
+      cantidad: 1,
+      total: vacaciones,
+    },
+    ...buildSpecialPayrollDeductions(vacaciones, descuentos, 'vacaciones'),
   ];
 };
 

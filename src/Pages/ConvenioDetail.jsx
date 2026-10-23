@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Download, Save, X, Printer, Calendar, Users, Percent, List, Plus, History } from 'lucide-react';
 import { Modal, ModalFooter } from '../Components/Modal/Modal';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -26,6 +26,13 @@ export default function ConvenioDetail() {
   const [selectedConceptoManual, setSelectedConceptoManual] = useState(null);
   const [conceptoManualNombre, setConceptoManualNombre] = useState('');
   const [conceptoManualMonto, setConceptoManualMonto] = useState('');
+  const [historialConvenios, setHistorialConvenios] = useState([]);
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState('actual');
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [showNuevoHistorialModal, setShowNuevoHistorialModal] = useState(false);
+  const [nuevoHistorialPeriodo, setNuevoHistorialPeriodo] = useState('');
+  const [nuevoHistorialDescripcion, setNuevoHistorialDescripcion] = useState('');
+  const [historialActivo, setHistorialActivo] = useState(null);
 
   // Normaliza respuesta del detalle a la forma que usa la UI
   const normalizeConvenioDetail = (raw, controller) => {
@@ -472,7 +479,9 @@ export default function ConvenioDetail() {
         });
       }
       setEditableData(editClone);
-      notify.success('Convenio actualizado exitosamente');
+      notify.success(historialActivo?.idHistorial
+        ? 'Versión histórica actualizada exitosamente'
+        : 'Convenio actualizado exitosamente');
     } catch (error) {
       console.error('Error guardando convenio:', error);
       notify.error(error);
@@ -1336,6 +1345,50 @@ export default function ConvenioDetail() {
           </button>
           <button className="btn btn-primary" onClick={handleSaveConceptoManual}>
             {selectedConceptoManual ? 'Actualizar' : 'Crear'}
+          </button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal
+        isOpen={showNuevoHistorialModal}
+        onClose={() => setShowNuevoHistorialModal(false)}
+        title="Crear nueva versión del convenio"
+        size="medium"
+      >
+        <div className="concepto-form">
+          <div className="form-group">
+            <label htmlFor="historial-periodo">Período</label>
+            <input
+              id="historial-periodo"
+              type="month"
+              className="form-input"
+              value={nuevoHistorialPeriodo}
+              onChange={(e) => setNuevoHistorialPeriodo(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="historial-descripcion">Descripción</label>
+            <input
+              id="historial-descripcion"
+              type="text"
+              className="form-input"
+              value={nuevoHistorialDescripcion}
+              onChange={(e) => setNuevoHistorialDescripcion(e.target.value)}
+              placeholder="Ej.: Escala salarial marzo 2026"
+            />
+          </div>
+          <p className="historial-form-hint">
+            La nueva versión se copiará desde la escala que está visualizando y luego podrá editar sus básicos.
+          </p>
+        </div>
+
+        <ModalFooter>
+          <button className="btn btn-secondary" onClick={() => setShowNuevoHistorialModal(false)}>
+            Cancelar
+          </button>
+          <button className="btn btn-primary" onClick={handleCrearHistorial}>
+            Crear versión
           </button>
         </ModalFooter>
       </Modal>

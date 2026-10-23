@@ -86,6 +86,9 @@ export const completarPago = (idPago) =>
 export const completarPagoMasivo = (periodo, fechaPago) =>
     axiosClient.patch(`/pagos/completar-masivo`, { periodo, fechaPago: fechaPago ?? null }).then((r)=>r.data);
 
+export const liquidarPagosMasivos = (dto) =>
+    axiosClient.post('/pagos/liquidar-masivo', dto, { timeout: 120000 }).then((r) => r.data);
+
 export const getConceptosAsignados = (legajo) =>
     axiosClient.get(`/empleado-conceptos/por-legajo/${legajo}`).then((r)=>r.data);
 
@@ -108,6 +111,9 @@ export const getUltimosPagos = () =>
 
 export const getDetallePago = (idPago) =>
     axiosClient.get(`/pagos/${idPago}`).then((r)=>r.data);
+
+export const pagoTurismoSocial = (dto) =>
+    axiosClient.post(`/pagos/turismo-social`, dto).then((r)=>r.data);
 
 export const getConvenios = () =>
     axiosClient.get(`/convenios`).then((r)=>r.data);
@@ -239,3 +245,18 @@ export const  updateUsuarioEstado = (id, dto) =>
 
 export const eliminarUsuarioAdmin = (id) =>
     axiosClient.delete(`/admin/users/${id}`).then((r)=>r.data);
+
+export const getHistorialConvenio = () =>
+    axiosClient.get('/convenios/historial').then((r)=>r.data);
+
+export const getHistorialConvenioById = (id) =>
+    axiosClient.get(`/convenios/historial/${id}`).then((r)=>r.data);
+
+export const getHistorialConvenioByGremioAndPeriodo = (gremio, periodo) =>
+    axiosClient.get('/convenios/historial', { params: { gremio, periodo } }).then((r)=>r.data);
+
+export const createHistorialConvenio = (dto) =>
+    axiosClient.post('/convenios/historial', dto).then((r)=>r.data);
+
+export const updateHistorialConvenio = (id, dto) =>
+    axiosClient.put(`/convenios/historial/${id}`, dto).then((r)=>r.data);
