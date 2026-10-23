@@ -31,6 +31,12 @@ function estadoEsActivo(estado) {
   return s === 'ACTIVO' || s === 'ACTIVE';
 }
 
+function esLuzYFuerza(empleado) {
+  const gremio = empleado?.gremioNombre || empleado?.gremio?.nombre || empleado?.gremio || '';
+  const gremioNormalizado = String(gremio).toUpperCase();
+  return gremioNormalizado.includes('LUZ') && gremioNormalizado.includes('FUERZA');
+}
+
 /** Año calendario del BAE (en 2026 se calcula el BAE de 2025). */
 export const getAnioBaePorDefecto = () => new Date().getFullYear() - 1;
 
@@ -61,6 +67,7 @@ function BaeDetallePanel({ bae, titulo = 'Detalle del BAE' }) {
 
 export function BaeCalculationSection({ employees, selectedEmployee = null }) {
   const notify = useNotification();
+  const empleadosLuzYFuerza = (employees || []).filter(esLuzYFuerza);
   const legajoEmpleado = selectedEmployee?.legajo != null ? String(selectedEmployee.legajo) : '';
   const [legajoSel, setLegajoSel] = useState(legajoEmpleado);
   const [anio, setAnio] = useState(getAnioBaePorDefecto());
@@ -224,6 +231,10 @@ export function BaeCalculationSection({ employees, selectedEmployee = null }) {
     }
   };
 
+  if (selectedEmployee && !esLuzYFuerza(selectedEmployee)) {
+    return null;
+  }
+
   return (
     <div className="card bae-section-card">
       <div className="card-header list-header">
@@ -251,7 +262,7 @@ export function BaeCalculationSection({ employees, selectedEmployee = null }) {
                 onChange={(e) => setLegajoSel(e.target.value)}
               >
                 <option value="">— Seleccionar —</option>
-                {(employees || []).map((emp) => (
+                {empleadosLuzYFuerza.map((emp) => (
                   <option key={emp.legajo} value={emp.legajo}>
                     {emp.legajo} — {emp.apellido || ''} {emp.nombre || ''}
                   </option>
