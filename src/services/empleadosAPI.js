@@ -215,6 +215,12 @@ export const actualizarBae = (idBae, porcentajeCumplimiento) =>
 
 export const eliminarBae = (idBae) =>
     axiosClient.delete(`/pagos/bae/${idBae}`).then((r) => r.data);
+
+export const obtenerRestanteBae = (idBae) =>
+    axiosClient.get(`/pagos/bae/${idBae}/restante`).then((r) => r.data);
+
+export const liquidarBae = (dto) =>
+    axiosClient.post('/pagos/bae/liquidar', dto).then((r) => r.data);
     
 export const loginUser = (usuario, password) =>
         axiosClient.post('/login', { usuario, password }).then((r)=>r.data);
