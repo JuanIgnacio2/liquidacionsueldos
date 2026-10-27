@@ -1419,22 +1419,15 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
-        // Solo calcular los que NO usan TOTAL_NETO en este paso
-        if (usaTotalBruto) {
-          const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
-          if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-            const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
-          }
-        } else if (!usaTotalNeto && concept.porcentaje && totalRemuneraciones > 0) {
-          // Comportamiento tradicional
+        // Solo calcular los que NO usan TOTAL_NETO en este paso (siempre con el porcentaje del catálogo)
+        if (!usaTotalNeto && concept.porcentaje && totalRemuneraciones > 0) {
           const montoUnitario = (totalRemuneraciones * concept.porcentaje / 100);
           const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
           const nuevoTotal = -(montoUnitario * (Number(cantidadActual) || 1));
           return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: nuevoTotal };
         }
         // Si usa TOTAL_NETO, dejarlo para el siguiente paso
+        if (usaTotalNeto) return concept;
       }
       return { ...concept, montoUnitario: Number(concept.montoUnitario) || 0, cantidad: Number(concept.cantidad) || 1, total: (Number(concept.montoUnitario) || 0) * (Number(concept.cantidad) || 1) };
     });
@@ -1456,12 +1449,20 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
-        if (usaTotalNeto) {
+        if (usaTotalNeto && netoPreliminar > 0) {
+          const nombreDescuento = (concept.nombre || '').toLowerCase();
+          const esCuotaAlimentaria = nombreDescuento.includes('cuota') && nombreDescuento.includes('alimentaria');
           const cantidadActual = concept.uid === conceptUid ? cantidad : concept.cantidad;
-          const cantidadComoPorcentaje = Number(cantidadActual) || 0;
-          if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-            const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-            return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+          if (esCuotaAlimentaria) {
+            const cantidadComoPorcentaje = Number(cantidadActual) || 0;
+            if (cantidadComoPorcentaje > 0) {
+              const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+              return { ...concept, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+            }
+          } else if (concept.porcentaje) {
+            const montoUnitario = (netoPreliminar * concept.porcentaje / 100);
+            const nuevoTotal = -(montoUnitario * (Number(cantidadActual) || 1));
+            return { ...concept, montoUnitario: Number(montoUnitario) || 0, total: nuevoTotal };
           }
         }
       }
@@ -1675,18 +1676,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
         // Solo calcular los que NO usan TOTAL_NETO en este paso
-        if (usaTotalBruto) {
-          const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-          if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-            const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-            return {
-              ...item,
-              montoUnitario: Math.abs(nuevoTotal),
-              total: nuevoTotal
-            };
-          }
-        } else if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
-          // Comportamiento tradicional
+        if (!usaTotalNeto && item.porcentaje && totalRemuneraciones > 0) {
+          // Siempre con el porcentaje del catálogo
           const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
           const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
           return {
@@ -1717,15 +1708,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
-        if (usaTotalNeto) {
-          const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-          if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-            const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-            return {
-              ...item,
-              montoUnitario: Math.abs(nuevoTotal),
-              total: nuevoTotal
-            };
+        if (usaTotalNeto && netoPreliminar > 0) {
+          const nombreItem = (item.nombre || '').toLowerCase();
+          const esCuotaAlimentaria = nombreItem.includes('cuota') && nombreItem.includes('alimentaria');
+          if (esCuotaAlimentaria) {
+            const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+            if (cantidadComoPorcentaje > 0) {
+              const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+              return { ...item, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+            }
+          } else if (item.porcentaje) {
+            const montoUnitario = (netoPreliminar * item.porcentaje / 100);
+            return { ...item, montoUnitario: Number(montoUnitario) || 0, total: -(montoUnitario * (Number(item.cantidad) || 1)) };
           }
         }
       }
@@ -3538,31 +3532,31 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                 {isProcessing ? 'Calculando...' : 'Calcular Vacaciones'}
               </button>
               {vacacionesCalculo && (
-                <div className="vacaciones-result">
-                  <div className="result-row">
-                    <span className="result-label">Bono de Vacaciones:</span>
-                    <span className="result-value">{formatCurrencyAR(vacacionesCalculo.vacaciones ?? vacacionesCalculo.totalVacaciones ?? vacacionesCalculo.monto ?? vacacionesCalculo.baseCalculo ?? 0)}</span>
+                <div className="vacaciones-result special-payroll-summary">
+                  <div className="total-item">
+                    <span>Bono de vacaciones:</span>
+                    <span className="amount positive">{formatCurrencyAR(vacacionesCalculo.vacaciones ?? vacacionesCalculo.totalVacaciones ?? vacacionesCalculo.monto ?? vacacionesCalculo.baseCalculo ?? 0)}</span>
                   </div>
                   {conceptos
                     .filter((concepto) => ['DESCUENTO', 'DESCUENTO_LYF', 'DESCUENTO_UOCRA'].includes(concepto.tipo))
                     .map((concepto) => (
-                      <div className="result-row" key={concepto.uid}>
-                        <span className="result-label">{concepto.nombre}:</span>
-                        <span className="result-value">{formatCurrencyAR(Math.abs(concepto.total || 0))}</span>
+                      <div className="total-item" key={concepto.uid}>
+                        <span>{concepto.nombre}:</span>
+                        <span className="amount negative">{formatCurrencyAR(Math.abs(concepto.total || 0))}</span>
                       </div>
                     ))}
-                  <div className="result-row">
-                    <span className="result-label">Total descuentos:</span>
-                    <span className="result-value">{formatCurrencyAR(deductions)}</span>
+                  <div className="total-item">
+                    <span>Total descuentos:</span>
+                    <span className="amount negative">{formatCurrencyAR(deductions)}</span>
                   </div>
-                  <div className="result-divider">
-                    <span className="result-label">Neto a cobrar:</span>
-                    <span className="result-value">{formatCurrencyAR(netAmount)}</span>
+                  <div className="total-item final">
+                    <span>Neto a cobrar:</span>
+                    <span className="amount final">{formatCurrencyAR(netAmount)}</span>
                   </div>
                   {vacacionesCalculo.diasVacaciones && (
-                    <div className="result-divider">
-                      <span className="result-label">Días de Vacaciones:</span>
-                      <span className="result-value">{vacacionesCalculo.diasVacaciones}</span>
+                    <div className="summary-note">
+                      <span>Días de vacaciones</span>
+                      <strong>{vacacionesCalculo.diasVacaciones}</strong>
                     </div>
                   )}
                 </div>
@@ -3768,6 +3762,8 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
             <BaeCalculationSection
               employees={employees}
               selectedEmployee={selectedEmployee}
+              descuentos={descuentosAsignados}
+              onLiquidado={onProcess}
             />
           )}
 
@@ -4177,17 +4173,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                               const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
                               
                               // Solo calcular los que NO usan TOTAL_NETO en este paso
-                              if (usaTotalBrutoItem) {
-                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-                                if (cantidadComoPorcentaje > 0 && totalRemuneraciones > 0) {
-                                  const nuevoTotal = -(totalRemuneraciones * cantidadComoPorcentaje / 100);
-                                  return {
-                                    ...item,
-                                    montoUnitario: Math.abs(nuevoTotal),
-                                    total: nuevoTotal
-                                  };
-                                }
-                              } else if (!usaTotalNetoItem && item.porcentaje && totalRemuneraciones > 0) {
+                              if (!usaTotalNetoItem && item.porcentaje && totalRemuneraciones > 0) {
                                 const montoUnitario = (totalRemuneraciones * item.porcentaje / 100);
                                 const nuevoTotal = -(montoUnitario * (Number(item.cantidad) || 1));
                                 return {
@@ -4218,15 +4204,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                               const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
                               const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
                               
-                              if (usaTotalNetoItem) {
-                                const cantidadComoPorcentaje = Number(item.cantidad) || 0;
-                                if (cantidadComoPorcentaje > 0 && netoPreliminar > 0) {
-                                  const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
-                                  return {
-                                    ...item,
-                                    montoUnitario: Math.abs(nuevoTotal),
-                                    total: nuevoTotal
-                                  };
+                              if (usaTotalNetoItem && netoPreliminar > 0) {
+                                const nombreItem = (item.nombre || '').toLowerCase();
+                                const esCuotaAlimentaria = nombreItem.includes('cuota') && nombreItem.includes('alimentaria');
+                                if (esCuotaAlimentaria) {
+                                  const cantidadComoPorcentaje = Number(item.cantidad) || 0;
+                                  if (cantidadComoPorcentaje > 0) {
+                                    const nuevoTotal = -(netoPreliminar * cantidadComoPorcentaje / 100);
+                                    return { ...item, montoUnitario: Math.abs(nuevoTotal), total: nuevoTotal };
+                                  }
+                                } else if (item.porcentaje) {
+                                  const montoUnitario = (netoPreliminar * item.porcentaje / 100);
+                                  return { ...item, montoUnitario: Number(montoUnitario) || 0, total: -(montoUnitario * (Number(item.cantidad) || 1)) };
                                 }
                               }
                             }

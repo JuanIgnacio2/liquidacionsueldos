@@ -85,7 +85,7 @@ export const canEditConceptQuantity = (concept, gremioNombre = '') => {
   return false;
 };
 
-const buildSpecialPayrollDeductions = (montoBase, descuentos, uidPrefix) =>
+export const buildSpecialPayrollDeductions = (montoBase, descuentos, uidPrefix) =>
   (Array.isArray(descuentos) ? descuentos : [])
     .filter((descuento) => descuento && ['DESCUENTO', 'DESCUENTO_LYF', 'DESCUENTO_UOCRA'].includes(descuento.tipo))
     .map((descuento, index) => {
