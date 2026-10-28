@@ -1063,7 +1063,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
         listaActual = listaActual.map(item => {
           if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
             const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
-            const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
             const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
 
             // Solo calcular los que NO usan TOTAL_NETO en este paso
@@ -1416,7 +1415,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     let listaActual = nuevos.map(concept => {
       if (concept.tipo === 'DESCUENTO' || concept.tipo === 'DESCUENTO_LYF' || concept.tipo === 'DESCUENTO_UOCRA') {
         const baseCalculoDescuento = concept.baseCalculo ?? concept.base_calculo;
-        const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
         // Solo calcular los que NO usan TOTAL_NETO en este paso (siempre con el porcentaje del catálogo)
@@ -1672,7 +1670,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     let listaActual = nuevos.map(item => {
       if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
         const baseCalculoDescuento = item.baseCalculo ?? item.base_calculo;
-        const usaTotalBruto = baseCalculoDescuento === 'TOTAL_BRUTO' || baseCalculoDescuento === 'total_bruto';
         const usaTotalNeto = baseCalculoDescuento === 'TOTAL_NETO' || baseCalculoDescuento === 'total_neto';
         
         // Solo calcular los que NO usan TOTAL_NETO en este paso
@@ -2101,7 +2098,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     }
 
     // Confirmar antes de generar la liquidación
-    const result = await confirmAction({
+    const confirmado = await confirmAction({
       title: 'Generar Liquidación',
       message: `¿Está seguro de generar la liquidación para ${selectedEmployee.nombre} ${selectedEmployee.apellido} del período ${formatPeriodToMonthYear(periodoDisplay)}?`,
       confirmText: 'Generar Recibo',
@@ -2111,236 +2108,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
       cancelButtonVariant: 'secondary'
     });
 
-    if (!result) return; // Usuario canceló
-    
-    setIsProcessing(true);
-
-    // Usar el período ya formateado para construir el payload
-    
-    let periodoPago = periodoFormateado;
-    if (selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA')) {
-      // Para UOCRA: formato YYYY-MM-DD donde DD es 01 (primera quincena) o 16 (segunda quincena)
-      const day = quincena === 1 ? '01' : '16';
-      periodoPago = `${periodoFormateado}-${day}`;
-    }
-
-    // Obtener fecha actual en formato YYYY-MM-DD para fechaLiquidacion
-    const fechaActual = new Date();
-    const fechaLiquidacion = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}-${String(fechaActual.getDate()).padStart(2, '0')}`;
-    
-    const payload = {
-        legajo: selectedEmployee.legajo,
-        periodoPago: periodoPago,
-        fechaLiquidacion: fechaLiquidacion, // Fecha actual de liquidación
-        conceptos: conceptos.map((c) => buildConceptPayload(c)),
-    };
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
-
-        const result = await api.liquidarAguinaldo(payload);
-        const usuario = localStorage.getItem('usuario') || 'Sistema';
-        
-        setPayrollData({
-          ...payrollData,
-          periodDisplay: `Aguinaldo ${aguinaldoNumero} - ${aguinaldoAnio}`,
-          totalNeto: result.total_neto ?? result.totalNeto ?? aguinaldoCalculo.total_neto ?? aguinaldoCalculo.totalNeto ?? netAmount
-        });
-        // Registrar actividad de liquidación (manejar errores de forma independiente para no afectar el flujo principal)
-        try {
-          await api.registrarActividad({
-            usuario,
-            accion: 'Liquidación procesada',
-            descripcion: `Se liquidó el aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
-            referenciaTipo: 'LIQUIDAR',
-            referenciaId: result.idPago || result.id || result.idLiquidacion || selectedEmployee.legajo
-          });
-        } catch (actividadError) {
-          // Si falla el registro de actividad, solo loguear el error pero no afectar el flujo principal
-          console.warn('Error al registrar actividad de liquidación:', actividadError);
-        }
-
-        notify.success(`Aguinaldo ${aguinaldoNumero} del año ${aguinaldoAnio} liquidado exitosamente`);
-        setCurrentStep('preview');
-        // Notificar al componente padre para actualizar la lista
-        if (onProcess) {
-          onProcess(result);
-        }
-      } catch (error) {
-        notify.error(error);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
-
-    // Si es vacaciones, usar la lógica de vacaciones
-    if (liquidacionType === 'vacaciones') {
-      if (!vacacionesCalculo) {
-        notify.error('Debe calcular las vacaciones primero');
-        return;
-      }
-      
-      // Confirmar antes de liquidar vacaciones
-      const result = await confirmAction({
-        title: 'Liquidar Vacaciones',
-        message: `¿Está seguro de liquidar el bono de vacaciones del año ${anioVacaciones} para ${selectedEmployee.nombre} ${selectedEmployee.apellido}?`,
-        confirmText: 'Liquidar Vacaciones',
-        cancelText: 'Cancelar',
-        type: 'warning',
-        confirmButtonVariant: 'primary',
-        cancelButtonVariant: 'secondary'
-      });
-
-      if (!result) return;
-      
-      setIsProcessing(true);
-
-      try {
-        const montoVacaciones = Number(
-          vacacionesCalculo.vacaciones ??
-          vacacionesCalculo.totalVacaciones ??
-          vacacionesCalculo.monto ??
-          vacacionesCalculo.baseCalculo ??
-          0
-        );
-        const conceptosVacaciones = buildVacacionesConcepts(
-          montoVacaciones,
-          descuentosAsignados,
-          getVacacionesConceptoGeneralId()
-        );
-        const netoVacaciones = conceptosVacaciones.reduce((total, concepto) => total + concepto.total, 0);
-        const payload = {
-          legajo: selectedEmployee.legajo,
-          anioVacaciones: parseInt(anioVacaciones, 10),
-          conceptos: conceptosVacaciones.map((concepto) => buildConceptPayload(concepto)),
-        };
-        
-        const result = await api.liquidarVacaciones(payload);
-        const usuario = localStorage.getItem('usuario') || 'Sistema';
-
-        setConceptos(conceptosVacaciones);
-        conceptosPorTipoRef.current.vacaciones = conceptosVacaciones;
-        setTotal(calcTotal(conceptosVacaciones));
-        
-        setPayrollData({
-          ...payrollData,
-          periodDisplay: `Vacaciones - ${anioVacaciones}`,
-          totalNeto: netoVacaciones
-        });
-        
-        // Registrar actividad de liquidación (manejar errores de forma independiente para no afectar el flujo principal)
-        try {
-          await api.registrarActividad({
-            usuario,
-            accion: 'Liquidación procesada',
-            descripcion: `Se liquidó el bono de vacaciones del año ${anioVacaciones} del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
-            referenciaTipo: 'LIQUIDAR',
-            referenciaId: result.idPago || result.id || result.idLiquidacion || selectedEmployee.legajo
-          });
-        } catch (actividadError) {
-          // Si falla el registro de actividad, solo loguear el error pero no afectar el flujo principal
-          console.warn('Error al registrar actividad de liquidación:', actividadError);
-        }
-
-        notify.success(`Bono de vacaciones del año ${anioVacaciones} liquidado exitosamente`);
-        setCurrentStep('preview');
-        // Notificar al componente padre para actualizar la lista
-        if (onProcess) {
-          onProcess(result);
-        }
-      } catch (error) {
-        notify.error(error);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
-
-    if (liquidacionType === 'turismoSocial') {
-      const gremio = selectedEmployee?.gremio?.nombre?.toUpperCase() || '';
-      const monto = Number(turismoSocialMonto);
-      if (!gremio.includes('LUZ') || !gremio.includes('FUERZA')) {
-        notify.error('Turismo social solo está disponible para empleados de Luz y Fuerza');
-        return;
-      }
-      if (!Number.isFinite(monto) || monto <= 0) {
-        notify.error('Ingrese un importe válido para Turismo social');
-        return;
-      }
-      const confirmado = await confirmAction({
-        title: 'Liquidar Turismo social',
-        message: `¿Está seguro de liquidar Turismo social por ${formatCurrencyAR(monto)} para ${selectedEmployee.nombre} ${selectedEmployee.apellido}?`,
-        confirmText: 'Liquidar Turismo social',
-        cancelText: 'Cancelar',
-        type: 'warning',
-        confirmButtonVariant: 'primary',
-        cancelButtonVariant: 'secondary'
-      });
-
-      if (!confirmado) return;
-      setIsProcessing(true);
-      try {
-        const periodoTurismoSocial = String(new Date().getFullYear());
-        const result = await api.pagoTurismoSocial({
-          legajo: selectedEmployee.legajo,
-          monto,
-          periodoPago: periodoTurismoSocial,
-          fechaPago: fechaPagoTurismoSocial,
-        });
-        const usuario = localStorage.getItem('usuario') || 'Sistema';
-        setPayrollData({
-          ...payrollData,
-          periodDisplay: periodoTurismoSocial,
-          totalNeto: monto,
-        });
-
-        try {
-          await api.registrarActividad({
-            usuario,
-            accion: 'Liquidación procesada',
-            descripcion: `Se liquidó Turismo social del empleado ${selectedEmployee.nombre} ${selectedEmployee.apellido}`,
-            referenciaTipo: 'LIQUIDAR',
-            referenciaId: result?.idPago || result?.id || selectedEmployee.legajo,
-          });
-        } catch (actividadError) {
-          console.warn('Error al registrar actividad de liquidación:', actividadError);
-        }
-
-        notify.success('Turismo social liquidado exitosamente');
-        setCurrentStep('preview');
-        if (onProcess) onProcess(result);
-      } catch (error) {
-        notify.error(error);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
-    
-    // Lógica normal de liquidación de sueldo
-    // Formatear período para el mensaje de confirmación y para enviar
-    // Normalizar el período a formato YYYY-MM
-    const periodoFormateado = normalizePeriod(periodo);
-    
-    let periodoDisplay = periodoFormateado;
-    if (selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA')) {
-      const day = quincena === 1 ? '01' : '16';
-      periodoDisplay = `${periodoFormateado}-${day}`;
-    }
-
-    // Confirmar antes de generar la liquidación
-    const result = await confirmAction({
-      title: 'Generar Liquidación',
-      message: `¿Está seguro de generar la liquidación para ${selectedEmployee.nombre} ${selectedEmployee.apellido} del período ${formatPeriodToMonthYear(periodoDisplay)}?`,
-      confirmText: 'Generar Recibo',
-      cancelText: 'Cancelar',
-      type: 'warning',
-      confirmButtonVariant: 'primary',
-      cancelButtonVariant: 'secondary'
-    });
-
-    if (!result) return; // Usuario canceló
+    if (!confirmado) return; // Usuario canceló
     
     setIsProcessing(true);
 
@@ -2368,23 +2136,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
 
     console.log('Payload liquidación enviado:', JSON.stringify(payload, null, 2));
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
-
-    console.log('Payload liquidación enviado:', JSON.stringify(payload, null, 2));
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
-
-    // Agregar fechaPago: si tiene valor se envía, si no se envía null explícitamente
-    payload.fechaPago = (fechaPago && fechaPago.trim() !== '') ? fechaPago : null;
 
     try {
       const result = await api.guardarLiquidacion(payload);
@@ -4169,7 +3920,6 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           listaActual = listaActual.map(item => {
                             if (item.tipo === 'DESCUENTO' || item.tipo === 'DESCUENTO_LYF' || item.tipo === 'DESCUENTO_UOCRA') {
                               const baseCalculoItem = item.baseCalculo ?? item.base_calculo;
-                              const usaTotalBrutoItem = baseCalculoItem === 'TOTAL_BRUTO' || baseCalculoItem === 'total_bruto';
                               const usaTotalNetoItem = baseCalculoItem === 'TOTAL_NETO' || baseCalculoItem === 'total_neto';
                               
                               // Solo calcular los que NO usan TOTAL_NETO en este paso
