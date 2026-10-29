@@ -252,8 +252,8 @@ export const  updateUsuarioEstado = (id, dto) =>
 export const eliminarUsuarioAdmin = (id) =>
     axiosClient.delete(`/admin/users/${id}`).then((r)=>r.data);
 
-export const getHistorialConvenio = () =>
-    axiosClient.get('/convenios/historial').then((r)=>r.data);
+export const getHistorialConvenio = (gremio) =>
+    axiosClient.get('/convenios/historial', { params: { gremio } }).then((r)=>r.data);
 
 export const getHistorialConvenioById = (id) =>
     axiosClient.get(`/convenios/historial/${id}`).then((r)=>r.data);

@@ -1346,6 +1346,45 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     return listaConceptos;
   };
 
+  // Recalcula todos los descuentos de la lista según el total de remuneraciones actual
+  const recalcularDescuentosLista = (items) => {
+    const esDescuento = (c) => c.tipo === 'DESCUENTO' || c.tipo === 'DESCUENTO_LYF' || c.tipo === 'DESCUENTO_UOCRA';
+    const usaNeto = (c) => ['TOTAL_NETO', 'total_neto'].includes(c.baseCalculo ?? c.base_calculo);
+    const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase().includes('UOCRA');
+    const totalRemuneraciones = (isUocra ? basicSalary : 0) + items
+      .filter(c => !esDescuento(c) && c.tipo !== 'CATEGORIA_ZONA')
+      .reduce((sum, c) => sum + (c.total || ((c.montoUnitario || 0) * (c.cantidad || 1))), 0);
+
+    let lista = items.map(c => {
+      if (!esDescuento(c) || usaNeto(c) || !(c.porcentaje > 0) || totalRemuneraciones <= 0) return c;
+      const montoUnitario = totalRemuneraciones * c.porcentaje / 100;
+      return { ...c, montoUnitario, total: -(montoUnitario * (Number(c.cantidad) || 1)) };
+    });
+
+    const descuentosNoNeto = lista
+      .filter(c => esDescuento(c) && !usaNeto(c))
+      .reduce((sum, c) => sum + Math.abs(c.total || 0), 0);
+    const netoPreliminar = totalRemuneraciones - descuentosNoNeto;
+
+    lista = lista.map(c => {
+      if (!esDescuento(c) || !usaNeto(c) || netoPreliminar <= 0) return c;
+      const nombre = (c.nombre || '').toLowerCase();
+      if (nombre.includes('cuota') && nombre.includes('alimentaria')) {
+        const pct = Number(c.cantidad) || 0;
+        if (pct <= 0) return c;
+        const total = -(netoPreliminar * pct / 100);
+        return { ...c, montoUnitario: Math.abs(total), total };
+      }
+      if (!(c.porcentaje > 0)) return c;
+      const montoUnitario = netoPreliminar * c.porcentaje / 100;
+      return { ...c, montoUnitario, total: -(montoUnitario * (Number(c.cantidad) || 1)) };
+    });
+
+    return lista;
+  };
+
+  const finalizarLista = (items) => calculateAsistencia(recalcularDescuentosLista(items));
+
   // Actualizar cantidad de un concepto
   const handleQtyChange = (conceptUid, nuevaCantidad) => {
     const cantidad = Number(nuevaCantidad) || 0;
@@ -1752,8 +1791,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
     if (result) {
       removeConcept(uid);
       const nuevos = conceptos.filter(c => c.uid !== uid);
-      // Calcular asistencia si es UOCRA después de eliminar
-      const listaConAsistencia = calculateAsistencia(nuevos);
+      const listaConAsistencia = finalizarLista(nuevos);
       setConceptos(listaConAsistencia);
       setTotal(calcTotal(listaConAsistencia));
     }
@@ -3925,7 +3963,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
                         const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
                         // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
+                        const listaConAsistencia = finalizarLista(listaConConceptosEspeciales);
                         setConceptos(listaConAsistencia);
                         setTotal(calcTotal(listaConAsistencia));
                         setSelectedCatalogConcept('');
@@ -3957,7 +3995,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                       const next = [...conceptos, nuevo];
                       // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
+                      const listaConAsistencia = finalizarLista(next);
                       setConceptos(listaConAsistencia);
                       setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
@@ -3996,7 +4034,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         const isUocra = selectedEmployee?.gremio?.nombre?.toUpperCase() === 'UOCRA';
                         const listaConConceptosEspeciales = recalcularConceptosEspeciales(next, isUocra, basicSalary || remunerationAssigned || 0);
                         // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(listaConConceptosEspeciales);
+                        const listaConAsistencia = finalizarLista(listaConConceptosEspeciales);
                         setConceptos(listaConAsistencia);
                         setTotal(calcTotal(listaConAsistencia));
                         setSelectedCatalogConcept('');
@@ -4028,7 +4066,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                       const next = [...conceptos, nuevo];
                       // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
+                      const listaConAsistencia = finalizarLista(next);
                       setConceptos(listaConAsistencia);
                       setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
@@ -4060,7 +4098,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                       const next = [...conceptos, nuevo];
                       // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
+                      const listaConAsistencia = finalizarLista(next);
                       setConceptos(listaConAsistencia);
                       setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
@@ -4120,7 +4158,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         id: idNum,
                         tipo: tipoDescuento,
                         nombre: raw.nombre ?? raw.descripcion ?? 'Descuento',
-                        porcentaje: usaTotalBruto || usaTotalNeto ? null : Number(raw.porcentaje || 0),
+                        porcentaje: Number(raw.porcentaje || 0),
                         montoUnitario: Number(montoUnitario) || 0,
                         cantidad: cantidad,
                         total: -(Number(montoUnitario) || 0) * cantidad,
@@ -4213,8 +4251,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                         setConceptos(listaConAsistencia);
                         setTotal(calcTotal(listaConAsistencia));
                       } else {
-                        // Calcular asistencia si es UOCRA
-                        const listaConAsistencia = calculateAsistencia(next);
+                        const listaConAsistencia = finalizarLista(next);
                         setConceptos(listaConAsistencia);
                         setTotal(calcTotal(listaConAsistencia));
                       }
@@ -4245,7 +4282,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                       };
 
                       const next = [...conceptos, nuevo];
-                      const listaConAsistencia = calculateAsistencia(next);
+                      const listaConAsistencia = finalizarLista(next);
                       setConceptos(listaConAsistencia);
                       setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
@@ -4294,7 +4331,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
                       const next = [...conceptos, nuevo];
                       // Calcular asistencia si es UOCRA
-                      const listaConAsistencia = calculateAsistencia(next);
+                      const listaConAsistencia = finalizarLista(next);
                       setConceptos(listaConAsistencia);
                       setTotal(calcTotal(listaConAsistencia));
                       setSelectedCatalogConcept('');
