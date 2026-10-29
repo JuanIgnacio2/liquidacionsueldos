@@ -4,6 +4,7 @@ import { Calculator, Plus, TrendingUp, Clock, History, FileText, DollarSign, Eye
 import {ProcessPayrollModal} from '../Components/ProcessPayrollModal/ProcessPayrollModal';
 import PayrollDetailModal from '../Components/PayrollDetailModal/PayrollDetailModal';
 import { CompletarPagosMasivoModal } from '../Components/CompletarPagosMasivoModal/CompletarPagosMasivoModal';
+import { CompletarPendientesModal } from '../Components/CompletarPendientesModal/CompletarPendientesModal';
 import { StatsGrid } from '../Components/ui/card';
 import {LoadingSpinner} from '../Components/ui/LoadingSpinner';
 import { useNotification } from '../Hooks/useNotification';
@@ -21,6 +22,7 @@ export default function Liquidacion() {
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCompletarPagosModal, setShowCompletarPagosModal] = useState(false);
+  const [showCompletarPendientesModal, setShowCompletarPendientesModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [payrollDetails, setPayrollDetails] = useState(null);
@@ -100,9 +102,15 @@ export default function Liquidacion() {
       return;
     }
 
-    const confirmar = window.confirm(
-      `¿Está seguro de completar el pago para ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})?`
-    );
+    const confirmar = await confirmAction({
+      title: 'Completar pago',
+      message: `¿Está seguro de completar el pago para ${liquidacion.apellidoEmpleado || ''} ${liquidacion.nombreEmpleado || ''} (Legajo: ${liquidacion.legajoEmpleado})?`,
+      confirmText: 'Completar pago',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      confirmButtonVariant: 'primary',
+      cancelButtonVariant: 'secondary'
+    });
 
     if (!confirmar) return;
 
@@ -330,6 +338,10 @@ export default function Liquidacion() {
                 <span>Liquidar Pagos Masivo</span>
                 <Users className="action-icon" />
               </button>
+              <button className="action-btn success" onClick={() => setShowCompletarPendientesModal(true)}>
+                <span>Completar Pagos Pendientes</span>
+                <CheckCircle className="action-icon" />
+              </button>
             </div>
           </div>
         </div>
@@ -365,6 +377,14 @@ export default function Liquidacion() {
         isOpen={showCompletarPagosModal}
         onClose={() => setShowCompletarPagosModal(false)}
         employees={employees}
+        onSuccess={() => {
+          loadPayrolls();
+          loadDashboardStats();
+        }}
+      />
+      <CompletarPendientesModal
+        isOpen={showCompletarPendientesModal}
+        onClose={() => setShowCompletarPendientesModal(false)}
         onSuccess={() => {
           loadPayrolls();
           loadDashboardStats();

@@ -236,32 +236,21 @@ export default function PayrollDetailModal({
       return { remunerations: 0, deductions: 0, netAmount: 0 };
     }
 
-    const remunerations = payrollDetails.conceptos
-      .filter(c => 
-      c.tipoConcepto === 'CATEGORIA' || 
-      c.tipoConcepto === 'CONCEPTO_LYF' || 
-      c.tipoConcepto === 'CONCEPTO_UOCRA' ||
-        c.tipoConcepto === 'TITULO_LYF' ||
-        c.tipoConcepto === 'CONCEPTO_MANUAL_LYF' ||
-      c.tipoConcepto === 'BONIFICACION_AREA' ||
-        c.tipoConcepto === 'CATEGORIA_ZONA' ||
-        c.tipoConcepto === 'HORA_EXTRA_LYF' ||
-        c.tipoConcepto === 'AGUINALDO' ||
-        c.tipoConcepto === 'VACACIONES'
-      )
-      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
-
     const deductions = payrollDetails.conceptos
-      .filter(c => 
-      c.tipoConcepto === 'DESCUENTO' ||
-        c.tipoConcepto === 'DESCUENTO_LYF' || 
-        c.tipoConcepto === 'DESCUENTO_UOCRA'
-    )
+      .filter(isDeduction)
       .reduce((sum, c) => sum + Math.abs(Number(c.total) || 0), 0);
 
-    const netAmount = remunerations - deductions;
+    // El neto guardado por el backend es el valor de referencia (el mismo que muestra la lista)
+    const netBackend = Number(payrollDetails.total_neto ?? payrollDetails.totalNeto ?? selectedPayroll?.total_neto);
+    if (Number.isFinite(netBackend)) {
+      return { remunerations: netBackend + deductions, deductions, netAmount: netBackend };
+    }
 
-    return { remunerations, deductions, netAmount };
+    const remunerations = payrollDetails.conceptos
+      .filter(isRemuneration)
+      .reduce((sum, c) => sum + (Number(c.total) || 0), 0);
+
+    return { remunerations, deductions, netAmount: remunerations - deductions };
   };
 
   const { remunerations, deductions, netAmount } = calculateTotals();
