@@ -248,7 +248,7 @@ export default function ConvenioDetail() {
           });
         }
         setEditableData(cloned);
-        const historial = await api.getHistorialConvenio().catch(() => []);
+        const historial = await api.getHistorialConvenio(controller).catch(() => []);
         setHistorialConvenios(
           (Array.isArray(historial) ? historial : [])
             .filter((item) => String(item.gremio || '').toLowerCase() === controller)
@@ -380,7 +380,7 @@ export default function ConvenioDetail() {
       if (!idHistorial) throw new Error('El backend no devolvió el identificador del historial');
 
       await api.updateHistorialConvenio(idHistorial, toHistorialUpdatePayload(editableData));
-      const historial = await api.getHistorialConvenio().catch(() => []);
+      const historial = await api.getHistorialConvenio(controller).catch(() => []);
       setHistorialConvenios(
         (Array.isArray(historial) ? historial : [])
           .filter((item) => String(item.gremio || '').toLowerCase() === controller)
