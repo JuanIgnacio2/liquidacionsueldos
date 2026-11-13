@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Modal } from '../Modal/Modal';
 import { User, DollarSign, Building, FileText, ListChecks, Edit } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
@@ -706,33 +706,41 @@ export function EmployeeViewModal({ isOpen, onClose, employee, onLiquidarSueldo,
                     </tr>
                   </thead>
                   <tbody>
-                    {sortConceptos(conceptosAsignados).map((concepto) => {
-                        const isDescuento = isDeduction(concepto);
-                      return (
-                        <tr key={concepto.id} className={`selected ${isDescuento ? 'descuento-row' : ''}`}>
-                          <td style={{ textAlign: 'left' }}>
-                            <span className="concepto-label">
-                              {concepto.nombre} {concepto.porcentaje ? `(${concepto.porcentaje}%)` : ''}
-                            </span>
-                          </td>
-                          <td className="porcentaje-cell" style={{ textAlign: 'center' }}>
-                            {concepto.isConceptoManualLyF
-                              ? '-' // Conceptos manuales LYF no tienen porcentaje
-                              : (concepto.porcentaje ? `${concepto.porcentaje}%` : '-')
-                            }
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {concepto.unidades || '-'}
-                          </td>
-                          <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`} style={{ textAlign: 'right' }}>
-                            {concepto.total && concepto.total !== 0
-                              ? formatCurrencyAR(concepto.total)
-                              : '-'
-                            }
-                          </td>
+                    {[
+                      { key: 'rem', label: 'Remuneraciones', className: 'group-remuneraciones', items: sortConceptos(conceptosAsignados).filter((c) => !isDeduction(c)) },
+                      { key: 'desc', label: 'Descuentos', className: 'group-descuentos', items: sortConceptos(conceptosAsignados).filter((c) => isDeduction(c)) },
+                    ].filter((grupo) => grupo.items.length > 0).map((grupo) => (
+                      <Fragment key={grupo.key}>
+                        <tr className={`group-row ${grupo.className}`}>
+                          <td colSpan={4}>{grupo.label}</td>
                         </tr>
-                      );
-                    })}
+                        {grupo.items.map((concepto) => {
+                          const isDescuento = isDeduction(concepto);
+                          return (
+                            <tr key={concepto.id} className={`selected ${isDescuento ? 'descuento-row' : ''}`}>
+                              <td style={{ textAlign: 'left' }}>
+                                <span className="concepto-label">
+                                  {concepto.nombre}
+                                </span>
+                              </td>
+                              <td className="porcentaje-cell" style={{ textAlign: 'center' }}>
+                                {concepto.porcentaje && !concepto.isConceptoManualLyF
+                                  ? `${concepto.porcentaje}%`
+                                  : '-'}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {concepto.unidades || '-'}
+                              </td>
+                              <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`} style={{ textAlign: 'right' }}>
+                                {concepto.total && concepto.total !== 0
+                                  ? `${isDescuento ? '− ' : ''}${formatCurrencyAR(concepto.total)}`
+                                  : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -293,7 +293,6 @@ export default function HistorialPagos() {
       setPayrollDetails(detalle);
     } catch (error) {
       notify.error('Error al cargar detalles de la liquidación');
-      notify('No se pudieron cargar los detalles de la liquidación.');
     } finally {
       setLoadingDetails(false);
     }

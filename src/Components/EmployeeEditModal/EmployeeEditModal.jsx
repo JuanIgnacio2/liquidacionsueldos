@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import { User, Building, Save, X, ListChecks, Trash2 } from 'lucide-react';
 import * as api from "../../services/empleadosAPI";
@@ -1795,7 +1795,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                         Object.keys(conceptosSeleccionados)
                           .map(conceptId => conceptos.find(c => String(c.id) === String(conceptId)))
                           .filter(Boolean)
-                      ).map((concepto) => {
+                      ).map((concepto, idx, arr) => {
                           const conceptId = String(concepto.id);
                           const units = conceptosSeleccionados[conceptId]?.units ?? '';
                           const isDescuento = isDeduction(concepto);
@@ -1905,7 +1905,13 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                         }
 
                         return (
-                          <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
+                          <Fragment key={conceptId}>
+                          {(idx === 0 || isDeduction(arr[idx - 1]) !== isDescuento) && (
+                            <tr className={`group-row ${isDescuento ? 'group-descuentos' : 'group-remuneraciones'}`}>
+                              <td colSpan={5}>{isDescuento ? 'Descuentos' : 'Remuneraciones'}</td>
+                            </tr>
+                          )}
+                          <tr className={`${isDescuento ? 'descuento-row' : ''}`}>
                             <td>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
@@ -1947,7 +1953,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                             <td className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
                               {isConceptoManualLyF
                                 ? formatCurrencyAR(Number(concepto?.montoUnitario || 0) * 1) // Siempre cantidad 1, monto del backend
-                                : (units && total !== 0 ? formatCurrencyAR(total) : '-')
+                                : (units && total !== 0 ? `${isDescuento ? '− ' : ''}${formatCurrencyAR(total)}` : '-')
                               }
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -1956,6 +1962,7 @@ export function EmployeeEditModal({ isOpen, onClose, employee, onSave }) {
                               </button>
                             </td>
                           </tr>
+                          </Fragment>
                         );
                       })}
                     </tbody>
