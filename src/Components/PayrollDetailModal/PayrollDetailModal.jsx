@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Printer, Download } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { Modal, ModalFooter } from '../Modal/Modal';
 import * as api from '../../services/empleadosAPI';
 import { sortConceptos, isRemuneration, isDeduction } from '../../utils/conceptosUtils';
@@ -171,8 +173,6 @@ export default function PayrollDetailModal({
   selectedEmployee,
   payrollDetails,
   loadingDetails,
-  onPrint,
-  onDownload,
   title = 'Vista Previa del Recibo'
 }) {
   const [conceptosCatalog, setConceptosCatalog] = useState({
@@ -183,6 +183,115 @@ export default function PayrollDetailModal({
     areas: []
   });
   const [amountInWords, setAmountInWords] = useState('');
+  const receiptRef = useRef(null);
+
+  const createPrintableReceipt = () => {
+    const source = receiptRef.current;
+    if (!source) return null;
+
+    const clone = source.cloneNode(true);
+    clone.querySelectorAll('input').forEach((input) => {
+      const text = document.createElement('div');
+      text.className = 'amount-words-input';
+      text.textContent = input.value;
+      input.replaceWith(text);
+    });
+
+    const preview = document.createElement('div');
+    preview.className = 'receipt-preview';
+    preview.appendChild(clone);
+    return preview;
+  };
+
+  // Imprime solo el recibo dentro de márgenes físicos de 8 mm.
+  const handlePrint = () => {
+    const clone = createPrintableReceipt();
+    if (!clone) return;
+
+    const headStyles = Array.from(
+      document.querySelectorAll('style, link[rel="stylesheet"]')
+    ).map((node) => node.outerHTML).join('\n');
+
+    const printStyles = `
+      @page { size: A4 portrait; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff !important; }
+      body { width: 210mm; height: 297mm; box-sizing: border-box; padding: 8mm; overflow: hidden; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .receipt-preview .receipt-container {
+        max-width: none !important; width: 100% !important; margin: 0 !important;
+        padding: 0 !important; box-shadow: none !important; border-radius: 0 !important;
+        animation: none !important; transform: none !important; opacity: 1 !important;
+      }
+      .receipt-container table, .receipt-container tr, .receipt-footer, .payment-details,
+      .amount-words-section { break-inside: avoid; page-break-inside: avoid; }
+      .amount-words-input { padding: 0.5rem; border: 1px solid #ccc; text-transform: uppercase; }
+      .receipt-container { font-size: 11px !important; }
+      .receipt-container .receipt-header-wrapper { margin-bottom: 0.6rem !important; padding-bottom: 0.6rem !important; }
+      .receipt-container .logo-box { width: 70px !important; height: 70px !important; }
+      .receipt-container .employee-info-section,
+      .receipt-container .payment-details,
+      .receipt-container .amount-words-section { margin-bottom: 0.6rem !important; padding: 0.5rem !important; gap: 0.4rem !important; }
+      .receipt-container .concepts-table { margin-bottom: 0.6rem !important; }
+      .receipt-container .concepts-table td, .receipt-container .concepts-table th { padding: 0.25rem 0.5rem !important; }
+      .receipt-container .receipt-footer { padding-top: 0.6rem !important; gap: 0.5rem !important; }
+      .receipt-container .signature-section { margin-top: 1rem !important; }
+      .receipt-container .amount-words-input { padding: 0.3rem !important; min-height: 0 !important; }
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:210mm;height:297mm;border:0;visibility:hidden;';
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      const preview = win.document.querySelector('.receipt-preview');
+      const pageHeight = (281 / 25.4) * 96;
+      const pageWidth = (194 / 25.4) * 96;
+      const content = preview?.querySelector('.receipt-container');
+      if (content) {
+        const bounds = content.getBoundingClientRect();
+        const scale = Math.min(1, pageWidth / bounds.width, pageHeight / bounds.height);
+        preview.style.zoom = String(Math.floor(scale * 1000) / 1000);
+      }
+      win.focus();
+      win.print();
+      setTimeout(() => iframe.remove(), 1000);
+    };
+    iframe.srcdoc = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Recibo</title>${headStyles}<style>${printStyles}</style></head><body>${clone.outerHTML}</body></html>`;
+    document.body.appendChild(iframe);
+  };
+
+  const handleDownload = async () => {
+    const receipt = receiptRef.current;
+    if (!receipt) return;
+
+    const employeeLegajo = selectedEmployee?.legajo || selectedPayroll?.legajoEmpleado || payrollDetails?.legajo || 'liquidacion';
+    const period = String(selectedPayroll?.periodoPago || payrollDetails?.periodoPago || 'recibo').replace(/[^\w-]/g, '_');
+
+    try {
+      const canvas = await html2canvas(receipt, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      if (!canvas.width || !canvas.height) throw new Error('La captura del recibo está vacía');
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 8;
+      const maxWidth = 210 - margin * 2;
+      const maxHeight = 297 - margin * 2;
+      const ratio = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+      const imageWidth = canvas.width * ratio;
+      const imageHeight = canvas.height * ratio;
+      const x = (210 - imageWidth) / 2;
+      const y = (297 - imageHeight) / 2;
+
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', x, y, imageWidth, imageHeight);
+      pdf.save(`recibo_${employeeLegajo}_${period}.pdf`);
+    } catch (error) {
+      console.error('Error al generar el PDF del recibo:', error);
+      window.alert('No se pudo generar el PDF del recibo. Intente nuevamente.');
+    }
+  };
 
   // Cargar catálogos de conceptos cuando se abre el modal
   useEffect(() => {
@@ -312,7 +421,7 @@ export default function PayrollDetailModal({
         </div>
       ) : selectedPayroll && payrollDetails ? (
         <div className="receipt-preview">
-          <div className="receipt-container">
+          <div className="receipt-container" ref={receiptRef}>
             {/* ENCABEZADO DEL RECIBO */}
             <div className="receipt-header-wrapper">
               <div className="company-logo">
@@ -502,11 +611,11 @@ export default function PayrollDetailModal({
         </button>
         {selectedPayroll && (
           <>
-            <button className="btn btn-success" onClick={() => onPrint && onPrint(selectedPayroll)}>
+            <button className="btn btn-success" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
               Imprimir
             </button>
-            <button className="btn btn-primary" onClick={() => onDownload && onDownload(selectedPayroll)}>
+            <button className="btn btn-primary" onClick={handleDownload}>
               <Download className="h-4 w-4 mr-2" />
               Descargar
             </button>

@@ -1574,7 +1574,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                         Object.keys(conceptosSeleccionados)
                           .map(conceptId => conceptos.find(c => String(c.id) === String(conceptId)))
                           .filter(Boolean)
-                      ).map((concepto) => {
+                      ).map((concepto, idx, arr) => {
                           const conceptId = String(concepto.id);
                           const units = conceptosSeleccionados[conceptId]?.units ?? '';
                           const isDescuento = isDeduction(concepto);
@@ -1597,7 +1597,13 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                         const total = concepto && units && Number(units) > 0 ? calculateConceptTotal(concepto, Number(units), totalRemuneraciones) : 0;
 
                         return (
-                          <tr key={conceptId} className={`${isDescuento ? 'descuento-row' : ''}`}>
+                          <React.Fragment key={conceptId}>
+                          {(idx === 0 || isDeduction(arr[idx - 1]) !== isDescuento) && (
+                            <tr className={`group-row ${isDescuento ? 'group-descuentos' : 'group-remuneraciones'}`}>
+                              <td colSpan={5}>{isDescuento ? 'Descuentos' : 'Remuneraciones'}</td>
+                            </tr>
+                          )}
+                          <tr className={`${isDescuento ? 'descuento-row' : ''}`}>
                             <td style={{ textAlign: 'left' }}>
                               <span className="concepto-label">{concepto ? concepto.nombre : `Concepto ${conceptId}`}</span>
                             </td>
@@ -1639,7 +1645,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                             <td style={{ textAlign: 'right' }} className={`total-cell ${isDescuento ? 'descuento-total' : ''}`}>
                               {isConceptoManualLyF
                                 ? formatCurrencyAR(Number(concepto?.montoUnitario || 0) * 1) // Siempre cantidad 1, monto del backend
-                                : (units && total !== 0 ? formatCurrencyAR(total) : '-')
+                                : (units && total !== 0 ? `${isDescuento ? '− ' : ''}${formatCurrencyAR(total)}` : '-')
                               }
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -1648,6 +1654,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSave }) {
                               </button>
                             </td>
                           </tr>
+                          </React.Fragment>
                         );
                       })}
                     </tbody>

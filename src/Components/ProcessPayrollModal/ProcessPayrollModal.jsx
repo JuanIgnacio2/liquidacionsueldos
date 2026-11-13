@@ -4,7 +4,7 @@ import { Search, Users, Download, Printer, X, CheckCircle, User, Calendar, Badge
 import * as api from '../../services/empleadosAPI';
 import { useNotification } from '../../Hooks/useNotification';
 import { useConfirm } from '../../Hooks/useConfirm';
-import { sortConceptos, buildConceptPayload } from '../../utils/conceptosUtils';
+import { sortConceptos, buildConceptPayload, isDeduction } from '../../utils/conceptosUtils';
 import { canEditConceptQuantity, buildAguinaldoConcepts, buildVacacionesConcepts } from '../../utils/salaryCalculations';
 import html2pdf from 'html2pdf.js';
 import { BaeCalculationSection } from '../BaeCalculationSection/BaeCalculationSection';
@@ -4358,8 +4358,18 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
 
               {sortConceptos(
                 conceptos.filter(concept => concept.tipo !== 'CATEGORIA_ZONA')
-              ).map(concept => (
-                <div key={concept.uid} className="concept-row">
+              ).map((concept, idx, arr) => {
+                const esDesc = isDeduction(concept);
+                const nuevoGrupo = idx === 0 || isDeduction(arr[idx - 1]) !== esDesc;
+                const posEnGrupo = arr.slice(0, idx).filter(c => isDeduction(c) === esDesc).length;
+                return (
+                <React.Fragment key={concept.uid}>
+                {nuevoGrupo && (
+                  <div className={`concept-group-label ${esDesc ? 'group-descuentos' : 'group-remuneraciones'}`}>
+                    {esDesc ? 'Descuentos' : 'Remuneraciones'}
+                  </div>
+                )}
+                <div className={`concept-row ${esDesc ? 'descuento-row' : ''} ${posEnGrupo % 2 ? 'row-alt' : ''}`}>
                   <div className="concept-cell">
                     {concept.isManual ? (
                       <input
@@ -4490,7 +4500,7 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                           </div>
                         ) : (
                           <div className="amount-editable" onMouseDown={(e) => e.stopPropagation()}>
-                            <span className="amount negative">{formatCurrencyAR(Math.abs(concept.total || 0))}</span>
+                            <span className="amount negative">{`− ${formatCurrencyAR(Math.abs(concept.total || 0))}`}</span>
                             <Edit className="edit-icon" onClick={() => startEditAmount(concept)} />
                           </div>
                         )}
@@ -4517,7 +4527,9 @@ export function ProcessPayrollModal({ isOpen, onClose, onProcess, employees, ini
                     </div>
                   </div>
                 </div>
-              ))}
+                </React.Fragment>
+                );
+              })}
             </div>
 
             <div className="totals-summary">

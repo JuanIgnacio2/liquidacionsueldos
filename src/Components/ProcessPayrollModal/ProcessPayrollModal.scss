@@ -2136,3 +2136,78 @@
     }
   }
 }
+
+/* ====== Estilo unificado de tarjetas y tabla de conceptos ====== */
+.process-payroll-modal .payroll-form {
+  .liquidation-type-selector,
+  .concepts-section {
+    border-left: 4px solid $color-green-primary;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .concepts-section {
+    padding: $spacing-4;
+    background: $color-gray-50;
+    border: 1px solid $color-gray-200;
+    border-left: 4px solid $color-green-primary;
+    border-radius: $border-radius-lg;
+
+    .concepts-table {
+      background: $color-white;
+
+      .table-header {
+        background: $color-green-primary;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: $font-size-xs;
+      }
+
+      .concept-group-label {
+        padding: $spacing-2 $spacing-3;
+        background: $color-gray-100;
+        font-size: $font-size-xs;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+
+        &.group-remuneraciones {
+          color: $color-green-dark;
+        }
+
+        &.group-descuentos {
+          color: #dc2626;
+        }
+      }
+
+      .concept-row {
+        background: rgba(34, 197, 94, 0.05);
+        box-shadow: inset 3px 0 0 $color-green-primary;
+
+        &.row-alt {
+          background: rgba(34, 197, 94, 0.11);
+        }
+
+        &:hover {
+          background: rgba(34, 197, 94, 0.2);
+        }
+
+        .amount {
+          font-variant-numeric: tabular-nums;
+        }
+
+        &.descuento-row {
+          background: rgba(239, 68, 68, 0.04);
+          box-shadow: inset 3px 0 0 #dc2626;
+
+          &.row-alt {
+            background: rgba(239, 68, 68, 0.08);
+          }
+
+          &:hover {
+            background: rgba(239, 68, 68, 0.14);
+          }
+        }
+      }
+    }
+  }
+}

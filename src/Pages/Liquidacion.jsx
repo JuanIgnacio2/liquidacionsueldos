@@ -85,11 +85,10 @@ export default function Liquidacion() {
     try {
       // Cargar detalles de la liquidación desde la API
       const detalle = await api.getDetallePago(liquidacion.id || liquidacion.idPago);
-      console.log("detalle", detalle);
+      
       setPayrollDetails(detalle);
     } catch (error) {
       notify.error('Error al cargar detalles de la liquidación');
-      notify('No se pudieron cargar los detalles de la liquidación.');
     } finally {
       setLoadingDetails(false);
     }
@@ -138,18 +137,16 @@ export default function Liquidacion() {
   };
 
   const handleProcessPayroll = (result) => {
-    notify('Procesamiento completado:', result);
+    notify.success('Procesamiento completado');
     // Actualizar la lista de liquidaciones después de procesar
     loadPayrolls();
   };
 
   const handlePrintPayroll = (payroll) => {
-    notify('Imprimiendo liquidación:', payroll.periodName);
     window.print();
   };
 
   const handleDownloadPayroll = (payroll) => {
-    notify('Descargando liquidación:', payroll.periodName);
     const link = document.createElement('a');
     link.href = `data:text/plain;charset=utf-8,Liquidación ${payroll.periodName}`;
     link.download = `liquidacion_${payroll.period}.txt`;
